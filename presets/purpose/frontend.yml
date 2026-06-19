@@ -1,0 +1,7 @@
+artifacts:
+  src:    { enabled: true }
+  public: { enabled: true }
+
+validation:
+  pnpm_checks:
+    checks: [check-secrets, check-fonts, check-colors]

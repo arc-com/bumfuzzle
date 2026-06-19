@@ -1,0 +1,4 @@
+validation:
+  githooks_installed:
+    enabled: true
+    selected_hints: [run_install_hooks]

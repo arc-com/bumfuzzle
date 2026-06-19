@@ -1,0 +1,376 @@
+validation:
+  required_files:
+    enabled: true
+    description: "Required files are present"
+    error: "Required file missing: {file}"
+    hints:
+      create_file: "Create the missing file or remove it from validation.required_files.files"
+    selected_hints: [create_file]
+
+  required_dirs:
+    enabled: true
+    description: "Required directories are present"
+    error: "Required directory missing: {dir}"
+    hints:
+      create_dir: "Create the missing directory: mkdir -p <dir>"
+    selected_hints: [create_dir]
+
+  githooks_installed:
+    enabled: true
+    description: "Installed hooks match .githooks sources"
+    error: "{hook} hook is out of sync ({detail})"
+    hints:
+      run_install_hooks: "Run: scripts/hooks.sh --force"
+    selected_hints: [run_install_hooks]
+
+  gitignore_patterns:
+    enabled: false
+    description: ".gitignore contains all required patterns"
+    error: "Missing required pattern in .gitignore: {pattern}"
+    hints:
+      add_pattern: "Add the missing pattern to .gitignore"
+    selected_hints: [add_pattern]
+
+  git_no_ai_coauthors:
+    enabled: true
+    description: "No AI co-authored commits in git history"
+    error: "{count} commit(s) with AI co-authorship detected (most recent: {recent})"
+    hints:
+      review: "Review commits: git log --grep='Co-Authored-By: Claude' -i --oneline"
+    selected_hints: [review]
+
+  env_no_unknown_keys:
+    enabled: true
+    description: "No .env file contains keys not declared in .env.template"
+    error: "{file} has undeclared keys: {details}"
+    hints:
+      remove_or_declare: "Remove the key from the .env file, or declare it in .env.template"
+    selected_hints: [remove_or_declare]
+
+  env_no_missing_keys:
+    enabled: true
+    description: "Every .env file contains all keys declared in .env.template"
+    error: "{file} is missing template keys: {details}"
+    hints:
+      add_from_template: "Add the missing key(s) to the .env file (copy from .env.template)"
+    selected_hints: [add_from_template]
+
+  env_accounted_for:
+    enabled: true
+    description: "All .env.template vars are accounted for"
+    error: "Env var in .env.template is not accounted for: {var}"
+    hints:
+      declare_in_preflight: "Add the var to env.compose.vars or env.tools.vars in bumfuzzle.yml"
+    selected_hints: [declare_in_preflight]
+
+  env_required_present:
+    enabled: true
+    description: "Required vars are non-empty in their target env files"
+    error: "{file} must set a non-empty value for {var}"
+    hints:
+      set_value: "Set a non-empty value for the required var in the target .env file"
+    selected_hints: [set_value]
+
+  env_no_blank_values:
+    enabled: true
+    description: "No .env file has blank values"
+    error: "{file} has blank value for {var}"
+    hints:
+      recommend_placeholder: "Add a non-empty placeholder: KEY=<placeholder>"
+      recommend_mock: "Use a mock value for local dev: KEY=mock-value"
+    selected_hints: [recommend_placeholder]
+
+  service_configs_declared:
+    enabled: true
+    description: "All runtime service stacks have a config file"
+    error: "Runtime stack '{stack}' is missing config.{stack}.yml"
+    hints:
+      create_config: "Create config.{stack}.yml for the stack"
+    selected_hints: [create_config]
+
+  compose_config_valid:
+    enabled: true
+    description: "Docker Compose files render successfully for each environment and stack"
+    error: "Compose config failed for env '{env}', stack '{stack}': {details}"
+    hints:
+      debug_compose: "Debug with: docker compose -f docker-compose.<stack>.yml --env-file .env.<env> config"
+    selected_hints: [debug_compose]
+
+  compose_build_contexts_present:
+    enabled: true
+    description: "Docker Compose build contexts exist"
+    error: "Compose build context missing for stack '{stack}', service '{service}': {context}"
+    hints:
+      create_context: "Create the build context directory or fix the path in the compose file"
+    selected_hints: [create_context]
+
+  no_external_images:
+    enabled: false
+    description: "Docker Compose services use only local builds or allowlisted images"
+    error: "Service '{service}' in {file} uses external image '{image}' (not in docker.image_allowlist)"
+    hints:
+      add_build: "Add a build context to the service instead of pulling an external image"
+      add_to_allowlist: "Add the image to docker.image_allowlist in preflight.yml"
+    selected_hints: [add_to_allowlist]
+
+  config_vars_in_template:
+    enabled: true
+    description: "All vars referenced in config files are declared in .env.template"
+    error: "Var referenced in {file} not found in .env.template: {var}"
+    hints:
+      add_to_template: "Add the var to .env.template"
+    selected_hints: [add_to_template]
+
+  config_extends_valid:
+    enabled: false
+    description: "Config file extends references point to existing files"
+    error: "{file} extends '{extends}' which does not exist"
+    hints:
+      fix_extends: "Create the referenced config file or correct the extends path"
+    selected_hints: [fix_extends]
+
+  single_package_manager:
+    enabled: true
+    severity: hard-stop
+    description: "Project root declares exactly one package manager"
+    error: "Multiple package managers detected in project root: {details}"
+    hints:
+      remove_extra: "Remove all but one package manager manifest from the project root"
+    selected_hints: [remove_extra]
+
+  pnpm_checks:
+    enabled: true
+    description: "pnpm quality checks pass"
+    error: "pnpm check failed"
+    hints:
+      run_locally: "Run the failing check locally to see the full output: pnpm <check>"
+    selected_hints: [run_locally]
+
+  maven_checks:
+    enabled: false
+    description: "Maven project compiles successfully"
+    error: "Maven compile failed"
+    hints:
+      run_locally: "Run: mvn compile to see the full error output"
+    selected_hints: [run_locally]
+
+  gradle_checks:
+    enabled: false
+    description: "Gradle project tests pass"
+    error: "Gradle test failed"
+    hints:
+      run_locally: "Run: ./gradlew test --no-daemon to see the full error output"
+    selected_hints: [run_locally]
+
+  lifecycle_scripts_present:
+    enabled: false
+    description: "Lifecycle scripts are present and have description comments"
+    error: "{issue}"
+    hints:
+      create_script: "Create the missing script — see templates/lifecycle/ in the preflight framework"
+      add_comment: "Add a description comment on line 2: # <script>.sh — <description>"
+    selected_hints: [create_script, add_comment]
+
+  preflight_config_valid:
+    enabled: true
+    description: "bumfuzzle.yml config is valid"
+    error: "{issue}"
+    hints:
+      set_project_name: "Set project.name in bumfuzzle.yml"
+      fix_preset: "Valid presets are: bare, backend, frontend, workspace"
+      fix_project_type: "Set project.type to 'main' or 'workspace' in bumfuzzle.yml"
+      fix_selected_hints: "Remove the invalid key from selected_hints, or add it to the rule's hints in settings.yml"
+      fix_env_required: "Update env.required to use names declared in environments.values"
+      fix_enabled_type: "Set enabled to a boolean: enabled: true (not quoted)"
+      fix_list_type: "Set the field to a YAML list: field: [item1, item2]"
+      fix_severity: "Set severity to one of: skip, warn, error, hard-stop"
+    selected_hints: [set_project_name, fix_preset, fix_project_type, fix_selected_hints, fix_env_required, fix_enabled_type, fix_list_type, fix_severity]
+
+scaffold:
+  git:
+    init: true
+    hooks: true
+  editor:
+    vscode: true
+    claude: true
+  steps:
+    git_init: true
+    githooks: true
+    directories: true
+    gitignore: true
+    env_files: true
+    bumfuzzle_yml: true
+    rules: true
+    deploy_sh: true
+    start_sh: true
+    stop_sh: true
+    vscode_settings: true
+    claude_settings: true
+    dependencies: true
+    docker_compose: true
+    readme: true
+    initial_commit: true
+
+artifacts:
+  docs:          { path: docs,                     type: dir,     default: true  }
+  tmp:           { path: tmp,                      type: dir,     default: true  }
+  backup:        { path: backup,                   type: dir,     default: true  }
+  scripts:       { path: scripts,                  type: dir,     default: true  }
+  services:      { path: services,                 type: dir,     default: false }
+  config_dir:    { path: config,                   type: dir,     default: false }
+  src:           { path: src,                      type: dir,     default: false }
+  public:        { path: public,                   type: dir,     default: false }
+  gitignore:     { path: .gitignore,               type: file,    default: true  }
+  readme:        { path: README.md,                type: file,    default: true  }
+  bumfuzzle:     { path: bumfuzzle.yml,            type: file,    default: true  }
+  env_template:  { path: .env.template,            type: file,    default: true  }
+  deploy:        { path: scripts/deploy.sh,        type: file,    default: true  }
+  start:         { path: scripts/start.sh,         type: file,    default: true  }
+  stop:          { path: scripts/stop.sh,          type: file,    default: true  }
+  hooks:         { path: scripts/hooks.sh,          type: file,    default: true  }
+  agents_md:     { path: AGENTS.md,                type: file,    default: false }
+  claude_md:     { path: CLAUDE.md,                type: file,    default: false }
+  env_file:
+    path: .env.{{VALUE}}
+    type: pattern
+    foreach: environments.values
+    default: true
+  docker_compose:
+    path: docker-compose.{{VALUE}}.yml
+    type: pattern
+    foreach: stacks.values
+    default: false
+
+gitignore:
+  fragments:
+    macos:
+      - "**/.DS_Store"
+      - ".DS_Store"
+    editors:
+      - ".idea/"
+      - "*.swp"
+      - "*.orig"
+      - "*.iml"
+    tmp:
+      - "tmp/"
+      - "backup/"
+      - ".session/"
+      - "docs/"
+    secrets:
+      - ".env.*"
+      - "!.env.template"
+    claude:
+      - ".claude/"
+      - "CLAUDE.md"
+      - "AGENTS.md"
+    node:
+      - "node_modules/"
+      - "dist/"
+      - ".next/"
+      - ".turbo/"
+      - ".parcel-cache/"
+    java:
+      - "target/"
+      - "*.class"
+      - "*.jar"
+      - ".gradle/"
+      - "build/"
+    python:
+      - "__pycache__/"
+      - "*.pyc"
+      - "*.pyo"
+      - ".venv/"
+      - "dist/"
+      - "*.egg-info/"
+    rust:
+      - "target/"
+      - "Cargo.lock"
+    docker:
+      - ".docker/"
+      - "*.log"
+  defaults:
+    common:
+      - macos
+      - editors
+      - tmp
+      - secrets
+      - claude
+    by_purpose:
+      backend:
+        - docker
+      frontend:
+        - node
+    by_manifest:
+      package.json:
+        - node
+      pom.xml:
+        - java
+      build.gradle:
+        - java
+      build.gradle.kts:
+        - java
+      pyproject.toml:
+        - python
+      requirements.txt:
+        - python
+      Cargo.toml:
+        - rust
+
+lifecycle:
+  scripts:
+    - deploy.sh
+    - start.sh
+    - stop.sh
+
+docker:
+  config_exempt_stacks: []
+
+project:
+  valid_types: [main, workspace]
+  package_managers:
+    - { manifest: Package.swift,     purpose: backend,  manifest_preset: ""           }
+    - { manifest: composer.json,     purpose: backend,  manifest_preset: ""           }
+    - { manifest: Gemfile,           purpose: backend,  manifest_preset: ""           }
+    - { manifest: Cargo.toml,        purpose: backend,  manifest_preset: ""           }
+    - { manifest: pyproject.toml,    purpose: backend,  manifest_preset: ""           }
+    - { manifest: requirements.txt,  purpose: backend,  manifest_preset: ""           }
+    - { manifest: package.json,      purpose: frontend, manifest_preset: pnpm         }
+    - { manifest: pom.xml,           purpose: backend,  manifest_preset: maven-gradle }
+    - { manifest: build.gradle,      purpose: backend,  manifest_preset: maven-gradle }
+    - { manifest: build.gradle.kts,  purpose: backend,  manifest_preset: maven-gradle }
+
+preflight:
+  valid_severities: [skip, warn, error, hard-stop]
+
+defaults:
+  type: bare
+  environments:
+    - local
+    - test
+    - prod
+
+initial_commit:
+  message: "chore: scaffold {{PROJECT_NAME}}"
+
+wizard:
+  questions:
+    - key: type
+      prompt: "Project purpose"
+      choices: [backend, frontend, workspace, bare]
+      default: bare
+    - key: name
+      prompt: "Project name (blank = directory name)"
+      default: ""
+    - key: docker
+      prompt: "Include Docker Compose?"
+      choices: [y, n]
+      default: "y"
+      only_types: [backend]
+    - key: vscode
+      prompt: "Include VS Code settings?"
+      choices: [y, n]
+      default: "y"
+    - key: claude
+      prompt: "Include Claude AI settings?"
+      choices: [y, n]
+      default: "y"

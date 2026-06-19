@@ -1,0 +1,60 @@
+project:
+  name: {{PROJECT_NAME}}
+
+preset: frontend
+
+environments:
+  values:
+    - local
+    - prod
+
+env:
+  vars: []
+  required:
+    prod: []
+
+artifacts:
+  docs:           { enabled: true  }
+  tmp:            { enabled: true  }
+  backup:         { enabled: true  }
+  scripts:        { enabled: true  }
+  services:       { enabled: false }
+  config_dir:     { enabled: false }
+  src:            { enabled: true  }
+  public:         { enabled: true  }
+  gitignore:      { enabled: true  }
+  readme:         { enabled: true  }
+  bumfuzzle:      { enabled: true  }
+  env_template:   { enabled: true  }
+  deploy:         { enabled: true  }
+  start:          { enabled: true  }
+  stop:           { enabled: true  }
+  hooks:          { enabled: true  }
+  agents_md:      { enabled: false }
+  claude_md:      { enabled: false }
+  env_file:       { enabled: true  }
+  docker_compose: { enabled: false }
+
+validation:
+  required_files:               { enabled: false }
+  required_dirs:                { enabled: false }
+  githooks_installed:           { enabled: true  }
+  gitignore_patterns:        { enabled: true }
+  git_no_ai_coauthors:          { enabled: true  }
+  env_no_unknown_keys:          { enabled: true  }
+  env_no_missing_keys:          { enabled: true  }
+  env_accounted_for:            { enabled: true  }
+  env_required_present:         { enabled: true  }
+  env_no_blank_values:          { enabled: true  }
+  service_configs_declared:     { enabled: false }
+  compose_config_valid:         { enabled: false }
+  compose_build_contexts_present: { enabled: false }
+  no_external_images:           { enabled: false }
+  config_vars_in_template:      { enabled: true  }
+  config_extends_valid:         { enabled: false }
+  single_package_manager:       { enabled: true  }
+  pnpm_checks:                  { enabled: true  }
+  maven_checks:                 { enabled: false }
+  gradle_checks:                { enabled: false }
+  lifecycle_scripts_present:    { enabled: false }
+  preflight_config_valid:       { enabled: true  }

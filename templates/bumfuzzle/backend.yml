@@ -1,0 +1,68 @@
+project:
+  name: {{PROJECT_NAME}}
+
+preset: backend
+
+environments:
+  values:
+    - local
+    - test
+    - prod
+
+stacks:
+  values:
+    - app
+
+env:
+  compose:
+    vars: []
+  tools:
+    vars: []
+  required:
+    local: []
+
+artifacts:
+  docs:           { enabled: true  }
+  tmp:            { enabled: true  }
+  backup:         { enabled: true  }
+  scripts:        { enabled: true  }
+  services:       { enabled: true  }
+  config_dir:     { enabled: true  }
+  src:            { enabled: false }
+  public:         { enabled: false }
+  gitignore:      { enabled: true  }
+  readme:         { enabled: true  }
+  bumfuzzle:      { enabled: true  }
+  env_template:   { enabled: true  }
+  deploy:         { enabled: true  }
+  start:          { enabled: true  }
+  stop:           { enabled: true  }
+  hooks:          { enabled: true  }
+  agents_md:      { enabled: false }
+  claude_md:      { enabled: false }
+  env_file:       { enabled: true  }
+  docker_compose: { enabled: true  }
+
+validation:
+  required_files:               { enabled: false }
+  required_dirs:                { enabled: false }
+  githooks_installed:           { enabled: true  }
+  gitignore_patterns:        { enabled: true }
+  git_no_ai_coauthors:          { enabled: true  }
+  env_no_unknown_keys:          { enabled: true  }
+  env_no_missing_keys:          { enabled: true  }
+  env_accounted_for:            { enabled: true  }
+  env_required_present:         { enabled: true  }
+  env_no_blank_values:          { enabled: true  }
+  service_configs_declared:     { enabled: false }
+  compose_config_valid:         { enabled: true  }
+  compose_build_contexts_present: { enabled: true }
+  no_external_images:           { enabled: true  }
+  config_vars_in_template:      { enabled: true  }
+  config_extends_valid:         { enabled: true  }
+  single_package_manager:       { enabled: true  }
+  pnpm_checks:                  { enabled: true  }
+  maven_checks:                 { enabled: false }
+  gradle_checks:                { enabled: false }
+  lifecycle_scripts_present:    { enabled: true  }
+  preflight_config_valid:       { enabled: true  }
