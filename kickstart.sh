@@ -4,14 +4,14 @@ set -euo pipefail
 # Resolve real script location even when called via symlink
 SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do SOURCE="$(readlink "$SOURCE")"; done
-KICKOFF_REPO="$(cd "$(dirname "$SOURCE")" && pwd)"
-KICKOFF_VERSION="$(cat "$KICKOFF_REPO/VERSION" 2>/dev/null || printf 'unknown')"
-TEMPLATES="$KICKOFF_REPO/templates"
+KICKSTART_REPO="$(cd "$(dirname "$SOURCE")" && pwd)"
+KICKSTART_VERSION="$(cat "$KICKSTART_REPO/VERSION" 2>/dev/null || printf 'unknown')"
+TEMPLATES="$KICKSTART_REPO/templates"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
 DRY_RUN=false
-log()  { printf '[kickoff] %s\n' "$*"; }
+log()  { printf '[kickstart] %s\n' "$*"; }
 skip() { printf '[skip]    %s\n' "$*"; }
 warn() { printf '[warn]    %s\n' "$*" >&2; }
 
@@ -84,7 +84,7 @@ detect_manifests() {
     local _seen=false _pt
     for _pt in "${_purposes[@]:-}"; do [[ "$_pt" == "$_pm_purpose" ]] && _seen=true && break; done
     [[ "$_seen" == false ]] && _purposes+=("$_pm_purpose")
-  done < <(yq '.project.package_managers[] | .manifest + "|" + .purpose' "$KICKOFF_REPO/settings.yml" 2>/dev/null)
+  done < <(yq '.project.package_managers[] | .manifest + "|" + .purpose' "$KICKSTART_REPO/settings.yml" 2>/dev/null)
 
   case "${#_purposes[@]}" in
     0) _DETECTED_PURPOSE="bare" ;;
@@ -99,8 +99,8 @@ detect_manifests() {
 # ── Usage ─────────────────────────────────────────────────────────────────────
 
 usage() {
-  printf 'kickoff v%s — scaffold a project in the current directory\n\n' "$KICKOFF_VERSION" >&2
-  printf 'Usage: kickoff [options]\n\n' >&2
+  printf 'kickstart v%s — scaffold a project in the current directory\n\n' "$KICKSTART_VERSION" >&2
+  printf 'Usage: kickstart [options]\n\n' >&2
   printf 'Options:\n' >&2
   printf '  --config <file>                       Config override (default: settings.yml)\n' >&2
   printf '  --dry-run                             Print steps without executing\n' >&2
@@ -161,7 +161,7 @@ fi
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-[[ -z "$CONFIG_FILE" ]] && CONFIG_FILE="$KICKOFF_REPO/settings.yml"
+[[ -z "$CONFIG_FILE" ]] && CONFIG_FILE="$KICKSTART_REPO/settings.yml"
 
 if ! command -v yq &>/dev/null; then
   printf 'Error: yq is required\n' >&2; exit 1
@@ -175,13 +175,13 @@ _scaffold_merged=$(mktemp)
 
 _build_scaffold_merged() {
   if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-    yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKOFF_REPO/settings.yml" "$PROJECT_DIR/bumfuzzle.yml" > "$_scaffold_merged"
+    yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKSTART_REPO/settings.yml" "$PROJECT_DIR/bumfuzzle.yml" > "$_scaffold_merged"
   else
-    local _pf="$KICKOFF_REPO/presets/purpose/${PROJECT_TYPE}.yml"
+    local _pf="$KICKSTART_REPO/presets/purpose/${PROJECT_TYPE}.yml"
     if [[ -f "$_pf" ]]; then
-      yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKOFF_REPO/settings.yml" "$_pf" > "$_scaffold_merged"
+      yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKSTART_REPO/settings.yml" "$_pf" > "$_scaffold_merged"
     else
-      cp "$KICKOFF_REPO/settings.yml" "$_scaffold_merged"
+      cp "$KICKSTART_REPO/settings.yml" "$_scaffold_merged"
     fi
   fi
 }
@@ -197,7 +197,7 @@ scaffold_enabled() {
 
 artifact_enabled() {
   local _val
-  _val=$(yq "(.artifacts.${1}.enabled // .artifacts.${1}.default) // \"false\"" "$_scaffold_merged" 2>/dev/null || echo "false")
+  _val=$(yq "(.artifacts.${1}.enabled) // \"false\"" "$_scaffold_merged" 2>/dev/null || echo "false")
   [[ "$_val" == "true" ]]
 }
 
@@ -218,24 +218,24 @@ step_enabled() {
 
 # ── Header ────────────────────────────────────────────────────────────────────
 
-printf '\n-- kickoff v%s (%s: %s) %s\n' \
-  "$KICKOFF_VERSION" "$PROJECT_TYPE" "$PROJECT_NAME" \
+printf '\n-- kickstart v%s (%s: %s) %s\n' \
+  "$KICKSTART_VERSION" "$PROJECT_TYPE" "$PROJECT_NAME" \
   "$(printf '%0.s-' {1..40})"
 [[ "$DRY_RUN" == true ]] && log "dry-run mode — no changes will be made"
 
 # ── Source domains and run setup in sequence ──────────────────────────────────
 
-. "$KICKOFF_REPO/domains/git.sh"
-. "$KICKOFF_REPO/domains/hooks.sh"
-. "$KICKOFF_REPO/domains/rules.sh"
-. "$KICKOFF_REPO/domains/structure.sh"
-. "$KICKOFF_REPO/domains/env.sh"
-. "$KICKOFF_REPO/domains/preflight-config.sh"
-. "$KICKOFF_REPO/domains/lifecycle.sh"
-. "$KICKOFF_REPO/domains/editor.sh"
-. "$KICKOFF_REPO/domains/dependencies.sh"
-. "$KICKOFF_REPO/domains/docker.sh"
-. "$KICKOFF_REPO/domains/config.sh"
+. "$KICKSTART_REPO/domains/git.sh"
+. "$KICKSTART_REPO/domains/hooks.sh"
+. "$KICKSTART_REPO/domains/rules.sh"
+. "$KICKSTART_REPO/domains/structure.sh"
+. "$KICKSTART_REPO/domains/env.sh"
+. "$KICKSTART_REPO/domains/preflight-config.sh"
+. "$KICKSTART_REPO/domains/lifecycle.sh"
+. "$KICKSTART_REPO/domains/editor.sh"
+. "$KICKSTART_REPO/domains/dependencies.sh"
+. "$KICKSTART_REPO/domains/docker.sh"
+. "$KICKSTART_REPO/domains/config.sh"
 
 git_setup
 hooks_setup

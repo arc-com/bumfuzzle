@@ -28,7 +28,7 @@ link_tool() {
 
 printf '\nbumfuzzle v%s — global install\n\n' "$VERSION"
 
-link_tool kickoff  "$REPO/kickoff.sh"
+link_tool kickstart  "$REPO/kickstart.sh"
 link_tool wizard   "$REPO/wizard.sh"
 link_tool preflight "$REPO/preflight.sh"
 
@@ -43,4 +43,4 @@ else
   printf '[ok]     %s is on your PATH\n' "$BIN_DIR"
 fi
 
-printf '\nDone. Run: kickoff --help\n\n'
+printf '\nDone. Run: kickstart --help\n\n'

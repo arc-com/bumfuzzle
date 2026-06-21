@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="config.js"></script>
+<title>bumfuzzle wizard</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3e;
+  --text: #e2e8f0; --muted: #475569; --accent: #6366f1;
+  --accent-dim: #4f46e5; --success: #22c55e; --error: #ef4444;
+  --radius: 8px; --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
+#app { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; }
+h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 4px; }
+.subtitle { color: var(--muted); font-size: 13px; margin-bottom: 32px; }
+.path-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; font-size: 12px; font-family: var(--mono); color: var(--muted); word-break: break-all; margin-bottom: 28px; }
+.path-box strong { color: var(--text); }
+.section { margin-bottom: 28px; }
+.section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.section-subtitle { font-size: 11px; color: var(--muted); margin-bottom: 10px; line-height: 1.6; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.field input[type=text] { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 14px; padding: 8px 12px; outline: none; transition: border-color 0.15s; font-family: inherit; }
+.field input[type=text]:focus { border-color: var(--accent); }
+.badge { display: inline-block; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 12px; font-family: var(--mono); }
+
+/* ── Tree ──────────────────────────────────────────────────────────────────── */
+.tree { font-family: var(--mono); font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 4px; }
+.tree-root { color: var(--muted); padding: 2px 10px 6px; font-size: 13px; }
+.tree-row { display: flex; align-items: center; padding: 2px 6px; border-radius: 4px; cursor: pointer; user-select: none; min-height: 22px; }
+.tree-row:hover:not(.is-locked):not(.is-required) { background: rgba(99,102,241,0.07); }
+.tree-row.is-locked   { opacity: 0.35; cursor: not-allowed; }
+.tree-row.is-required { cursor: not-allowed; }
+.tree-prefix   { color: var(--muted); white-space: pre; flex-shrink: 0; }
+.tree-expander { width: 16px; flex-shrink: 0; color: var(--muted); font-size: 9px; text-align: center; }
+.tree-expander:hover { color: var(--text); }
+.tree-cb { width: 13px; height: 13px; border: 1.5px solid var(--border); border-radius: 3px; margin: 0 7px 0 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: background 0.1s, border-color 0.1s; font-size: 9px; color: #fff; line-height: 1; }
+.tree-row.is-present .tree-cb { background: var(--success); border-color: var(--success); }
+.tree-row.is-present .tree-cb::after { content: '✓'; }
+.tree-row.is-absent  .tree-cb { background: var(--error); border-color: var(--error); }
+.tree-row.is-absent  .tree-cb::after { content: '✗'; }
+.tree-name { color: var(--muted); }
+.tree-row.is-present .tree-name { color: var(--text); }
+.tree-row.is-absent  .tree-name { color: #fca5a5; }
+.tree-name.is-dir { color: #334155; }
+.tree-row.is-present .tree-name.is-dir { color: #93c5fd; }
+.tree-row.is-absent  .tree-name.is-dir { color: #f87171; }
+.tree-add { display: flex; gap: 6px; margin: 8px 10px 2px; }
+.tree-add input { flex: 1; background: transparent; border: 1px dashed var(--border); border-radius: 4px; color: var(--muted); font-size: 12px; font-family: var(--mono); padding: 4px 8px; outline: none; }
+.tree-add input:focus { border-color: var(--accent); color: var(--text); }
+.tree-add input::placeholder { color: #334155; }
+.tree-add button { background: transparent; border: 1px dashed var(--border); border-radius: 4px; color: var(--muted); font-size: 11px; padding: 4px 10px; cursor: pointer; white-space: nowrap; font-family: inherit; }
+.tree-add button:hover { border-color: var(--accent); color: var(--text); }
+
+/* ── Chips ─────────────────────────────────────────────────────────────────── */
+.chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 28px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px 8px 3px 11px; font-size: 12px; font-family: var(--mono); color: var(--text); }
+.chip-x { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 1px; }
+.chip-x:hover { color: var(--error); }
+.chip-empty { font-size: 12px; color: var(--muted); font-style: italic; }
+
+/* ── Add row ───────────────────────────────────────────────────────────────── */
+.add-row { display: flex; gap: 7px; margin-top: 7px; }
+.add-row input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 12px; font-family: var(--mono); padding: 6px 10px; outline: none; }
+.add-row input:focus { border-color: var(--accent); }
+.add-row button { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--muted); font-size: 12px; padding: 6px 12px; cursor: pointer; font-family: inherit; }
+.add-row button:hover { border-color: var(--accent); color: var(--text); }
+
+/* ── Toast ─────────────────────────────────────────────────────────────────── */
+#toast-container { position: fixed; top: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; align-items: flex-end; }
+.toast { background: #1e1b4b; border: 1px solid #4338ca; border-radius: var(--radius); padding: 8px 14px; font-size: 12px; color: #a5b4fc; max-width: 280px; opacity: 0; transform: translateX(8px); transition: opacity 0.18s, transform 0.18s; }
+.toast.visible { opacity: 1; transform: translateX(0); }
+
+/* ── Save ──────────────────────────────────────────────────────────────────── */
+.btn-save { width: 100%; background: var(--accent); border: none; border-radius: var(--radius); color: #fff; font-size: 15px; font-weight: 600; padding: 13px; cursor: pointer; }
+.btn-save:hover { background: var(--accent-dim); }
+.btn-save:disabled { background: var(--muted); cursor: default; }
+.msg { margin-top: 12px; padding: 10px 14px; border-radius: var(--radius); font-size: 13px; display: none; }
+.msg.success { background: #14532d33; border: 1px solid var(--success); color: var(--success); display: block; }
+.msg.error   { background: #7f1d1d33; border: 1px solid var(--error);   color: var(--error);   display: block; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+if (!window.__CONFIG) { document.getElementById('app').textContent = 'Run wizard.sh to open this page — do not open it directly.'; throw new Error('no config'); }
+const CONFIG = window.__CONFIG;
+const S    = CONFIG.settings;
+const C    = CONFIG.current;
+const META = CONFIG.meta;
+
+// ── static data ───────────────────────────────────────────────────────────────
+
+const wizDirs  = (S.wizard && S.wizard.directories) || [];
+const wizFiles = ((S.wizard && S.wizard.files) || []).filter(f =>
+  !f.only_purposes || !f.only_purposes.length || f.only_purposes.includes(META.detectedPurpose)
+);
+
+const TOOL_DEFS = S.tools || {};
+const TOOL_KEYS = Object.keys(TOOL_DEFS);
+
+const FRAG_DEFS     = (S.gitignore && S.gitignore.fragments) || {};
+const GITI_FRAGS    = Object.keys(FRAG_DEFS);
+const gitiCommon    = (S.gitignore && S.gitignore.defaults && S.gitignore.defaults.common) || [];
+const gitiByPurpose = ((S.gitignore && S.gitignore.defaults && S.gitignore.defaults.by_purpose) || {})[META.detectedPurpose] || [];
+const GITI_DEFAULTS = new Set([...gitiCommon, ...gitiByPurpose]);
+
+// ── tree (static nodes only — foreach entries are expanded at render time) ────
+
+function buildStaticTree() {
+  const byPath = {};
+  const roots  = [];
+  const allEntries = [
+    ...wizDirs.map(d  => ({ ...d,  isDir: true,  nodePath: d.label.replace(/\/$/, '') })),
+    ...wizFiles.map(f => ({ ...f,  isDir: false, nodePath: f.foreach ? null : f.label })),
+  ].filter(e => e.nodePath !== null);
+
+  for (const e of allEntries) byPath[e.nodePath] = { ...e, children: [] };
+  for (const e of allEntries) {
+    const node = byPath[e.nodePath];
+    const slash = e.nodePath.lastIndexOf('/');
+    const par   = slash >= 0 ? e.nodePath.substring(0, slash) : null;
+    if (par && byPath[par]) byPath[par].children.push(node);
+    else roots.push(node);
+  }
+
+  // foreach entries injected flat at root level (they are never children in settings)
+  wizFiles.filter(f => f.foreach).forEach(f => roots.push({ ...f, isDir: false, children: [] }));
+
+  return roots;
+}
+
+const STATIC_TREE = buildStaticTree();
+
+function allStaticNodes() {
+  const out = [];
+  (function walk(ns) { ns.forEach(n => { out.push(n); walk(n.children || []); }); })(STATIC_TREE);
+  return out;
+}
+
+// Map from child key → parent node (for ancestor-absence checks)
+function buildParentMap() {
+  const map = {};
+  (function walk(nodes, parent) {
+    nodes.forEach(n => { if (parent) map[n.key] = parent; walk(n.children || [], n); });
+  })(STATIC_TREE, null);
+  return map;
+}
+const PARENT_MAP = buildParentMap();
+
+function hasAbsentAncestor(key) {
+  let p = PARENT_MAP[key];
+  while (p) {
+    if (state.checked[p.key] === 'absent') return p;
+    p = PARENT_MAP[p.key];
+  }
+  return null;
+}
+
+function findPresentDescendant(node) {
+  for (const child of (node.children || [])) {
+    if (state.checked[child.key] === 'present') return child;
+    const found = findPresentDescendant(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+// ── state helpers ─────────────────────────────────────────────────────────────
+
+// tri-state for artifacts: 'present' | 'absent' | null
+// binary for steps:        'present' | null
+function defaultCheckState(node) {
+  if (node.kind === 'step') {
+    const v = C.scaffold && C.scaffold.steps && C.scaffold.steps[node.key];
+    return (v === false || node.wizard_default === false) ? null : 'present';
+  }
+  const art = C.artifacts && C.artifacts[node.key];
+  if (art) {
+    if (art.absent) return 'absent';
+    if (art.enabled === true)  return 'present';
+    if (art.enabled === false) return null;
+  }
+  return node.wizard_default !== false ? 'present' : null;
+}
+
+function initToolEnabled(k) {
+  const def = TOOL_DEFS[k];
+  if (!def) return false;
+  const ov = C.tools && C.tools[k];
+  if (typeof ov === 'boolean') return ov;
+  if (ov && typeof ov.enabled === 'boolean') return ov.enabled;
+  return def.enabled !== false;
+}
+
+function initModuleEnabled(toolKey, mk) {
+  const mdef = (TOOL_DEFS[toolKey] && TOOL_DEFS[toolKey].modules && TOOL_DEFS[toolKey].modules[mk]) || {};
+  const ov   = C.tools && C.tools[toolKey] && C.tools[toolKey].modules && C.tools[toolKey].modules[mk];
+  if (typeof ov === 'boolean') return ov;
+  return mdef.enabled !== false;
+}
+
+const _gitiExcl = (C.gitignore && C.gitignore.exclude_fragments) || [];
+const _gitiXtra = (C.gitignore && C.gitignore.extra_fragments)   || [];
+const _gitiPatX = (C.gitignore && C.gitignore.exclude_patterns)  || [];
+
+const state = {
+  name: (C.project && C.project.name) || META.projectDirName || '',
+
+  envs:   [...((C.environments && C.environments.values) || (S.defaults && S.defaults.environments) || [])],
+  stacks: [...((C.stacks && C.stacks.values) || [])],
+
+  tools:       Object.fromEntries(TOOL_KEYS.map(k => [k, initToolEnabled(k)])),
+  toolModules: Object.fromEntries(TOOL_KEYS.map(k => {
+    const mods = (TOOL_DEFS[k] && TOOL_DEFS[k].modules) || {};
+    return [k, Object.fromEntries(Object.keys(mods).map(mk => [mk, initModuleEnabled(k, mk)]))];
+  })),
+  toolExpanded: Object.fromEntries(TOOL_KEYS.map(k => [k, true])),
+
+  // keyed by node.key for static, "key:value" for foreach expansions
+  checked:  {},
+  expanded: Object.fromEntries(allStaticNodes().filter(n => n.isDir).map(n => [n.key, true])),
+
+  giti: Object.fromEntries(GITI_FRAGS.map(f => [f,
+    _gitiExcl.includes(f) ? false : _gitiXtra.includes(f) ? true : GITI_DEFAULTS.has(f)
+  ])),
+  gitiPatterns: Object.fromEntries(GITI_FRAGS.map(f => {
+    const pats   = FRAG_DEFS[f] || [];
+    const fragOn = !_gitiExcl.includes(f) && (_gitiXtra.includes(f) || GITI_DEFAULTS.has(f));
+    return [f, pats.map(pat => fragOn && !_gitiPatX.includes(pat))];
+  })),
+  gitiExpanded: Object.fromEntries(GITI_FRAGS.map(f => [f, true])),
+  extraGiti: [],
+
+  extraDirs: [...((C.extra_dirs) || [])],
+};
+
+// Initialize static node check states
+allStaticNodes().forEach(n => { state.checked[n.key] = defaultCheckState(n); });
+
+// Lazy-init foreach expansion state
+function getChecked(key, defaultVal) {
+  if (!(key in state.checked)) state.checked[key] = defaultVal !== undefined ? defaultVal : 'present';
+  return state.checked[key];
+}
+
+// ── lock helpers ──────────────────────────────────────────────────────────────
+
+function computeLockedKeys() {
+  const locked = new Set();
+  for (const [k, def] of Object.entries(TOOL_DEFS)) {
+    const on = state.tools[k];
+    if (!on) {
+      (def.locks || []).forEach(l => locked.add(l));
+      for (const mdef of Object.values(def.modules || {}))
+        (mdef.locks || []).forEach(l => locked.add(l));
+    } else {
+      for (const [mk, mdef] of Object.entries(def.modules || {})) {
+        if (!state.toolModules[k][mk])
+          (mdef.locks || []).forEach(l => locked.add(l));
+      }
+    }
+  }
+  return locked;
+}
+
+function lockingLabel(key) {
+  const baseKey = key.includes(':') ? key.split(':')[0] : key;
+  for (const [k, def] of Object.entries(TOOL_DEFS)) {
+    if ((def.locks || []).includes(baseKey)) return def.label || k;
+    for (const [mk, mdef] of Object.entries(def.modules || {})) {
+      if ((mdef.locks || []).includes(baseKey))
+        return `${def.label || k} › ${mdef.label || mk}`;
+    }
+  }
+  return 'the required tool';
+}
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2).toLowerCase(), v);
+    else e.setAttribute(k, v);
+  }
+  children.forEach(c => { if (c != null) e.append(typeof c === 'string' ? document.createTextNode(c) : c); });
+  return e;
+}
+
+function addRow(placeholder, onAdd) {
+  const inp = el('input', { type: 'text', placeholder });
+  const btn = el('button', {}, '+ add');
+  btn.addEventListener('click', () => { const v = inp.value.trim(); if (v) { onAdd(v); inp.value = ''; } });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+  return el('div', { class: 'add-row' }, inp, btn);
+}
+
+function section(title, subtitle, ...children) {
+  const s = el('div', { class: 'section' });
+  if (title)    s.append(el('div', { class: 'section-title' }, title));
+  if (subtitle) s.append(el('div', { class: 'section-subtitle' }, subtitle));
+  children.filter(Boolean).forEach(c => s.append(c));
+  return s;
+}
+
+function renderChips(listEl, items, onRemove) {
+  listEl.innerHTML = '';
+  if (!items.length) { listEl.append(el('span', { class: 'chip-empty' }, 'none')); return; }
+  items.forEach((item, i) => {
+    const x = el('button', { class: 'chip-x' }, '×');
+    x.addEventListener('click', e => { e.stopPropagation(); onRemove(i); });
+    listEl.append(el('span', { class: 'chip' }, item, x));
+  });
+}
+
+// ── toast ─────────────────────────────────────────────────────────────────────
+
+function showToast(msg) {
+  const ctr = document.getElementById('toast-container');
+  if (!ctr) return;
+  const t = el('div', { class: 'toast' }, msg);
+  ctr.append(t);
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('visible')));
+  setTimeout(() => { t.classList.remove('visible'); setTimeout(() => t.remove(), 200); }, 3000);
+}
+
+// ── tools tree ────────────────────────────────────────────────────────────────
+
+let toolTreeEl = null;
+
+function renderToolTree() {
+  const container = el('div', { class: 'tree' });
+  TOOL_KEYS.forEach((k, ki) => {
+    const def     = TOOL_DEFS[k];
+    const isOn    = state.tools[k];
+    const modules = Object.entries(def.modules || {});
+    const isLast  = ki === TOOL_KEYS.length - 1;
+    const exp     = state.toolExpanded[k];
+
+    const row = el('div', { class: 'tree-row' + (isOn ? ' is-present' : '') });
+    row.append(el('span', { class: 'tree-prefix' }, isLast ? '└── ' : '├── '));
+    const expBtn = el('span', { class: 'tree-expander' },
+      (modules.length && isOn) ? (exp ? '▼' : '▶') : '');
+    if (modules.length && isOn) {
+      expBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        state.toolExpanded[k] = !exp;
+        renderToolTree();
+      });
+    }
+    row.append(expBtn);
+    row.append(el('span', { class: 'tree-cb' }));
+    row.append(el('span', { class: 'tree-name' }, def.label || k));
+    row.addEventListener('click', () => {
+      state.tools[k] = !isOn;
+      renderToolTree(); renderToolSections(); renderTree();
+    });
+    container.append(row);
+
+    if (isOn && exp && modules.length) {
+      const pfx = isLast ? '    ' : '│   ';
+      modules.forEach(([mk, mdef], mi) => {
+        const modOn  = state.toolModules[k][mk] !== false;
+        const isLstM = mi === modules.length - 1;
+        const mRow   = el('div', { class: 'tree-row' + (modOn ? ' is-present' : '') });
+        mRow.append(el('span', { class: 'tree-prefix' }, pfx + (isLstM ? '└── ' : '├── ')));
+        mRow.append(el('span', { class: 'tree-expander' }));
+        mRow.append(el('span', { class: 'tree-cb' }));
+        mRow.append(el('span', { class: 'tree-name' }, mdef.label || mk));
+        mRow.addEventListener('click', () => {
+          state.toolModules[k][mk] = !modOn;
+          renderToolTree(); renderToolSections(); renderTree();
+        });
+        container.append(mRow);
+      });
+    }
+  });
+  if (toolTreeEl) toolTreeEl.replaceWith(container);
+  toolTreeEl = container;
+}
+
+// ── scaffold tree ─────────────────────────────────────────────────────────────
+
+let treeRowsEl = null;
+
+function cycleState(node, current) {
+  if (node.kind === 'step') return current === 'present' ? null : 'present';
+  if (current === null)      return 'present';
+  if (current === 'present') return 'absent';
+  return null;
+}
+
+function propagate(node, val) {
+  state.checked[node.key] = val;
+  (node.children || []).forEach(c => propagate(c, val));
+}
+
+function resolveVals(foreachKey) {
+  if (foreachKey === 'stacks.values')       return state.stacks;
+  if (foreachKey === 'environments.values') return state.envs;
+  return [];
+}
+
+function flattenVisible(nodes, prefix) {
+  const rows = [];
+  nodes.forEach((node, i) => {
+    const isLast = i === nodes.length - 1;
+    if (node.foreach) {
+      const vals = resolveVals(node.foreach);
+      vals.forEach((val, vi) => {
+        const isLastV = vi === vals.length - 1 && isLast;
+        const instKey = node.key + ':' + val;
+        const label   = node.label.replace(/\{\{VALUE\}\}/g, val);
+        rows.push({ node: { ...node, key: instKey, label, foreach: null }, prefix: prefix + (isLastV ? '└── ' : '├── ') });
+      });
+      return;
+    }
+    rows.push({ node, prefix: prefix + (isLast ? '└── ' : '├── ') });
+    if (node.isDir && node.children.length && state.expanded[node.key])
+      rows.push(...flattenVisible(node.children, prefix + (isLast ? '    ' : '│   ')));
+  });
+  return rows;
+}
+
+function renderTree() {
+  const lockedKeys = computeLockedKeys();
+  const container  = el('div');
+
+  flattenVisible(STATIC_TREE, '').forEach(({ node, prefix }) => {
+    const isRequired   = node.required === true;
+    const baseKey      = node.key.includes(':') ? node.key.split(':')[0] : node.key;
+    const isToolLocked = lockedKeys.has(baseKey);
+    const defVal       = node.wizard_default !== false ? 'present' : null;
+    const chk          = isToolLocked
+      ? null
+      : isRequired
+        ? 'present'
+        : getChecked(node.key, defVal);
+    const hasChildren  = node.isDir && (node.children || []).length > 0;
+
+    let cls = 'tree-row';
+    if (chk === 'present') cls += ' is-present';
+    if (chk === 'absent')  cls += ' is-absent';
+    if (isToolLocked)      cls += ' is-locked';
+    if (isRequired && !isToolLocked) cls += ' is-required';
+    const row = el('div', { class: cls });
+
+    row.append(el('span', { class: 'tree-prefix' }, prefix));
+    const exp = el('span', { class: 'tree-expander' }, hasChildren ? (state.expanded[node.key] ? '▼' : '▶') : '');
+    if (hasChildren && !isToolLocked && !isRequired) {
+      exp.addEventListener('click', e => {
+        e.stopPropagation();
+        state.expanded[node.key] = !state.expanded[node.key];
+        renderTree();
+      });
+    }
+    row.append(exp);
+    row.append(el('span', { class: 'tree-cb' }));
+    row.append(el('span', { class: 'tree-name' + (node.isDir ? ' is-dir' : '') }, node.label));
+
+    if (isToolLocked) {
+      row.addEventListener('click', () => showToast(`Enable ${lockingLabel(node.key)} to use ${node.label}`));
+    } else if (isRequired) {
+      row.addEventListener('click', () => showToast(`${node.label} is required and cannot be disabled`));
+    } else {
+      row.addEventListener('click', () => {
+        const next = cycleState(node, state.checked[node.key] !== undefined ? state.checked[node.key] : defVal);
+        if (next === 'present') {
+          const absentParent = hasAbsentAncestor(node.key);
+          if (absentParent) { showToast(`Cannot mark as present: ${absentParent.label} is marked absent`); return; }
+        }
+        if (next === 'absent') {
+          const presentChild = findPresentDescendant(node);
+          if (presentChild) { showToast(`Cannot mark as absent: ${presentChild.label} is marked present`); return; }
+        }
+        if (node.foreach === null && (node.children || []).length) propagate(node, next);
+        else state.checked[node.key] = next;
+        renderToolSections(); renderTree();
+      });
+    }
+    container.append(row);
+  });
+
+  // custom extra dirs
+  state.extraDirs.forEach((d, i) => {
+    const row = el('div', { class: 'tree-row is-present' });
+    row.append(el('span', { class: 'tree-prefix' }, i === state.extraDirs.length - 1 ? '└── ' : '├── '));
+    row.append(el('span', { class: 'tree-expander' }));
+    row.append(el('span', { class: 'tree-cb' }));
+    row.append(el('span', { class: 'tree-name is-dir' }, d + '/'));
+    row.addEventListener('click', () => { state.extraDirs.splice(i, 1); renderTree(); });
+    container.append(row);
+  });
+
+  if (treeRowsEl) treeRowsEl.replaceWith(container);
+  treeRowsEl = container;
+}
+
+// ── gitignore tree ────────────────────────────────────────────────────────────
+
+function renderGitSection() {
+  const container = el('div', { class: 'tree' });
+  GITI_FRAGS.forEach((f, fi) => {
+    const isLastFrag = fi === GITI_FRAGS.length - 1;
+    const pats       = FRAG_DEFS[f] || [];
+    const expanded   = state.gitiExpanded[f] !== false;
+    const fragOn     = state.giti[f];
+
+    const fragRow = el('div', { class: 'tree-row' + (fragOn ? ' is-present' : '') });
+    fragRow.append(el('span', { class: 'tree-prefix' }, isLastFrag ? '└── ' : '├── '));
+    const exp = el('span', { class: 'tree-expander' }, pats.length ? (expanded ? '▼' : '▶') : '');
+    exp.addEventListener('click', e => { e.stopPropagation(); state.gitiExpanded[f] = !expanded; renderToolSections(); });
+    fragRow.append(exp);
+    fragRow.append(el('span', { class: 'tree-cb' }));
+    fragRow.append(el('span', { class: 'tree-name' }, f));
+    fragRow.addEventListener('click', () => {
+      const next = !fragOn;
+      state.giti[f] = next;
+      state.gitiPatterns[f] = pats.map(() => next);
+      renderToolSections();
+    });
+    container.append(fragRow);
+
+    if (expanded && pats.length) {
+      const childPfx = isLastFrag ? '    ' : '│   ';
+      pats.forEach((pat, pi) => {
+        // expand {{VALUE}} placeholders in patterns using stacks/envs
+        const expandedPats = pat.includes('{{VALUE}}') || pat.includes('{{STACK}}') || pat.includes('{{ENV}}')
+          ? [...state.stacks, ...state.envs].map(v => pat.replace(/\{\{VALUE\}\}|\{\{STACK\}\}|\{\{ENV\}\}/g, v))
+          : [pat];
+
+        expandedPats.forEach((resolvedPat, rpi) => {
+          const isLastPat = pi === pats.length - 1 && rpi === expandedPats.length - 1;
+          const patKey    = f + ':' + pi + (expandedPats.length > 1 ? ':' + rpi : '');
+          const patOn     = fragOn && (state.gitiPatterns[f][pi] !== false);
+          const cls       = 'tree-row' + (patOn ? ' is-present' : '') + (!fragOn ? ' is-locked' : '');
+          const patRow    = el('div', { class: cls });
+          patRow.append(el('span', { class: 'tree-prefix' }, childPfx + (isLastPat ? '└── ' : '├── ')));
+          patRow.append(el('span', { class: 'tree-expander' }));
+          patRow.append(el('span', { class: 'tree-cb' }));
+          patRow.append(el('span', { class: 'tree-name' }, resolvedPat));
+          if (fragOn) {
+            patRow.addEventListener('click', () => {
+              state.gitiPatterns[f][pi] = !state.gitiPatterns[f][pi];
+              renderToolSections();
+            });
+          }
+          container.append(patRow);
+        });
+      });
+    }
+  });
+
+  return section('Gitignore', null, container,
+    addRow('extra pattern…', v => { if (!state.extraGiti.includes(v)) { state.extraGiti.push(v); renderToolSections(); } })
+  );
+}
+
+// ── tool sub-sections ─────────────────────────────────────────────────────────
+
+let toolSectionsEl = null;
+
+function renderToolSections() {
+  const container = el('div');
+  const gitMod = state.toolModules.git;
+  if (state.tools.git && gitMod && gitMod.gitignore && state.checked.gitignore === 'present')
+    container.append(renderGitSection());
+  if (toolSectionsEl) toolSectionsEl.replaceWith(container);
+  toolSectionsEl = container;
+}
+
+// ── full page render (once) ───────────────────────────────────────────────────
+
+function renderPage() {
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+
+  if (!('showSaveFilePicker' in window)) {
+    app.append(el('div', { style: 'padding:40px' },
+      el('h1', {}, 'bumfuzzle wizard'),
+      el('p', { style: 'margin-top:16px;color:#ef4444' }, 'Requires Chrome or Edge. Please reopen this file in Chrome or Edge.')));
+    return;
+  }
+
+  app.append(el('h1', {}, 'bumfuzzle wizard'));
+  app.append(el('p', { class: 'subtitle' }, 'v' + META.version + ' · ' + META.projectDir));
+  app.append(el('div', { class: 'path-box' }, 'Save to: ', el('strong', {}, META.projectDir + '/bumfuzzle.yml')));
+
+  // ── Project ───────────────────────────────────────────────────────────────
+  const nameInp = el('input', { type: 'text', placeholder: META.projectDirName });
+  nameInp.value = state.name;
+  nameInp.addEventListener('input', () => { state.name = nameInp.value.trim() || META.projectDirName; });
+  app.append(section('Project', null,
+    el('div', { class: 'field' }, el('label', {}, 'Name'), nameInp),
+    el('div', { class: 'field' }, el('label', {}, 'Purpose (auto-detected)'), el('span', { class: 'badge' }, META.detectedPurpose))
+  ));
+
+  // ── App Environments ──────────────────────────────────────────────────────
+  const envsListEl = el('div', { class: 'chip-list' });
+  const refreshEnvs = () => {
+    renderChips(envsListEl, state.envs, i => { state.envs.splice(i, 1); refreshEnvs(); renderTree(); renderToolSections(); });
+  };
+  refreshEnvs();
+  app.append(section('App Environments', null, envsListEl,
+    addRow('env name…', v => { if (!state.envs.includes(v)) { state.envs.push(v); refreshEnvs(); renderTree(); renderToolSections(); } })
+  ));
+
+  // ── Stacks ────────────────────────────────────────────────────────────────
+  const stacksListEl = el('div', { class: 'chip-list' });
+  const refreshStacks = () => {
+    renderChips(stacksListEl, state.stacks, i => { state.stacks.splice(i, 1); refreshStacks(); renderTree(); renderToolSections(); });
+  };
+  refreshStacks();
+  app.append(section('Stacks', null, stacksListEl,
+    addRow('stack name…', v => { if (!state.stacks.includes(v)) { state.stacks.push(v); refreshStacks(); renderTree(); renderToolSections(); } })
+  ));
+
+  // ── Tools ─────────────────────────────────────────────────────────────────
+  toolTreeEl = el('div');
+  const toolsSec = el('div', { class: 'section' });
+  toolsSec.append(el('div', { class: 'section-title' }, 'Tools'));
+  toolsSec.append(toolTreeEl);
+  app.append(toolsSec);
+  renderToolTree();
+
+  // ── Scaffold ──────────────────────────────────────────────────────────────
+  treeRowsEl = el('div');
+  const treeWrap = el('div', { class: 'tree' },
+    el('div', { class: 'tree-root' }, META.projectDirName + '/'),
+    treeRowsEl
+  );
+  const addDirInp = el('input', { type: 'text', placeholder: 'add custom dir…' });
+  const addDirBtn = el('button', {}, '+ dir');
+  addDirBtn.addEventListener('click', () => {
+    const v = addDirInp.value.trim().replace(/\/$/, '');
+    if (v && !state.extraDirs.includes(v)) { state.extraDirs.push(v); addDirInp.value = ''; renderTree(); }
+  });
+  addDirInp.addEventListener('keydown', e => { if (e.key === 'Enter') addDirBtn.click(); });
+  treeWrap.append(el('div', { class: 'tree-add' }, addDirInp, addDirBtn));
+
+  const scaffoldSec = el('div', { class: 'section' });
+  scaffoldSec.append(el('div', { class: 'section-title' }, 'Scaffold Files / Folders'));
+  scaffoldSec.append(el('div', { class: 'section-subtitle' },
+    'Kickstart creates if doesn\'t exist', el('br', {}), 'Preflight checks presence'));
+  scaffoldSec.append(treeWrap);
+  app.append(scaffoldSec);
+  renderTree();
+
+  // ── Tool sub-sections (Gitignore etc.) ────────────────────────────────────
+  toolSectionsEl = el('div');
+  app.append(toolSectionsEl);
+  renderToolSections();
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  const msgEl = el('div', { class: 'msg' });
+  const btn   = el('button', { class: 'btn-save', onClick: doSave }, 'Save bumfuzzle.yml');
+  app.append(section('', null, btn, msgEl));
+
+  async function doSave() {
+    btn.disabled = true; msgEl.className = 'msg';
+    try {
+      const fh = await window.showSaveFilePicker({
+        suggestedName: 'bumfuzzle.yml',
+        types: [{ description: 'YAML', accept: { 'text/yaml': ['.yml'] } }],
+      });
+      const w = await fh.createWritable();
+      await w.write(generateYaml());
+      await w.close();
+      msgEl.textContent = 'Saved. Return to your terminal.';
+      msgEl.className = 'msg success';
+    } catch (err) {
+      if (err.name !== 'AbortError') { msgEl.textContent = 'Error: ' + err.message; msgEl.className = 'msg error'; }
+    } finally { btn.disabled = false; }
+  }
+}
+
+// ── YAML generation ───────────────────────────────────────────────────────────
+
+function generateYaml() {
+  const lines      = [];
+  const name       = state.name || META.projectDirName;
+  const lockedKeys = computeLockedKeys();
+
+  lines.push('project:');
+  lines.push('  name: ' + name);
+  lines.push('purpose: ' + META.detectedPurpose);
+
+  lines.push('environments:');
+  lines.push('  values: ' + (state.envs.length   ? '' : '[]'));
+  state.envs.forEach(e => lines.push('    - ' + e));
+
+  lines.push('stacks:');
+  lines.push('  values: ' + (state.stacks.length ? '' : '[]'));
+  state.stacks.forEach(s => lines.push('    - ' + s));
+
+  // tools + modules
+  lines.push('tools:');
+  for (const k of TOOL_KEYS) {
+    const mods = Object.entries(state.toolModules[k] || {});
+    if (!mods.length) {
+      lines.push('  ' + k + ': ' + state.tools[k]);
+    } else {
+      lines.push('  ' + k + ':');
+      lines.push('    enabled: ' + state.tools[k]);
+      if (mods.length) {
+        lines.push('    modules:');
+        mods.forEach(([mk, v]) => lines.push('      ' + mk + ': ' + v));
+      }
+    }
+  }
+
+  // scaffold steps + editor
+  const stepNodes       = allStaticNodes().filter(n => n.kind === 'step');
+  const deselectedSteps = stepNodes.filter(n => state.checked[n.key] !== 'present' || lockedKeys.has(n.key));
+  const editorFalse     = ['vscode', 'claude'].filter(k => !state.tools[k]);
+  if (deselectedSteps.length || editorFalse.length) {
+    lines.push('scaffold:');
+    if (deselectedSteps.length) {
+      lines.push('  steps:');
+      deselectedSteps.forEach(n => lines.push('    ' + n.key + ': false'));
+    }
+    if (editorFalse.length) {
+      lines.push('  editor:');
+      editorFalse.forEach(k => lines.push('    ' + k + ': false'));
+    }
+  }
+
+  // artifacts — static + foreach expansions
+  lines.push('artifacts:');
+  const artDefs = S.artifacts || {};
+  for (const k of Object.keys(artDefs)) {
+    const def = artDefs[k];
+    if (def.foreach) {
+      const vals = resolveVals(def.foreach);
+      if (!vals.length) {
+        lines.push('  ' + k + ': { enabled: false }');
+        continue;
+      }
+      const instStates = vals.map(v => getChecked(k + ':' + v, null));
+      const anyPresent = instStates.some(s => s === 'present');
+      const anyAbsent  = instStates.some(s => s === 'absent');
+      const isLocked   = lockedKeys.has(k);
+      lines.push('  ' + k + ':');
+      lines.push('    enabled: ' + (!isLocked && anyPresent));
+      if (!isLocked && anyAbsent) {
+        lines.push('    absent_instances:');
+        vals.forEach((v, vi) => { if (instStates[vi] === 'absent') lines.push('      - ' + v); });
+      }
+    } else {
+      const chk      = lockedKeys.has(k) ? null : state.checked[k];
+      const enabled  = chk === 'present';
+      const absent   = chk === 'absent';
+      if (absent) lines.push('  ' + k + ': { enabled: false, absent: true }');
+      else        lines.push('  ' + k + ': { enabled: ' + enabled + ' }');
+    }
+  }
+
+  // gitignore per-pattern
+  const excl_frags    = [];
+  const extra_frags   = [];
+  const extra_patterns = [...state.extraGiti];
+
+  for (const f of GITI_FRAGS) {
+    const pats   = FRAG_DEFS[f] || [];
+    const fragOn = state.giti[f];
+    const patSt  = state.gitiPatterns[f] || pats.map(() => true);
+    const anyOn  = patSt.some(v => v !== false);
+
+    if (!fragOn || !anyOn) {
+      if (GITI_DEFAULTS.has(f)) excl_frags.push(f);
+      continue;
+    }
+    if (!GITI_DEFAULTS.has(f)) extra_frags.push(f);
+    const allOn = patSt.every(v => v !== false);
+    if (!allOn) {
+      if (GITI_DEFAULTS.has(f)) excl_frags.push(f);
+      const idx = extra_frags.indexOf(f); if (idx >= 0) extra_frags.splice(idx, 1);
+      pats.forEach((pat, pi) => {
+        if (patSt[pi] !== false) {
+          // expand placeholder patterns
+          if (pat.includes('{{VALUE}}') || pat.includes('{{STACK}}') || pat.includes('{{ENV}}')) {
+            [...state.stacks, ...state.envs].forEach(v =>
+              extra_patterns.push(pat.replace(/\{\{VALUE\}\}|\{\{STACK\}\}|\{\{ENV\}\}/g, v)));
+          } else {
+            extra_patterns.push(pat);
+          }
+        }
+      });
+    }
+  }
+
+  lines.push('gitignore:');
+  lines.push('  exclude_fragments: ' + (excl_frags.length    ? '' : '[]'));
+  excl_frags.forEach(f => lines.push('    - ' + f));
+  lines.push('  extra_fragments: '   + (extra_frags.length   ? '' : '[]'));
+  extra_frags.forEach(f => lines.push('    - ' + f));
+  lines.push('  extra_patterns: '    + (extra_patterns.length ? '' : '[]'));
+  extra_patterns.forEach(p => lines.push('    - ' + p));
+
+  lines.push('extra_dirs: ' + (state.extraDirs.length ? '' : '[]'));
+  state.extraDirs.forEach(d => lines.push('  - ' + d));
+
+  return lines.join('\n') + '\n';
+}
+
+// ── boot ──────────────────────────────────────────────────────────────────────
+
+document.body.append(el('div', { id: 'toast-container' }));
+renderPage();
+</script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 _generate_gitignore() {
   local dest="$1"
-  local settings="$KICKOFF_REPO/settings.yml"
+  local settings="$KICKSTART_REPO/settings.yml"
 
   # Collect fragment names to include
   local _frags=()
@@ -33,15 +33,22 @@ _generate_gitignore() {
     [[ "$_already" == false ]] && _frags+=("$_pm_frag")
   done < <(yq '.gitignore.defaults.by_manifest | to_entries[] | .key + "|" + .value[]' "$settings" 2>/dev/null || true)
 
-  # Apply exclude_fragments from client bumfuzzle.yml
+  # Apply exclude_fragments from merged config
   local _excluded=()
-  if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-    local _ex
-    while IFS= read -r _ex; do
-      is_blank "$_ex" && continue
-      _excluded+=("$_ex")
-    done < <(yq '.gitignore.exclude_fragments[]' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || true)
-  fi
+  local _ex
+  while IFS= read -r _ex; do
+    is_blank "$_ex" && continue
+    _excluded+=("$_ex")
+  done < <(yq '.gitignore.exclude_fragments[]' "$_scaffold_merged" 2>/dev/null || true)
+
+  # Apply extra_fragments from merged config (opt-in to non-default fragments)
+  local _xf
+  while IFS= read -r _xf; do
+    is_blank "$_xf" && continue
+    local _already=false _ef4
+    for _ef4 in "${_frags[@]:-}"; do [[ "$_ef4" == "$_xf" ]] && _already=true && break; done
+    [[ "$_already" == false ]] && _frags+=("$_xf")
+  done < <(yq '.gitignore.extra_fragments[]' "$_scaffold_merged" 2>/dev/null || true)
 
   # Write gitignore
   local _frag
@@ -60,18 +67,16 @@ _generate_gitignore() {
     printf '\n' >> "$dest"
   done
 
-  # Append extra_patterns from client bumfuzzle.yml
-  if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-    local _extra_count
-    _extra_count=$(yq '.gitignore.extra_patterns | length' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || echo "0")
-    if [[ "$_extra_count" -gt 0 ]]; then
-      printf '# project-specific\n' >> "$dest"
-      local _pat
-      while IFS= read -r _pat; do
-        is_blank "$_pat" && continue
-        printf '%s\n' "$_pat" >> "$dest"
-      done < <(yq '.gitignore.extra_patterns[]' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || true)
-    fi
+  # Append extra_patterns from merged config
+  local _extra_count
+  _extra_count=$(yq '.gitignore.extra_patterns | length' "$_scaffold_merged" 2>/dev/null || echo "0")
+  if [[ "$_extra_count" -gt 0 ]]; then
+    printf '# project-specific\n' >> "$dest"
+    local _pat
+    while IFS= read -r _pat; do
+      is_blank "$_pat" && continue
+      printf '%s\n' "$_pat" >> "$dest"
+    done < <(yq '.gitignore.extra_patterns[]' "$_scaffold_merged" 2>/dev/null || true)
   fi
 }
 
@@ -173,6 +178,13 @@ structure_setup() {
       is_blank "$_dir_name" && continue
       artifact_enabled "$_dir_name" && maybe_mkdir "$PROJECT_DIR/$_dir_path"
     done < <(yq '.artifacts | to_entries[] | select(.value.type == "dir") | [.key, .value.path] | join("|")' "$_scaffold_merged" 2>/dev/null || true)
+
+    # Create extra_dirs from merged config
+    local _extra_dir
+    while IFS= read -r _extra_dir; do
+      is_blank "$_extra_dir" && continue
+      maybe_mkdir "$PROJECT_DIR/$_extra_dir"
+    done < <(yq '.extra_dirs[]' "$_scaffold_merged" 2>/dev/null || true)
   fi
 
   if step_enabled gitignore && artifact_enabled "gitignore"; then

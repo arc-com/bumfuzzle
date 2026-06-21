@@ -1,129 +1,87 @@
 #!/usr/bin/env bash
-# wizard.sh — interactive project scaffolding wizard (wraps kickoff.sh)
+# wizard.sh — browser-based project scaffolding wizard (wraps kickstart.sh)
 set -euo pipefail
 
 SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do SOURCE="$(readlink "$SOURCE")"; done
-KICKOFF_REPO="$(cd "$(dirname "$SOURCE")" && pwd)"
-KICKOFF_SH="$KICKOFF_REPO/kickoff.sh"
-SETTINGS="$KICKOFF_REPO/settings.yml"
-WIZARD_VERSION="$(cat "$KICKOFF_REPO/VERSION" 2>/dev/null || printf 'unknown')"
+KICKSTART_REPO="$(cd "$(dirname "$SOURCE")" && pwd)"
+KICKSTART_SH="$KICKSTART_REPO/kickstart.sh"
+SETTINGS="$KICKSTART_REPO/settings.yml"
+WIZARD_HTML="$KICKSTART_REPO/templates/wizard/index.html"
+WIZARD_VERSION="$(cat "$KICKSTART_REPO/VERSION" 2>/dev/null || printf 'unknown')"
 
 if ! command -v yq &>/dev/null; then
   printf 'Error: yq is required\n' >&2; exit 1
 fi
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-ask() {
-  local prompt="$1" default="$2" choices="$3"
-  local display="$prompt"
-  [[ -n "$choices" ]] && display="$display ($(printf '%s' "$choices" | tr '|' '/'))"
-  [[ -n "$default" ]] && display="$display [$default]"
-  printf '  %s: ' "$display"
-  IFS= read -r _reply </dev/tty
-  [[ -z "$_reply" ]] && _reply="$default"
-  if [[ -n "$choices" ]] && ! printf '%s' "$choices" | tr '|' '\n' | grep -qx "$_reply"; then
-    printf '  → invalid, using default: %s\n' "$default"
-    _reply="$default"
-  fi
-}
-
-cfg_wizard() { yq "$1" "$SETTINGS" 2>/dev/null || true; }
-
-# ── Header ────────────────────────────────────────────────────────────────────
-
-printf '\n  kickoff wizard v%s\n' "$WIZARD_VERSION"
-printf '  %s\n\n' "$(printf '%.0s─' {1..48})"
-
-# ── Project directory ─────────────────────────────────────────────────────────
-
-PROJECT_DIR="${1:-}"
-if [[ -z "$PROJECT_DIR" ]]; then
-  printf '  Project directory: '
-  IFS= read -r PROJECT_DIR </dev/tty
+if [[ ! -f "$WIZARD_HTML" ]]; then
+  printf 'Error: wizard template not found: %s\n' "$WIZARD_HTML" >&2; exit 1
 fi
-[[ -z "$PROJECT_DIR" ]] && { printf 'Error: project directory is required\n' >&2; exit 1; }
 
-# Expand to absolute path (directory may not exist yet)
-if [[ ! -d "$PROJECT_DIR" ]]; then
-  mkdir -p "$PROJECT_DIR"
-fi
-PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+PROJECT_DIR="$(pwd)"
 
-# ── Collect answers from wizard.questions in kickoff.settings.yml ─────────────
+# ── Detect purpose from manifests ─────────────────────────────────────────────
 
 WIZ_PURPOSE="bare"
-WIZ_NAME=""
-WIZ_DOCKER="y"
-WIZ_VSCODE="y"
-WIZ_CLAUDE="y"
-
-n=$(cfg_wizard '.wizard.questions | length')
-for i in $(seq 0 $((n - 1))); do
-  key=$(cfg_wizard ".wizard.questions[$i].key")
-  prompt=$(cfg_wizard ".wizard.questions[$i].prompt")
-  default=$(cfg_wizard ".wizard.questions[$i].default // \"\"")
-  choices=$(cfg_wizard ".wizard.questions[$i].choices // [] | join(\"|\")" || echo "")
-  only_types=$(cfg_wizard ".wizard.questions[$i].only_types // [] | join(\"|\")" || echo "")
-
-  # Skip envs question (removed from Phase 5)
-  [[ "$key" == "envs" ]] && continue
-
-  if [[ -n "$only_types" && "$only_types" != "null" ]]; then
-    if ! printf '%s' "$only_types" | tr '|' '\n' | grep -qx "$WIZ_PURPOSE"; then
-      continue
+_n_pm=$(yq '.project.package_managers | length' "$SETTINGS")
+_conflict=0
+for _i in $(seq 0 $((_n_pm - 1))); do
+  _manifest=$(yq ".project.package_managers[$_i].manifest" "$SETTINGS")
+  _purpose=$(yq  ".project.package_managers[$_i].purpose"  "$SETTINGS")
+  if [[ -f "$PROJECT_DIR/$_manifest" ]]; then
+    if   [[ "$WIZ_PURPOSE" == "bare"         ]]; then WIZ_PURPOSE="$_purpose"
+    elif [[ "$WIZ_PURPOSE" != "$_purpose"    ]]; then _conflict=1; break
     fi
   fi
-
-  ask "$prompt" "$default" "$choices"
-
-  case "$key" in
-    type)   WIZ_PURPOSE="$_reply" ;;
-    name)   WIZ_NAME="$_reply" ;;
-    docker) WIZ_DOCKER="$_reply" ;;
-    vscode) WIZ_VSCODE="$_reply" ;;
-    claude) WIZ_CLAUDE="$_reply" ;;
-  esac
 done
+[[ "$_conflict" -eq 1 ]] && WIZ_PURPOSE="bare" || true
 
-[[ -z "$WIZ_NAME" ]] && WIZ_NAME="$(basename "$PROJECT_DIR")"
+# ── Build CONFIG JSON ──────────────────────────────────────────────────────────
 
-# ── Confirm ───────────────────────────────────────────────────────────────────
+SETTINGS_JSON=$(yq -o=json '.' "$SETTINGS")
+CURRENT_JSON=$(yq -o=json '.' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || printf '{}')
+PROJECT_DIR_NAME="$(basename "$PROJECT_DIR")"
 
-printf '\n  Summary:\n'
-printf '    directory: %s\n' "$PROJECT_DIR"
-printf '    purpose:   %s\n' "$WIZ_PURPOSE"
-printf '    name:      %s\n' "$WIZ_NAME"
-[[ "$WIZ_PURPOSE" == "backend" ]] && printf '    docker:    %s\n' "$WIZ_DOCKER"
-printf '    vscode:    %s\n' "$WIZ_VSCODE"
-printf '    claude:    %s\n' "$WIZ_CLAUDE"
-printf '\n  Proceed? [Y/n]: '
-IFS= read -r _confirm </dev/tty
-[[ "$_confirm" == "n" || "$_confirm" == "N" ]] && { printf '\nAborted.\n'; exit 0; }
+CONFIG_JSON=$(printf '{"settings":%s,"current":%s,"meta":{"projectDir":"%s","projectDirName":"%s","detectedPurpose":"%s","version":"%s"}}' \
+  "$SETTINGS_JSON" "$CURRENT_JSON" \
+  "$PROJECT_DIR" "$PROJECT_DIR_NAME" "$WIZ_PURPOSE" "$WIZARD_VERSION")
 
-# ── Write seed bumfuzzle.yml ──────────────────────────────────────────────────
+WIZARD_DIR="$(dirname "$WIZARD_HTML")"
+WIZARD_CONFIG_JS="$WIZARD_DIR/config.js"
 
-_bumfuzzle_path="$PROJECT_DIR/bumfuzzle.yml"
-if [[ ! -f "$_bumfuzzle_path" ]]; then
-  {
-    printf 'project:\n'
-    printf '  name: %s\n' "$WIZ_NAME"
-    printf 'purpose: %s\n' "$WIZ_PURPOSE"
-    printf 'scaffold:\n'
-    printf '  docker:\n'
-    if [[ "$WIZ_DOCKER" == "n" || "$WIZ_DOCKER" == "N" ]]; then
-      printf '    server: false\n'
-      printf '    etl: false\n'
-      printf '    shared_infra: false\n'
-    fi
-    printf '  editor:\n'
-    [[ "$WIZ_VSCODE" == "n" || "$WIZ_VSCODE" == "N" ]] && printf '    vscode: false\n' || true
-    [[ "$WIZ_CLAUDE" == "n" || "$WIZ_CLAUDE" == "N" ]] && printf '    claude: false\n' || true
-  } > "$_bumfuzzle_path"
-  printf '[kickoff] write bumfuzzle.yml\n'
+# ── Write config.js alongside the source HTML (same-origin for file://) ───────
+
+printf 'window.__CONFIG = %s;\n' "$CONFIG_JSON" > "$WIZARD_CONFIG_JS"
+trap 'rm -f "$WIZARD_CONFIG_JS"' EXIT
+
+# ── Open in browser ───────────────────────────────────────────────────────────
+
+printf '\n  bumfuzzle wizard v%s\n' "$WIZARD_VERSION"
+printf '  %s\n\n' "$(printf '%.0s─' {1..48})"
+printf '  Opening wizard in browser...\n'
+printf '  Save bumfuzzle.yml to: %s\n\n' "$PROJECT_DIR"
+
+open "file://$WIZARD_HTML"
+
+# ── Poll for bumfuzzle.yml (mtime-based so existing file doesn't skip) ────────
+
+_existing_mtime=0
+if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
+  _existing_mtime=$(stat -f "%m" "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || echo 0)
 fi
 
-# ── Run kickoff ───────────────────────────────────────────────────────────────
+_timeout=300
+_elapsed=0
+while true; do
+  if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
+    _current_mtime=$(stat -f "%m" "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || echo 0)
+    [[ "$_current_mtime" -gt "$_existing_mtime" ]] && break
+  fi
+  sleep 1
+  _elapsed=$((_elapsed + 1))
+  if [[ $_elapsed -ge $_timeout ]]; then
+    printf '\nError: timed out after 5 minutes waiting for bumfuzzle.yml\n' >&2
+    exit 1
+  fi
+done
 
-(cd "$PROJECT_DIR" && "$KICKOFF_SH")
+printf '  bumfuzzle.yml written.\n'

@@ -12,8 +12,8 @@
 
 Three tools, one repo:
 
-- **`kickoff`** — scaffolds a new project in the current directory; detects package manager manifests; writes `bumfuzzle.yml`
-- **`wizard`** — interactive REPL wrapping kickoff
+- **`kickstart`** — scaffolds a new project in the current directory; detects package manager manifests; writes `bumfuzzle.yml`
+- **`wizard`** — interactive REPL wrapping kickstart
 - **`preflight`** — reads `bumfuzzle.yml` and runs the declared validation checks; deterministic and side-effect-free
 
 ---
@@ -51,10 +51,10 @@ Later layers win.
 
 ### Scaffold settings — unified create + check control
 
-Every artifact bumfuzzle manages has a single `scaffold.*` toggle in `bumfuzzle.yml`. Setting it to `false` disables both kickoff creation and preflight checking atomically.
+Every artifact bumfuzzle manages has a single `scaffold.*` toggle in `bumfuzzle.yml`. Setting it to `false` disables both kickstart creation and preflight checking atomically.
 
 ```yaml
-# disable tmp/ entirely (kickoff won't create it, preflight won't check it)
+# disable tmp/ entirely (kickstart won't create it, preflight won't check it)
 scaffold:
   dirs:
     tmp: false
@@ -79,16 +79,16 @@ git clone https://github.com/archicode-ai/bumfuzzle ~/.local/share/bumfuzzle
 bash ~/.local/share/bumfuzzle/setup.sh
 ```
 
-Adds `kickoff`, `wizard`, and `preflight` to `~/.local/bin`.
+Adds `kickstart`, `wizard`, and `preflight` to `~/.local/bin`.
 
 ### Scaffold a new project
 
 ```bash
 cd ~/projects/my-service
-kickoff
+kickstart
 ```
 
-kickoff detects the project type from manifests (`pom.xml` → java, `package.json` → node, etc.), creates directories and config files, installs git hooks, and writes `bumfuzzle.yml`.
+kickstart detects the project type from manifests (`pom.xml` → java, `package.json` → node, etc.), creates directories and config files, installs git hooks, and writes `bumfuzzle.yml`.
 
 ### Run validation
 
@@ -115,12 +115,12 @@ wizard
 
 ```
 bumfuzzle/
-├── kickoff.sh              # Scaffolding entrypoint
+├── kickstart.sh              # Scaffolding entrypoint
 ├── preflight.sh            # Validation entrypoint
-├── wizard.sh               # Interactive wrapper for kickoff
-├── setup.sh                # Installs kickoff/wizard/preflight to ~/.local/bin
+├── wizard.sh               # Interactive wrapper for kickstart
+├── setup.sh                # Installs kickstart/wizard/preflight to ~/.local/bin
 ├── settings.yml            # Rule registry, scaffold defaults, scaffold paths
-├── kickoff.settings.yml    # Kickoff step config and wizard questions
+├── kickstart.settings.yml    # Kickstart step config and wizard questions
 ├── bumfuzzle.yml           # Self-validation config for the bumfuzzle repo itself
 ├── domains/                # Check and setup implementations (one domain per concern)
 │   ├── git.sh              # gitignore, AI coauthor check; git init
@@ -160,8 +160,8 @@ bumfuzzle/
 
 - **preflight is deterministic and side-effect-free.** It reads `bumfuzzle.yml` and runs what it says. It never scans directories or infers anything.
 - **No ambiguity in generated config.** Every rule key in a generated `bumfuzzle.yml` is explicitly `true` or `false`. No `auto`.
-- **Scaffold toggle is atomic.** `scaffold.*: false` disables both creation (kickoff) and checking (preflight) for that artifact. There is no separate create-only or check-only mode.
-- **Generated files are write-once.** kickoff never overwrites files that already exist.
+- **Scaffold toggle is atomic.** `scaffold.*: false` disables both creation (kickstart) and checking (preflight) for that artifact. There is no separate create-only or check-only mode.
+- **Generated files are write-once.** kickstart never overwrites files that already exist.
 - **Every domain completes its work.** If a domain creates an artifact that must be activated (e.g. a git hook), it activates it in the same step. No half-scaffolded state.
 
 ---

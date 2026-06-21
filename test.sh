@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PREFLIGHT_SH="$SCRIPT_DIR/preflight.sh"
-KICKOFF_SH="$SCRIPT_DIR/kickoff.sh"
+KICKSTART_SH="$SCRIPT_DIR/kickstart.sh"
 PASS=0
 FAIL=0
 
@@ -128,20 +128,20 @@ else
   fail_test "project.type: workspace should be valid"
 fi
 
-# ── Test 8: kickoff --dry-run produces expected output ───────────────────────
-printf '\n-- Test 8: kickoff dry-run ----------------------------------------------\n'
+# ── Test 8: kickstart --dry-run produces expected output ───────────────────────
+printf '\n-- Test 8: kickstart dry-run ----------------------------------------------\n'
 tmpdir6=$(mktemp -d)
 mkdir -p "$tmpdir6/smoke"
-output="$(cd "$tmpdir6/smoke" && bash "$KICKOFF_SH" --dry-run 2>&1)"
-if printf '%s' "$output" | grep -q '\[kickoff\]'; then
-  pass_test "kickoff --dry-run produces output"
+output="$(cd "$tmpdir6/smoke" && bash "$KICKSTART_SH" --dry-run 2>&1)"
+if printf '%s' "$output" | grep -q '\[kickstart\]'; then
+  pass_test "kickstart --dry-run produces output"
 else
-  fail_test "kickoff --dry-run produced no output"
+  fail_test "kickstart --dry-run produced no output"
 fi
 if printf '%s' "$output" | grep -q '\[dry-run\]'; then
-  pass_test "kickoff --dry-run shows dry-run markers"
+  pass_test "kickstart --dry-run shows dry-run markers"
 else
-  fail_test "kickoff --dry-run missing dry-run markers"
+  fail_test "kickstart --dry-run missing dry-run markers"
 fi
 
 # ── Test 9: commit-msg hook rejects AI co-author ─────────────────────────────
@@ -187,33 +187,33 @@ else
   fail_test "single_package_manager should trigger hard-stop"
 fi
 
-# ── Test 11: kickoff installs all hooks ───────────────────────────────────────
-printf '\n-- Test 11: kickoff multi-hook install ----------------------------------\n'
+# ── Test 11: kickstart installs all hooks ───────────────────────────────────────
+printf '\n-- Test 11: kickstart multi-hook install ----------------------------------\n'
 tmpdir8=$(mktemp -d)
 mkdir -p "$tmpdir8/hook-proj"
-(cd "$tmpdir8/hook-proj" && bash "$KICKOFF_SH" > /dev/null 2>&1) || true
+(cd "$tmpdir8/hook-proj" && bash "$KICKSTART_SH" > /dev/null 2>&1) || true
 hook_count=$(ls "$tmpdir8/hook-proj/.githooks/" 2>/dev/null | wc -l | tr -d ' ')
 if [[ "$hook_count" -ge 2 ]]; then
-  pass_test "kickoff installs multiple hooks ($hook_count found)"
+  pass_test "kickstart installs multiple hooks ($hook_count found)"
 else
-  fail_test "kickoff should install at least 2 hooks (commit-msg + pre-commit), got $hook_count"
+  fail_test "kickstart should install at least 2 hooks (commit-msg + pre-commit), got $hook_count"
 fi
 
-# ── Test 12: kickoff defaults to CWD when no dir arg given ───────────────────
-printf '\n-- Test 12: kickoff CWD default -----------------------------------------\n'
+# ── Test 12: kickstart defaults to CWD when no dir arg given ───────────────────
+printf '\n-- Test 12: kickstart CWD default -----------------------------------------\n'
 tmpdir9=$(mktemp -d)
-output="$(cd "$tmpdir9" && bash "$KICKOFF_SH" --dry-run 2>&1)" || true
-if printf '%s' "$output" | grep -q '\[kickoff\]'; then
-  pass_test "kickoff runs on CWD when no dir arg given"
+output="$(cd "$tmpdir9" && bash "$KICKSTART_SH" --dry-run 2>&1)" || true
+if printf '%s' "$output" | grep -q '\[kickstart\]'; then
+  pass_test "kickstart runs on CWD when no dir arg given"
 else
-  fail_test "kickoff should run on CWD with no dir arg"
+  fail_test "kickstart should run on CWD with no dir arg"
 fi
 
 # ── Test 13: single manifest → [info] log ─────────────────────────────────────
 printf '\n-- Test 13: detect_manifests single hit → info --------------------------\n'
 tmpdir10=$(mktemp -d)
 touch "$tmpdir10/pom.xml"
-output="$(cd "$tmpdir10" && bash "$KICKOFF_SH" --dry-run 2>&1)" || true
+output="$(cd "$tmpdir10" && bash "$KICKSTART_SH" --dry-run 2>&1)" || true
 if printf '%s' "$output" | grep -q '\[info\] detected project purpose: backend'; then
   pass_test "single manifest emits [info] and sets purpose to backend"
 else
@@ -224,16 +224,16 @@ fi
 printf '\n-- Test 14: detect_manifests multi-hit → warn, no abort -----------------\n'
 tmpdir11=$(mktemp -d)
 touch "$tmpdir11/pom.xml" "$tmpdir11/package.json"
-output="$(cd "$tmpdir11" && bash "$KICKOFF_SH" --dry-run 2>&1)" || true
+output="$(cd "$tmpdir11" && bash "$KICKSTART_SH" --dry-run 2>&1)" || true
 if printf '%s' "$output" | grep -q '\[warn\] multiple package managers'; then
   pass_test "multiple manifests emit [warn]"
 else
   fail_test "multiple manifests should emit [warn]"
 fi
-if printf '%s' "$output" | grep -q '\[kickoff\]'; then
-  pass_test "kickoff continues (no hard-stop) on multiple manifests"
+if printf '%s' "$output" | grep -q '\[kickstart\]'; then
+  pass_test "kickstart continues (no hard-stop) on multiple manifests"
 else
-  fail_test "kickoff should continue after multi-PM warn"
+  fail_test "kickstart should continue after multi-PM warn"
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────

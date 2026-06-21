@@ -2,7 +2,7 @@
 
 _rules_repo_dir() {
   local _rr _base
-  _base="${KICKOFF_REPO:-${PREFLIGHT_REPO:-}}"
+  _base="${KICKSTART_REPO:-${PREFLIGHT_REPO:-}}"
   _rr="$(cd "$_base/.." 2>/dev/null && pwd)/rules"
   printf '%s' "$_rr"
 }
@@ -21,7 +21,7 @@ rules_check() {
       pass "AGENTS.md is present"
     else
       CURRENT_RULE=""
-      fail "AGENTS.md is missing (run kickoff to install)"
+      fail "AGENTS.md is missing (run kickstart to install)"
     fi
   fi
 
@@ -30,7 +30,7 @@ rules_check() {
       pass "CLAUDE.md is present"
     else
       CURRENT_RULE=""
-      fail "CLAUDE.md is missing (run kickoff to install)"
+      fail "CLAUDE.md is missing (run kickstart to install)"
     fi
   fi
 }
