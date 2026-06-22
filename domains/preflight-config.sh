@@ -16,38 +16,6 @@ preflight_config_check() {
       ok=false
     fi
 
-    local _valid_presets=()
-    while IFS= read -r _pf; do _valid_presets+=("$_pf"); done \
-      < <(for _f in "$PREFLIGHT_REPO/presets/purpose/"*.yml; do [[ -f "$_f" ]] && basename "$_f" .yml; done)
-    local _valid_presets_str; _valid_presets_str="${_valid_presets[*]}"; _valid_presets_str="${_valid_presets_str// /, }"
-    if [[ -n "$_preset" && "$_preset" != "null" ]]; then
-      local _pf_preset_ok=false _vp
-      for _vp in "${_valid_presets[@]}"; do
-        [[ "$_preset" == "$_vp" ]] && _pf_preset_ok=true && break
-      done
-      if [[ "$_pf_preset_ok" == false ]]; then
-        fail "$(interp "$err" "issue=unknown preset '$_preset' (valid: $_valid_presets_str)")"
-        ok=false
-      fi
-    fi
-
-    local _valid_types=()
-    while IFS= read -r _vt_val; do _valid_types+=("$_vt_val"); done \
-      < <(yq '.project.valid_types[]' "$PREFLIGHT_REPO/settings.yml" 2>/dev/null || true)
-    local _valid_types_str; _valid_types_str="${_valid_types[*]}"; _valid_types_str="${_valid_types_str// /, }"
-    local _pf_type
-    _pf_type=$(yq '.project.type // ""' "$_project_preflight" 2>/dev/null)
-    if [[ -n "$_pf_type" && "$_pf_type" != "null" ]]; then
-      local _pf_type_ok=false _vt
-      for _vt in "${_valid_types[@]}"; do
-        [[ "$_pf_type" == "$_vt" ]] && _pf_type_ok=true && break
-      done
-      if [[ "$_pf_type_ok" == false ]]; then
-        fail "$(interp "$err" "issue=project.type '$_pf_type' is invalid (valid: $_valid_types_str)")"
-        ok=false
-      fi
-    fi
-
     local _pf_rule
     while IFS= read -r _pf_rule; do
       is_blank "$_pf_rule" && continue
@@ -111,27 +79,29 @@ preflight_config_check() {
       ok=false
     fi
 
-    local _pf_env_vals _pf_req_env
-    _pf_env_vals=$(yq '.environments.values // [] | .[]' "$_project_preflight" 2>/dev/null || true)
-    while IFS= read -r _pf_req_env; do
-      is_blank "$_pf_req_env" && continue
-      if ! printf '%s\n' "$_pf_env_vals" | grep -qx "$_pf_req_env"; then
-        fail "$(interp "$err" "issue=env.required.$_pf_req_env is not declared in environments.values")"
-        ok=false
-      fi
-    done < <(yq '.env.required // {} | keys | .[]' "$_project_preflight" 2>/dev/null || true)
-
     [[ "$ok" == true ]] && pass "$desc"
   fi
 }
 
 preflight_config_setup() {
-  if step_enabled bumfuzzle_yml && artifact_enabled "bumfuzzle"; then
-    local src="$TEMPLATES/bumfuzzle/${PROJECT_TYPE}.yml"
-    if [[ -f "$src" ]]; then
-      maybe_write_subst "$src" "$PROJECT_DIR/bumfuzzle.yml"
-    else
-      warn "no bumfuzzle template for type: $PROJECT_TYPE"
+  if step_enabled bumfuzzle_yml; then
+    local dest="$PROJECT_DIR/bumfuzzle.yml"
+    if [[ -e "$dest" ]]; then
+      skip "bumfuzzle.yml exists"
+      return
+    fi
+    log "write bumfuzzle.yml (from settings defaults)"
+    if [[ "$DRY_RUN" == false ]]; then
+      printf 'project:\n  name: %s\n\nartifacts:\n' "$PROJECT_NAME" > "$dest"
+      local _kind _key _default
+      while IFS='|' read -r _kind _key _default; do
+        [[ "$_kind" != "artifact" || "$_default" != "true" ]] && continue
+        printf '  %s: { enabled: true }\n' "$_key" >> "$dest"
+      done < <({
+        yq '.bumfuzzle.directories[] | .kind + "|" + .key + "|" + (.bumfuzzle_default | tostring)' "$KICKSTART_REPO/settings.yml" 2>/dev/null
+        yq '.bumfuzzle.files[] | .kind + "|" + .key + "|" + (.bumfuzzle_default | tostring)' "$KICKSTART_REPO/settings.yml" 2>/dev/null
+      })
+      _build_scaffold_merged
     fi
   fi
 }

@@ -247,41 +247,8 @@ if [[ ! -f "$RULES_FILE" ]]; then
 fi
 _project_preflight="$(pwd)/$PREFLIGHT_FILE"
 _merged=$(mktemp)
-_preset=$(yq '.preset // ""' "$_project_preflight" 2>/dev/null)
-if [[ -n "$_preset" && "$_preset" != "null" ]]; then
-  _preset_file="$PREFLIGHT_REPO/presets/purpose/${_preset}.yml"
-  if [[ ! -f "$_preset_file" ]]; then
-    printf '[FAIL] unknown preset: %s\n' "$_preset"; exit 1
-  fi
-fi
-
-# Workspace parent inheritance: merge parent bumfuzzle.yml as a base layer
-_parent_preflight=""
-_pf_project_type=$(yq '.project.type // ""' "$_project_preflight" 2>/dev/null)
-if [[ "$_pf_project_type" == "workspace" ]]; then
-  _pf_parent=$(yq '.project.parent // ""' "$_project_preflight" 2>/dev/null)
-  if [[ -n "$_pf_parent" && "$_pf_parent" != "null" ]]; then
-    _parent_candidate="$(cd "$(dirname "$_project_preflight")/$_pf_parent" 2>/dev/null && pwd)/bumfuzzle.yml"
-    if [[ -f "$_parent_candidate" ]]; then
-      _parent_preflight="$_parent_candidate"
-      pass "workspace: inheriting from $(basename "$(dirname "$_parent_candidate")")/bumfuzzle.yml"
-    else
-      printf '[WARN] workspace parent bumfuzzle.yml not found: %s\n' "$_pf_parent/bumfuzzle.yml"
-    fi
-  fi
-fi
-
-# Build merge layer list: defaults < parent < preset < project
-_merge_layers=("$RULES_FILE")
-[[ -n "$_parent_preflight" ]] && _merge_layers+=("$_parent_preflight")
-[[ -n "$_preset" && "$_preset" != "null" ]] && _merge_layers+=("$_preset_file")
-_merge_layers+=("$_project_preflight")
-
-_merge_label="config merged"
-[[ -n "$_preset" && "$_preset" != "null" ]] && _merge_label="config merged (preset: $_preset)"
-[[ -n "$_parent_preflight" ]] && _merge_label="$_merge_label + parent"
-yq eval-all '. as $item ireduce ({}; . * $item)' "${_merge_layers[@]}" > "$_merged"
-pass "$_merge_label"
+yq eval-all '. as $item ireduce ({}; . * $item)' "$RULES_FILE" "$_project_preflight" > "$_merged"
+pass "config merged"
 while IFS= read -r _key; do
   [[ -z "$_key" || "$_key" == "null" ]] && continue
   if [[ "$(yq ".validation.${_key}" "$RULES_FILE")" == "null" ]]; then

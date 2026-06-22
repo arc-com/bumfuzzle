@@ -35,7 +35,7 @@ hooks_setup() {
       if [[ "$DRY_RUN" == false ]]; then
         mkdir -p "$hooks_dest"
         local _hook_src
-        for _hook_src in "$TEMPLATES/hooks/"*; do
+        for _hook_src in "$KICKSTART_REPO/scripts/hooks/"*; do
           [[ -f "$_hook_src" ]] || continue
           [[ "$(basename "$_hook_src")" == "hooks.sh" ]] && continue
           cp "$_hook_src" "$hooks_dest/$(basename "$_hook_src")"
@@ -43,20 +43,22 @@ hooks_setup() {
         done
       fi
     fi
-    local dest="$PROJECT_DIR/scripts/hooks.sh"
-    if [[ -e "$dest" ]]; then
-      skip "scripts/hooks.sh exists"
-    else
-      log "write scripts/hooks.sh"
-      if [[ "$DRY_RUN" == false ]]; then
-        mkdir -p "$PROJECT_DIR/scripts"
-        cp "$TEMPLATES/hooks/hooks.sh" "$dest"
-        chmod +x "$dest"
+    if artifact_enabled "hooks"; then
+      local dest="$PROJECT_DIR/scripts/hooks.sh"
+      if [[ -e "$dest" ]]; then
+        skip "scripts/hooks.sh exists"
+      else
+        log "write scripts/hooks.sh"
+        if [[ "$DRY_RUN" == false ]]; then
+          mkdir -p "$PROJECT_DIR/scripts"
+          cp "$KICKSTART_REPO/scripts/hooks/hooks.sh" "$dest"
+          chmod +x "$dest"
+        fi
       fi
-    fi
-    if [[ -d "$PROJECT_DIR/.git" ]]; then
-      log "install git hooks → .git/hooks/"
-      [[ "$DRY_RUN" == false ]] && bash "$PROJECT_DIR/scripts/hooks.sh" --force
+      if [[ -d "$PROJECT_DIR/.git" ]]; then
+        log "install git hooks → .git/hooks/"
+        [[ "$DRY_RUN" == false ]] && bash "$PROJECT_DIR/scripts/hooks.sh" --force
+      fi
     fi
   fi
 }

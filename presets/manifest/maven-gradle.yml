@@ -1,3 +1,0 @@
-validation:
-  maven_checks:  { enabled: true }
-  gradle_checks: { enabled: true }

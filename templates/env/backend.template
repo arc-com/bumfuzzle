@@ -1,5 +1,0 @@
-# Runtime environment
-ARC_ENV=
-
-# Add service-specific vars below.
-# Every key here must be set in .env.local, .env.test, and .env.prod.

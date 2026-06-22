@@ -5,26 +5,26 @@ editor_check() {
 }
 
 editor_setup() {
-  if step_enabled vscode_settings && scaffold_enabled "editor.vscode"; then
+  if step_enabled vscode_settings && artifact_enabled "vscode_settings"; then
     if [[ -e "$PROJECT_DIR/.vscode/settings.json" ]]; then
       skip ".vscode/settings.json exists"
     else
       log "write .vscode/settings.json"
       if [[ "$DRY_RUN" == false ]]; then
         mkdir -p "$PROJECT_DIR/.vscode"
-        cp "$TEMPLATES/vscode/settings.json" "$PROJECT_DIR/.vscode/settings.json"
+        printf '{\n  "editor.formatOnSave": true,\n  "editor.trimAutoWhitespace": true,\n  "files.trimTrailingWhitespace": true,\n  "files.insertFinalNewline": true\n}\n' > "$PROJECT_DIR/.vscode/settings.json"
       fi
     fi
   fi
 
-  if step_enabled claude_settings && scaffold_enabled "editor.claude"; then
+  if step_enabled claude_settings && artifact_enabled "claude_settings"; then
     if [[ -e "$PROJECT_DIR/.claude/settings.json" ]]; then
       skip ".claude/settings.json exists"
     else
       log "write .claude/settings.json"
       if [[ "$DRY_RUN" == false ]]; then
         mkdir -p "$PROJECT_DIR/.claude"
-        cp "$TEMPLATES/claude/settings.json" "$PROJECT_DIR/.claude/settings.json"
+        printf '{}\n' > "$PROJECT_DIR/.claude/settings.json"
       fi
     fi
   fi

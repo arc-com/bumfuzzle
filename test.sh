@@ -146,7 +146,7 @@ fi
 
 # ── Test 9: commit-msg hook rejects AI co-author ─────────────────────────────
 printf '\n-- Test 9: commit-msg hook ----------------------------------------------\n'
-COMMIT_MSG_HOOK="$SCRIPT_DIR/templates/hooks/commit-msg"
+COMMIT_MSG_HOOK="$SCRIPT_DIR/scripts/hooks/commit-msg"
 tmpfile=$(mktemp)
 printf 'fix: something\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\n' > "$tmpfile"
 if bash "$COMMIT_MSG_HOOK" "$tmpfile" > /dev/null 2>&1; then

@@ -13,7 +13,7 @@
 Three tools, one repo:
 
 - **`kickstart`** — scaffolds a new project in the current directory; detects package manager manifests; writes `bumfuzzle.yml`
-- **`wizard`** — interactive REPL wrapping kickstart
+- **`bumfuzzle`** — browser-based scaffolding UI wrapping kickstart
 - **`preflight`** — reads `bumfuzzle.yml` and runs the declared validation checks; deterministic and side-effect-free
 
 ---
@@ -79,7 +79,7 @@ git clone https://github.com/archicode-ai/bumfuzzle ~/.local/share/bumfuzzle
 bash ~/.local/share/bumfuzzle/setup.sh
 ```
 
-Adds `kickstart`, `wizard`, and `preflight` to `~/.local/bin`.
+Adds `kickstart`, `bumfuzzle`, and `preflight` to `~/.local/bin`.
 
 ### Scaffold a new project
 
@@ -103,10 +103,10 @@ preflight --verbose
 preflight --env local --stack server
 ```
 
-### Run the wizard
+### Run bumfuzzle
 
 ```bash
-wizard
+bumfuzzle
 ```
 
 ---
@@ -117,10 +117,10 @@ wizard
 bumfuzzle/
 ├── kickstart.sh              # Scaffolding entrypoint
 ├── preflight.sh            # Validation entrypoint
-├── wizard.sh               # Interactive wrapper for kickstart
-├── setup.sh                # Installs kickstart/wizard/preflight to ~/.local/bin
+├── bumfuzzle.sh            # Browser-based scaffolding UI wrapping kickstart
+├── setup.sh                # Installs kickstart/bumfuzzle/preflight to ~/.local/bin
 ├── settings.yml            # Rule registry, scaffold defaults, scaffold paths
-├── kickstart.settings.yml    # Kickstart step config and wizard questions
+├── kickstart.settings.yml    # Kickstart step config and bumfuzzle questions
 ├── bumfuzzle.yml           # Self-validation config for the bumfuzzle repo itself
 ├── domains/                # Check and setup implementations (one domain per concern)
 │   ├── git.sh              # gitignore, AI coauthor check; git init
@@ -142,16 +142,8 @@ bumfuzzle/
 │   ├── backend.yml
 │   ├── node.yml
 │   └── ... (web, python, java, swift, php, ruby, rust, workspace)
-└── templates/              # Inert content files copied into new projects
-    ├── bumfuzzle/          # bumfuzzle.yml starters per type
-    ├── deploy/             # deploy.sh stubs per type
-    ├── env/                # .env.template starters per type
-    ├── hooks/              # pre-commit, commit-msg, install-hooks.sh
-    ├── lifecycle/          # start.sh / stop.sh stubs
-    ├── docker/             # docker-compose stack templates
-    ├── vscode/             # .vscode/settings.json
-    ├── claude/             # .claude/settings.json
-    └── readme/             # README.md starter
+└── scripts/                # Reusable scripts scaffolded into new projects
+    └── hooks/              # pre-commit, commit-msg, hooks.sh
 ```
 
 ---

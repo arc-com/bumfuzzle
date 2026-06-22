@@ -96,34 +96,6 @@ env_check() {
       [[ "$ok" == true ]] && pass "$desc"
     fi
 
-    CURRENT_RULE="env_required_present"
-    if rule_enabled '.validation.env_required_present'; then
-      local _skip
-      _skip=$(yq '.validation.env_required_present.skip_without_env_flag // "false"' "$PREFLIGHT_FILE" 2>/dev/null)
-      if [[ "$_skip" != "true" || -n "$ONLY_ENV" ]]; then
-        local desc err ok=true env env_file var value
-        desc=$(rule_get '.validation.env_required_present.description')
-        err=$(rule_get '.validation.env_required_present.error')
-        while IFS= read -r env; do
-          is_blank "$env" && continue
-          env_file=".env.${env}"
-          [[ ! -f "$env_file" ]] && continue
-          if [[ "$(yq ".env.required.${env} | type" "$PREFLIGHT_FILE")" != "!!seq" ]]; then
-            continue
-          fi
-          while IFS= read -r var; do
-            is_blank "$var" && continue
-            value=$(grep -E "^${var}=" "$env_file" 2>/dev/null | tail -n 1 | cut -d= -f2- || true)
-            if [[ -z "${value// }" ]]; then
-              fail "$(interp "$err" "file=$env_file" "var=$var")"
-              ok=false
-            fi
-          done < <(yq ".env.required.${env}[]" "$PREFLIGHT_FILE" 2>/dev/null)
-        done < <(selected_envs)
-        [[ "$ok" == true ]] && pass "$desc"
-      fi
-    fi
-
   fi  # end environments section
 
   CURRENT_RULE="env_no_blank_values"
@@ -149,16 +121,23 @@ env_check() {
 
 env_setup() {
   if step_enabled env_files; then
-    local src="$TEMPLATES/env/${PROJECT_TYPE}.template"
-    if [[ -f "$src" ]]; then
-      artifact_enabled "env_template" && maybe_write_subst "$src" "$PROJECT_DIR/.env.template"
-      if artifact_enabled "env_file"; then
-        local env
-        while IFS= read -r env; do
-          is_blank "$env" && continue
-          maybe_write_subst "$src" "$PROJECT_DIR/.env.${env}"
-        done < <(cfg '.defaults.environments[]' 2>/dev/null || true)
+    local _write_env_file
+    _write_env_file() {
+      local dest="$1" label="${1#"$PROJECT_DIR/"}"
+      if [[ -e "$dest" ]]; then
+        skip "$label exists"
+      else
+        log "write $label"
+        [[ "$DRY_RUN" == false ]] && printf '# Add environment-specific vars below.\n' > "$dest"
       fi
+    }
+    artifact_enabled "env_template" && _write_env_file "$PROJECT_DIR/.env.template"
+    if artifact_enabled "env_file"; then
+      local env
+      while IFS= read -r env; do
+        is_blank "$env" && continue
+        _write_env_file "$PROJECT_DIR/.env.${env}"
+      done < <(cfg '.defaults.environments[]' 2>/dev/null || true)
     fi
   fi
 }

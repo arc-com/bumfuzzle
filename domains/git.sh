@@ -2,24 +2,13 @@
 
 _gitignore_expected_patterns() {
   local _settings="$PREFLIGHT_REPO/settings.yml"
-  local _purpose _f _frags=() _already _ef _pm_entry _pm_manifest _pm_frag
+  local _f _frags=() _already _ef _pm_entry _pm_manifest _pm_frag
   local _excluded=() _ex _frag _skip_frag _ex3 _pat _extra_count
-
-  _purpose=$(yq '.preset // ""' "$PREFLIGHT_FILE" 2>/dev/null || true)
 
   while IFS= read -r _f; do
     is_blank "$_f" && continue
     _frags+=("$_f")
   done < <(yq '.gitignore.defaults.common[]' "$_settings" 2>/dev/null || true)
-
-  if ! is_blank "$_purpose"; then
-    while IFS= read -r _f; do
-      is_blank "$_f" && continue
-      _already=false
-      for _ef in "${_frags[@]:-}"; do [[ "$_ef" == "$_f" ]] && _already=true && break; done
-      [[ "$_already" == false ]] && _frags+=("$_f")
-    done < <(yq ".gitignore.defaults.by_purpose.${_purpose}[]" "$_settings" 2>/dev/null || true)
-  fi
 
   while IFS= read -r _pm_entry; do
     _pm_manifest="${_pm_entry%%|*}"

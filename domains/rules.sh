@@ -14,6 +14,7 @@ rules_check() {
   local _rules_any=false
   artifact_enabled "agents_md" && _rules_any=true
   artifact_enabled "claude_md" && _rules_any=true
+  artifact_enabled "skill_md"  && _rules_any=true
   [[ "$_rules_any" == true ]] && section '-- Rules ----------------------------------------------------------------'
 
   if artifact_enabled "agents_md"; then
@@ -31,6 +32,15 @@ rules_check() {
     else
       CURRENT_RULE=""
       fail "CLAUDE.md is missing (run kickstart to install)"
+    fi
+  fi
+
+  if artifact_enabled "skill_md"; then
+    if [[ -e "SKILL.md" ]]; then
+      pass "SKILL.md is present"
+    else
+      CURRENT_RULE=""
+      fail "SKILL.md is missing (run kickstart to install)"
     fi
   fi
 }
@@ -64,6 +74,20 @@ rules_setup() {
       [[ "$DRY_RUN" == false ]] && ln -s "$rel" "$dest"
     else
       warn "CLAUDE.md: rules repo not found at $rules_dir — skipping"
+    fi
+  fi
+
+  if artifact_enabled "skill_md"; then
+    local dest="$PROJECT_DIR/SKILL.md"
+    if [[ -e "$dest" ]]; then
+      skip "SKILL.md exists"
+    elif [[ -f "$rules_dir/SKILL.md" ]]; then
+      local rel
+      rel="$(python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$rules_dir/SKILL.md" "$PROJECT_DIR")"
+      log "link SKILL.md -> $rel"
+      [[ "$DRY_RUN" == false ]] && ln -s "$rel" "$dest"
+    else
+      warn "SKILL.md: rules repo not found at $rules_dir — skipping"
     fi
   fi
 }

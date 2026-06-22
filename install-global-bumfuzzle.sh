@@ -29,7 +29,7 @@ link_tool() {
 printf '\nbumfuzzle v%s — global install\n\n' "$VERSION"
 
 link_tool kickstart  "$REPO/kickstart.sh"
-link_tool wizard   "$REPO/wizard.sh"
+link_tool bumfuzzle "$REPO/bumfuzzle.sh"
 link_tool preflight "$REPO/preflight.sh"
 
 printf '\n'

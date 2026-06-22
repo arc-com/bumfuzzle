@@ -63,14 +63,6 @@ validation:
       declare_in_preflight: "Add the var to env.compose.vars or env.tools.vars in bumfuzzle.yml"
     selected_hints: [declare_in_preflight]
 
-  env_required_present:
-    enabled: true
-    description: "Required vars are non-empty in their target env files"
-    error: "{file} must set a non-empty value for {var}"
-    hints:
-      set_value: "Set a non-empty value for the required var in the target .env file"
-    selected_hints: [set_value]
-
   env_no_blank_values:
     enabled: true
     description: "No .env file has blank values"
@@ -167,7 +159,7 @@ validation:
     description: "Lifecycle scripts are present and have description comments"
     error: "{issue}"
     hints:
-      create_script: "Create the missing script — see templates/lifecycle/ in the preflight framework"
+      create_script: "Create the missing script — see scripts/lifecycle/ in the preflight framework"
       add_comment: "Add a description comment on line 2: # <script>.sh — <description>"
     selected_hints: [create_script, add_comment]
 
@@ -177,14 +169,11 @@ validation:
     error: "{issue}"
     hints:
       set_project_name: "Set project.name in bumfuzzle.yml"
-      fix_preset: "Valid presets are: bare, backend, frontend, workspace"
-      fix_project_type: "Set project.type to 'main' or 'workspace' in bumfuzzle.yml"
       fix_selected_hints: "Remove the invalid key from selected_hints, or add it to the rule's hints in settings.yml"
-      fix_env_required: "Update env.required to use names declared in environments.values"
       fix_enabled_type: "Set enabled to a boolean: enabled: true (not quoted)"
       fix_list_type: "Set the field to a YAML list: field: [item1, item2]"
       fix_severity: "Set severity to one of: skip, warn, error, hard-stop"
-    selected_hints: [set_project_name, fix_preset, fix_project_type, fix_selected_hints, fix_env_required, fix_enabled_type, fix_list_type, fix_severity]
+    selected_hints: [set_project_name, fix_selected_hints, fix_enabled_type, fix_list_type, fix_severity]
 
 scaffold:
   git:
@@ -201,9 +190,6 @@ scaffold:
     env_files: true
     bumfuzzle_yml: true
     rules: true
-    deploy_sh: true
-    start_sh: true
-    stop_sh: true
     vscode_settings: true
     claude_settings: true
     dependencies: true
@@ -228,17 +214,28 @@ artifacts:
   infra_docker:   { path: infra/docker,     type: dir,     enabled: false }
   infra_k8s:      { path: infra/k8s,        type: dir,     enabled: false }
   infra_terraform: { path: infra/terraform, type: dir,     enabled: false }
+  infra_ansible:   { path: infra/ansible,   type: dir,     enabled: false }
+  github:                { path: .github,                           type: dir, enabled: false }
+  github_workflows:      { path: .github/workflows,                type: dir, enabled: false }
+  github_pr_template:    { path: .github/PULL_REQUEST_TEMPLATE,    type: dir, enabled: false }
+  github_issue_template: { path: .github/ISSUE_TEMPLATE,           type: dir, enabled: false }
+  gitlab:                { path: .gitlab,                           type: dir, enabled: false }
+  gitlab_ci:             { path: .gitlab/ci,                       type: dir, enabled: false }
+  gitlab_mr_template:    { path: .gitlab/merge_request_templates,  type: dir, enabled: false }
+  gitlab_issue_template: { path: .gitlab/issue_templates,          type: dir, enabled: false }
+  bin:           { path: bin,                      type: dir,     enabled: false }
+  logs:          { path: logs,                     type: dir,     enabled: false }
   claude_dir:    { path: .claude,                  type: dir,     enabled: false }
   gitignore:     { path: .gitignore,               type: file,    enabled: false }
   readme:        { path: README.md,                type: file,    enabled: false }
   bumfuzzle:     { path: bumfuzzle.yml,            type: file,    enabled: false }
   env_template:  { path: .env.template,            type: file,    enabled: false }
-  deploy:        { path: scripts/deploy.sh,        type: file,    enabled: false }
-  start:         { path: scripts/start.sh,         type: file,    enabled: false }
-  stop:          { path: scripts/stop.sh,          type: file,    enabled: false }
   hooks:         { path: scripts/hooks.sh,          type: file,    enabled: false }
   agents_md:     { path: AGENTS.md,                type: file,    enabled: false }
   claude_md:     { path: CLAUDE.md,                type: file,    enabled: false }
+  skill_md:      { path: SKILL.md,                 type: file,    enabled: false }
+  vscode_settings: { path: .vscode/settings.json,  type: file,    enabled: false }
+  claude_settings: { path: .claude/settings.json,  type: file,    enabled: false }
   env_file:
     path: .env.{{VALUE}}
     type: pattern
@@ -269,6 +266,7 @@ gitignore:
     tmp:
       - "tmp/"
       - "backup/"
+      - "logs/"
       - ".session/"
       - "docs/"
     secrets:
@@ -276,6 +274,8 @@ gitignore:
       - "!.env.template"
     claude:
       - ".claude/"
+      - ".claude/settings.json"
+      - ".claude/settings.local.json"
       - "CLAUDE.md"
       - "AGENTS.md"
     node:
@@ -300,6 +300,14 @@ gitignore:
     rust:
       - "target/"
       - "Cargo.lock"
+    go:
+      - "vendor/"
+      - "dist/"
+      - "build/"
+    php:
+      - "vendor/"
+    bin:
+      - "bin/"
     docker:
       - ".docker/"
       - "*.log"
@@ -310,11 +318,6 @@ gitignore:
       - tmp
       - secrets
       - claude
-    by_purpose:
-      backend:
-        - docker
-      frontend:
-        - node
     by_manifest:
       package.json:
         - node
@@ -330,6 +333,10 @@ gitignore:
         - python
       Cargo.toml:
         - rust
+      go.mod:
+        - go
+      composer.json:
+        - php
   exclude_fragments: []
   extra_fragments: []
   extra_patterns: []
@@ -345,18 +352,18 @@ docker:
 
 project:
   name: ""
-  valid_types: [main, workspace]
   package_managers:
-    - { manifest: Package.swift,     purpose: backend,  manifest_preset: ""           }
-    - { manifest: composer.json,     purpose: backend,  manifest_preset: ""           }
-    - { manifest: Gemfile,           purpose: backend,  manifest_preset: ""           }
-    - { manifest: Cargo.toml,        purpose: backend,  manifest_preset: ""           }
-    - { manifest: pyproject.toml,    purpose: backend,  manifest_preset: ""           }
-    - { manifest: requirements.txt,  purpose: backend,  manifest_preset: ""           }
-    - { manifest: package.json,      purpose: frontend, manifest_preset: pnpm         }
-    - { manifest: pom.xml,           purpose: backend,  manifest_preset: maven-gradle }
-    - { manifest: build.gradle,      purpose: backend,  manifest_preset: maven-gradle }
-    - { manifest: build.gradle.kts,  purpose: backend,  manifest_preset: maven-gradle }
+    - { manifest: Package.swift,    purpose: backend  }
+    - { manifest: composer.json,    purpose: backend  }
+    - { manifest: Gemfile,          purpose: backend  }
+    - { manifest: Cargo.toml,       purpose: backend  }
+    - { manifest: go.mod,           purpose: backend  }
+    - { manifest: pyproject.toml,   purpose: backend  }
+    - { manifest: requirements.txt, purpose: backend  }
+    - { manifest: package.json,     purpose: frontend }
+    - { manifest: pom.xml,          purpose: backend  }
+    - { manifest: build.gradle,     purpose: backend  }
+    - { manifest: build.gradle.kts, purpose: backend  }
 
 preflight:
   valid_severities: [skip, warn, error, hard-stop]
@@ -367,15 +374,68 @@ tools:
     enabled: true
     locks: [git_init]
     modules:
-      gitignore: { label: "Gitignore", enabled: true, locks: [gitignore] }
-      hooks:     { label: "Hooks",     enabled: true, locks: [githooks, hooks] }
-  docker:    { label: "Docker",     enabled: false, locks: [docker_compose] }
-  vscode:    { label: "VS Code",    enabled: true,  locks: [] }
-  claude:    { label: "Claude AI",  enabled: false, locks: [claude_md, claude_dir] }
+      gitignore:  { label: "Gitignore",   enabled: true,  locks: [gitignore] }
+      hooks:      { label: "Hooks",       enabled: true,  locks: [githooks, hooks] }
+      submodules:
+        label: "Submodules"
+        enabled: false
+        locks: []
+        modules:
+          sparse:    { label: "Sparse checkout", enabled: false, locks: [] }
+          recursive: { label: "Recursive init",  enabled: false, locks: [] }
+      subtrees:   { label: "Subtrees",    enabled: false, locks: [] }
+      worktrees:  { label: "Worktrees",   enabled: false, locks: [] }
+      reflog:     { label: "Reflog",      enabled: false, locks: [] }
+      lfs:
+        label: "LFS"
+        enabled: false
+        locks: []
+        modules:
+          tracking: { label: "Tracking rules", enabled: false, locks: [lfs_tracking] }
+          pointer:  { label: "Pointer files",  enabled: false, locks: [] }
+  github:
+    label: "GitHub"
+    enabled: false
+    locks: [github]
+    modules:
+      workflows:       { label: "CI Workflows",    enabled: false, locks: [github_workflows] }
+      pr_templates:    { label: "PR Templates",    enabled: false, locks: [github_pr_template] }
+      issue_templates: { label: "Issue Templates", enabled: false, locks: [github_issue_template] }
+  gitlab:
+    label: "GitLab"
+    enabled: false
+    locks: [gitlab]
+    modules:
+      ci:              { label: "CI Pipelines",    enabled: false, locks: [gitlab_ci] }
+      mr_templates:    { label: "MR Templates",    enabled: false, locks: [gitlab_mr_template] }
+      issue_templates: { label: "Issue Templates", enabled: false, locks: [gitlab_issue_template] }
+  docker:
+    label: "Docker"
+    enabled: false
+    locks: [docker_compose]
+    modules:
+      volume:     { label: "Volume",      enabled: false, locks: [] }
+      mount:      { label: "Mount",       enabled: false, locks: [] }
+      networking:
+        label: "Networking"
+        enabled: false
+        locks: []
+        modules:
+          overlay: { label: "Overlay driver", enabled: false, locks: [compose_network] }
+          bridge:  { label: "Bridge driver",  enabled: false, locks: [] }
+      registry:
+        label: "Registry"
+        enabled: false
+        locks: [registry_config]
+        modules:
+          mirror: { label: "Mirror",         enabled: true,  locks: [] }
+          auth:   { label: "Authentication", enabled: false, locks: [registry_auth] }
+      swarm:      { label: "Swarm",       enabled: false, locks: [] }
+  vscode:    { label: "VS Code",    enabled: true,  locks: [vscode_settings] }
+  claude:    { label: "Claude AI",  enabled: false, locks: [claude_md, claude_dir, claude_settings] }
   terraform: { label: "Terraform",  enabled: false, locks: [] }
   k8s:       { label: "Kubernetes", enabled: false, locks: [] }
-
-purpose: bare
+  ansible:   { label: "Ansible",    enabled: false, locks: [] }
 
 extra_dirs: []
 
@@ -388,42 +448,53 @@ defaults:
 initial_commit:
   message: "chore: scaffold {{PROJECT_NAME}}"
 
-wizard:
+bumfuzzle:
   directories:
-    - { label: ".git/",           kind: step,     key: git_init,       wizard_default: true,  required: true }
-    - { label: ".githooks/",      kind: step,     key: githooks,       wizard_default: true  }
-    - { label: ".claude/",        kind: artifact, key: claude_dir,     wizard_default: false }
-    - { label: "docs/",           kind: artifact, key: docs,           wizard_default: true  }
-    - { label: "tmp/",            kind: artifact, key: tmp,            wizard_default: true  }
-    - { label: "backup/",         kind: artifact, key: backup,         wizard_default: true  }
-    - { label: "scripts/",        kind: artifact, key: scripts,        wizard_default: true  }
-    - { label: "src/",            kind: artifact, key: src,            wizard_default: false }
-    - { label: "public/",         kind: artifact, key: public,         wizard_default: false }
-    - { label: "services/",       kind: artifact, key: services,       wizard_default: false }
-    - { label: "config/",         kind: artifact, key: config_dir,     wizard_default: false }
-    - { label: ".session/",       kind: artifact, key: session,        wizard_default: false }
-    - { label: "migrations/",     kind: artifact, key: migrations,     wizard_default: false }
-    - { label: "tests/",          kind: artifact, key: tests,          wizard_default: false }
-    - { label: "tests/fixtures/", kind: artifact, key: tests_fixtures, wizard_default: false }
-    - { label: "infra/",           kind: artifact, key: infra,           wizard_default: false }
-    - { label: "infra/docker/",   kind: artifact, key: infra_docker,    wizard_default: false }
-    - { label: "infra/k8s/",      kind: artifact, key: infra_k8s,       wizard_default: false }
-    - { label: "infra/terraform/", kind: artifact, key: infra_terraform, wizard_default: false }
+    - { label: ".git/",           kind: step,     key: git_init,       bumfuzzle_default: true,  required: true }
+    - { label: ".githooks/",      kind: step,     key: githooks,       bumfuzzle_default: true  }
+    - { label: ".claude/",        kind: artifact, key: claude_dir,     bumfuzzle_default: false }
+    - { label: "docs/",           kind: artifact, key: docs,           bumfuzzle_default: true  }
+    - { label: "tmp/",            kind: artifact, key: tmp,            bumfuzzle_default: true  }
+    - { label: "backup/",         kind: artifact, key: backup,         bumfuzzle_default: true  }
+    - { label: "scripts/",        kind: artifact, key: scripts,        bumfuzzle_default: true  }
+    - { label: "src/",            kind: artifact, key: src,            bumfuzzle_default: false }
+    - { label: "public/",         kind: artifact, key: public,         bumfuzzle_default: false }
+    - { label: "services/",       kind: artifact, key: services,       bumfuzzle_default: false }
+    - { label: "config/",         kind: artifact, key: config_dir,     bumfuzzle_default: false }
+    - { label: ".session/",       kind: artifact, key: session,        bumfuzzle_default: false }
+    - { label: "migrations/",     kind: artifact, key: migrations,     bumfuzzle_default: false }
+    - { label: "tests/",          kind: artifact, key: tests,          bumfuzzle_default: false }
+    - { label: "tests/fixtures/", kind: artifact, key: tests_fixtures, bumfuzzle_default: false }
+    - { label: "infra/",           kind: artifact, key: infra,           bumfuzzle_default: false }
+    - { label: "infra/docker/",   kind: artifact, key: infra_docker,    bumfuzzle_default: false }
+    - { label: "infra/k8s/",      kind: artifact, key: infra_k8s,       bumfuzzle_default: false }
+    - { label: "infra/terraform/", kind: artifact, key: infra_terraform, bumfuzzle_default: false }
+    - { label: "infra/ansible/",   kind: artifact, key: infra_ansible,   bumfuzzle_default: false }
+    - { label: ".github/",                      kind: artifact, key: github,                bumfuzzle_default: false }
+    - { label: ".github/workflows/",            kind: artifact, key: github_workflows,      bumfuzzle_default: false }
+    - { label: ".github/PULL_REQUEST_TEMPLATE/", kind: artifact, key: github_pr_template,   bumfuzzle_default: false }
+    - { label: ".github/ISSUE_TEMPLATE/",       kind: artifact, key: github_issue_template, bumfuzzle_default: false }
+    - { label: ".gitlab/",                      kind: artifact, key: gitlab,                bumfuzzle_default: false }
+    - { label: ".gitlab/ci/",                   kind: artifact, key: gitlab_ci,             bumfuzzle_default: false }
+    - { label: ".gitlab/merge_request_templates/", kind: artifact, key: gitlab_mr_template,    bumfuzzle_default: false }
+    - { label: ".gitlab/issue_templates/",      kind: artifact, key: gitlab_issue_template, bumfuzzle_default: false }
+    - { label: "bin/",  kind: artifact, key: bin,  bumfuzzle_default: false }
+    - { label: "logs/", kind: artifact, key: logs, bumfuzzle_default: false }
   files:
-    - { label: ".gitignore",                kind: artifact, key: gitignore,      wizard_default: true  }
-    - { label: ".env.template",             kind: artifact, key: env_template,   wizard_default: true  }
-    - { label: ".env.{{VALUE}}",            kind: artifact, key: env_file,       wizard_default: true,  foreach: environments.values }
-    - { label: "README.md",                 kind: artifact, key: readme,         wizard_default: true  }
-    - { label: "bumfuzzle.yml",             kind: artifact, key: bumfuzzle,      wizard_default: true  }
-    - { label: "scripts/deploy.sh",         kind: artifact, key: deploy,         wizard_default: true  }
-    - { label: "scripts/start.sh",          kind: artifact, key: start,          wizard_default: true  }
-    - { label: "scripts/stop.sh",           kind: artifact, key: stop,           wizard_default: true  }
-    - { label: "scripts/hooks.sh",          kind: artifact, key: hooks,          wizard_default: true  }
-    - { label: "docker-compose.{{VALUE}}.yml", kind: artifact, key: docker_compose, wizard_default: false, foreach: stacks.values, only_purposes: [backend] }
-    - { label: "config.{{VALUE}}.yml",      kind: artifact, key: config_stack,   wizard_default: false, foreach: stacks.values }
-    - { label: "config.shared.yml",         kind: artifact, key: config_shared,  wizard_default: false }
-    - { label: "AGENTS.md",                 kind: artifact, key: agents_md,      wizard_default: false }
-    - { label: "CLAUDE.md",                 kind: artifact, key: claude_md,      wizard_default: false }
+    - { label: ".gitignore",                kind: artifact, key: gitignore,      bumfuzzle_default: true  }
+    - { label: ".env.template",             kind: artifact, key: env_template,   bumfuzzle_default: true  }
+    - { label: ".env.{{VALUE}}",            kind: artifact, key: env_file,       bumfuzzle_default: true,  foreach: environments.values }
+    - { label: "README.md",                 kind: artifact, key: readme,         bumfuzzle_default: true  }
+    - { label: "bumfuzzle.yml",             kind: artifact, key: bumfuzzle,      bumfuzzle_default: true  }
+    - { label: "scripts/hooks.sh",          kind: artifact, key: hooks,          bumfuzzle_default: true  }
+    - { label: "docker-compose.{{VALUE}}.yml", kind: artifact, key: docker_compose, bumfuzzle_default: false, foreach: stacks.values }
+    - { label: "config.{{VALUE}}.yml",      kind: artifact, key: config_stack,   bumfuzzle_default: false, foreach: stacks.values }
+    - { label: "config.shared.yml",         kind: artifact, key: config_shared,  bumfuzzle_default: false }
+    - { label: "AGENTS.md",                 kind: artifact, key: agents_md,      bumfuzzle_default: false }
+    - { label: "CLAUDE.md",                 kind: artifact, key: claude_md,      bumfuzzle_default: false }
+    - { label: "SKILL.md",                  kind: artifact, key: skill_md,       bumfuzzle_default: false }
+    - { label: ".vscode/settings.json",    kind: artifact, key: vscode_settings, bumfuzzle_default: true  }
+    - { label: ".claude/settings.json",    kind: artifact, key: claude_settings, bumfuzzle_default: false }
   questions:
     - key: name
       prompt: "Project name (blank = directory name)"

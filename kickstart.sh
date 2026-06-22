@@ -6,7 +6,6 @@ SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do SOURCE="$(readlink "$SOURCE")"; done
 KICKSTART_REPO="$(cd "$(dirname "$SOURCE")" && pwd)"
 KICKSTART_VERSION="$(cat "$KICKSTART_REPO/VERSION" 2>/dev/null || printf 'unknown')"
-TEMPLATES="$KICKSTART_REPO/templates"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -69,33 +68,6 @@ maybe_write_subst() {
   fi
 }
 
-# ── Manifest detection ────────────────────────────────────────────────────────
-
-detect_manifests() {
-  local dir="${1:-.}"
-  _DETECTED_PURPOSE="bare"
-
-  local _manifests=() _purposes=() _pm_entry _pm_manifest _pm_purpose
-  while IFS= read -r _pm_entry; do
-    _pm_manifest="${_pm_entry%%|*}"
-    _pm_purpose="${_pm_entry##*|}"
-    [[ -f "$dir/$_pm_manifest" ]] || continue
-    _manifests+=("$_pm_manifest")
-    local _seen=false _pt
-    for _pt in "${_purposes[@]:-}"; do [[ "$_pt" == "$_pm_purpose" ]] && _seen=true && break; done
-    [[ "$_seen" == false ]] && _purposes+=("$_pm_purpose")
-  done < <(yq '.project.package_managers[] | .manifest + "|" + .purpose' "$KICKSTART_REPO/settings.yml" 2>/dev/null)
-
-  case "${#_purposes[@]}" in
-    0) _DETECTED_PURPOSE="bare" ;;
-    1) printf '[info] detected project purpose: %s (from %s)\n' "${_purposes[0]}" "${_manifests[0]}" >&2
-       _DETECTED_PURPOSE="${_purposes[0]}" ;;
-    *) local _list="${_manifests[*]}"
-       printf '[warn] multiple package managers detected (%s) — purpose set to bare\n' "${_list// /, }" >&2
-       _DETECTED_PURPOSE="bare" ;;
-  esac
-}
-
 # ── Usage ─────────────────────────────────────────────────────────────────────
 
 usage() {
@@ -133,29 +105,13 @@ done
 
 PROJECT_DIR="$(pwd)"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
-PROJECT_TYPE="bare"
-_PURPOSE_EXPLICIT=false
-_DETECTED_PURPOSE="bare"
 
-# If bumfuzzle.yml exists, read project name and purpose from it
+# If bumfuzzle.yml exists, read project name from it
 if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
   if command -v yq &>/dev/null; then
     _existing_name=$(yq '.project.name // ""' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || true)
-    _existing_purpose=$(yq '.purpose // ""' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || true)
     [[ -n "$_existing_name" && "$_existing_name" != "null" ]] && PROJECT_NAME="$_existing_name"
-    if [[ -n "$_existing_purpose" && "$_existing_purpose" != "null" ]]; then
-      PROJECT_TYPE="$_existing_purpose"
-      _PURPOSE_EXPLICIT=true
-    fi
-    log "read existing bumfuzzle.yml (name: $PROJECT_NAME, purpose: ${PROJECT_TYPE})"
-  fi
-fi
-
-# Detect manifests (skipped if purpose already known from bumfuzzle.yml)
-if [[ "$_PURPOSE_EXPLICIT" == false ]]; then
-  detect_manifests "$PROJECT_DIR"
-  if [[ "$_DETECTED_PURPOSE" != "bare" ]]; then
-    PROJECT_TYPE="$_DETECTED_PURPOSE"
+    log "read existing bumfuzzle.yml (name: $PROJECT_NAME)"
   fi
 fi
 
@@ -177,12 +133,7 @@ _build_scaffold_merged() {
   if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
     yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKSTART_REPO/settings.yml" "$PROJECT_DIR/bumfuzzle.yml" > "$_scaffold_merged"
   else
-    local _pf="$KICKSTART_REPO/presets/purpose/${PROJECT_TYPE}.yml"
-    if [[ -f "$_pf" ]]; then
-      yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKSTART_REPO/settings.yml" "$_pf" > "$_scaffold_merged"
-    else
-      cp "$KICKSTART_REPO/settings.yml" "$_scaffold_merged"
-    fi
+    cp "$KICKSTART_REPO/settings.yml" "$_scaffold_merged"
   fi
 }
 
@@ -213,13 +164,13 @@ step_enabled() {
   if [[ -n "$SKIP_STEPS" ]]; then
     printf '%s' "$SKIP_STEPS" | tr ',' '\n' | grep -qx "$step" && return 1
   fi
-  [[ "$(cfg ".scaffold.steps.${step}")" != "false" ]]
+  [[ "$(yq ".scaffold.steps.${step}" "$_scaffold_merged" 2>/dev/null)" != "false" ]]
 }
 
 # ── Header ────────────────────────────────────────────────────────────────────
 
-printf '\n-- kickstart v%s (%s: %s) %s\n' \
-  "$KICKSTART_VERSION" "$PROJECT_TYPE" "$PROJECT_NAME" \
+printf '\n-- kickstart v%s (%s) %s\n' \
+  "$KICKSTART_VERSION" "$PROJECT_NAME" \
   "$(printf '%0.s-' {1..40})"
 [[ "$DRY_RUN" == true ]] && log "dry-run mode — no changes will be made"
 
@@ -237,12 +188,12 @@ printf '\n-- kickstart v%s (%s: %s) %s\n' \
 . "$KICKSTART_REPO/domains/docker.sh"
 . "$KICKSTART_REPO/domains/config.sh"
 
+preflight_config_setup
 git_setup
 hooks_setup
 rules_setup
 structure_setup
 env_setup
-preflight_config_setup
 lifecycle_setup
 editor_setup
 dependencies_setup

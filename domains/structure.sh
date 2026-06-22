@@ -14,14 +14,6 @@ _generate_gitignore() {
     _frags+=("$_f")
   done < <(yq '.gitignore.defaults.common[]' "$settings" 2>/dev/null || true)
 
-  # Purpose fragments
-  while IFS= read -r _f; do
-    is_blank "$_f" && continue
-    local _already=false _ef
-    for _ef in "${_frags[@]:-}"; do [[ "$_ef" == "$_f" ]] && _already=true && break; done
-    [[ "$_already" == false ]] && _frags+=("$_f")
-  done < <(yq ".gitignore.defaults.by_purpose.${PROJECT_TYPE}[]" "$settings" 2>/dev/null || true)
-
   # Manifest fragments
   local _pm_entry _pm_manifest _pm_frag
   while IFS= read -r _pm_entry; do
@@ -199,6 +191,11 @@ structure_setup() {
   fi
 
   if step_enabled readme && artifact_enabled "readme"; then
-    maybe_write_subst "$TEMPLATES/readme/README.md" "$PROJECT_DIR/README.md"
+    if [[ -e "$PROJECT_DIR/README.md" ]]; then
+      skip "README.md exists"
+    else
+      log "write README.md"
+      [[ "$DRY_RUN" == false ]] && printf '# %s\n' "$PROJECT_NAME" > "$PROJECT_DIR/README.md"
+    fi
   fi
 }

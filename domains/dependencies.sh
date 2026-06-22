@@ -44,21 +44,5 @@ dependencies_check() {
 }
 
 dependencies_setup() {
-  if step_enabled dependencies; then
-    case "$PROJECT_TYPE" in
-      frontend)
-        if [[ -e "$PROJECT_DIR/package.json" ]]; then
-          skip "package.json exists"
-        else
-          log "pnpm init"
-          if [[ "$DRY_RUN" == false ]]; then
-            (cd "$PROJECT_DIR" && pnpm init)
-          fi
-        fi
-        ;;
-      *)
-        skip "dependencies: not applicable for type $PROJECT_TYPE"
-        ;;
-    esac
-  fi
+  NOT_SUPPORTED
 }

@@ -106,16 +106,27 @@ docker_check() {
 
 docker_setup() {
   if step_enabled docker_compose && artifact_enabled "docker_compose"; then
-    if [[ "$PROJECT_TYPE" == "backend" ]]; then
-      local _stack _src _dest
-      while IFS= read -r _stack; do
-        is_blank "$_stack" && continue
-        _src="$TEMPLATES/docker/${_stack}.yml"
-        _dest="$PROJECT_DIR/docker-compose.${_stack}.yml"
-        [[ -f "$_src" ]] && maybe_write_subst "$_src" "$_dest"
-      done < <(yq '.stacks.values[]' "$_scaffold_merged" 2>/dev/null || true)
-    else
-      skip "docker_compose: not applicable for type $PROJECT_TYPE"
-    fi
+    local _stack _dest
+    while IFS= read -r _stack; do
+      is_blank "$_stack" && continue
+      _dest="$PROJECT_DIR/docker-compose.${_stack}.yml"
+      if [[ -e "$_dest" ]]; then
+        skip "docker-compose.${_stack}.yml exists"
+      else
+        log "write docker-compose.${_stack}.yml"
+        if [[ "$DRY_RUN" == false ]]; then
+          cat > "$_dest" <<EOF
+services:
+  ${_stack}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.\${APP_ENV}
+    restart: unless-stopped
+EOF
+        fi
+      fi
+    done < <(yq '.stacks.values[]' "$_scaffold_merged" 2>/dev/null || true)
   fi
 }

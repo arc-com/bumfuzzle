@@ -27,58 +27,5 @@ lifecycle_check() {
 }
 
 lifecycle_setup() {
-  if step_enabled deploy_sh && artifact_enabled "deploy"; then
-    local src="$TEMPLATES/deploy/${PROJECT_TYPE}.sh"
-    local dest="$PROJECT_DIR/scripts/deploy.sh"
-    if [[ -f "$src" ]]; then
-      if [[ -e "$dest" ]]; then
-        skip "scripts/deploy.sh exists"
-      else
-        log "write scripts/deploy.sh"
-        if [[ "$DRY_RUN" == false ]]; then
-          mkdir -p "$PROJECT_DIR/scripts"
-          subst < "$src" > "$dest"
-          chmod +x "$dest"
-        fi
-      fi
-    fi
-  fi
-
-  if step_enabled start_sh && artifact_enabled "start"; then
-    local src="$TEMPLATES/lifecycle/start/${PROJECT_TYPE}.sh"
-    local dest="$PROJECT_DIR/scripts/start.sh"
-    if [[ -f "$src" ]]; then
-      if [[ -e "$dest" ]]; then
-        skip "scripts/start.sh exists"
-      else
-        log "write scripts/start.sh"
-        if [[ "$DRY_RUN" == false ]]; then
-          mkdir -p "$PROJECT_DIR/scripts"
-          subst < "$src" > "$dest"
-          chmod +x "$dest"
-        fi
-      fi
-    else
-      skip "start_sh: no template for type $PROJECT_TYPE"
-    fi
-  fi
-
-  if step_enabled stop_sh && artifact_enabled "stop"; then
-    local src="$TEMPLATES/lifecycle/stop/${PROJECT_TYPE}.sh"
-    local dest="$PROJECT_DIR/scripts/stop.sh"
-    if [[ -f "$src" ]]; then
-      if [[ -e "$dest" ]]; then
-        skip "scripts/stop.sh exists"
-      else
-        log "write scripts/stop.sh"
-        if [[ "$DRY_RUN" == false ]]; then
-          mkdir -p "$PROJECT_DIR/scripts"
-          subst < "$src" > "$dest"
-          chmod +x "$dest"
-        fi
-      fi
-    else
-      skip "stop_sh: no template for type $PROJECT_TYPE"
-    fi
-  fi
+  :
 }
