@@ -175,6 +175,15 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 #toasts{position:fixed;top:14px;right:14px;z-index:200;display:flex;flex-direction:column;gap:5px;align-items:flex-end;pointer-events:none}
 .toast{background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);padding:6px 12px;font-size:12px;color:var(--tm);max-width:280px;opacity:0;transform:translateX(6px);transition:opacity .15s,transform .15s}
 .toast.show{opacity:1;transform:translateX(0)}
+
+/* ── Hint rows (validation) ── */
+.hint-rows{border:1px solid var(--b2);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
+.hint-row{display:grid;grid-template-columns:20px 1fr auto;gap:0 10px;padding:6px 10px;border-bottom:1px solid var(--b2);align-items:start}
+.hint-row:last-child{border-bottom:none}
+.hint-row-text{display:flex;flex-direction:column;gap:2px}
+.hint-row-title{font-size:12px;color:var(--tx)}
+.hint-row-title.dim{color:var(--td)}
+.hint-row-body{font-size:11px;color:var(--tm);line-height:1.4;word-break:break-word}
 </style>
 </head>
 <body>
@@ -308,6 +317,8 @@ function initData() {
     })),
 
     sections: { project:true, tools:true, scaffold:true, gitignore:true, rules:true, validation:true, actions:true },
+    pendingRule:    null,
+    valHintPending: {},
   };
 
   if (state.validation.command_checks) {
@@ -734,7 +745,6 @@ function renderToolLevel(defs, path, container, prefix, parentOff) {
       if (!next && mods) {
         // cascade off to all descendants
         walkDefs(mods, p, cp => { state.toolEnabled[cp] = false; });
-        state.toolExpanded[p] = false;
       }
       reRenderTools();
       reRenderScaffold();
@@ -874,23 +884,11 @@ function buildGitignore() {
     const fragPfx    = isLastFrag ? '└── ' : '├── ';
     const kidPfx     = isLastFrag ? '    ' : '│   ';
     const on         = state.giti[f];
-    const exp        = state.gitiExpanded[f];
     const pats       = FRAG_DEFS[f] || [];
 
     const frow = el('div', {class:'trow' + (on ? ' on' : '')});
     frow.append(el('span', {class:'tpfx'}, fragPfx));
-
-    if (pats.length) {
-      const expBtn = el('span', {class:'texp'}, exp ? '▾' : '▸');
-      expBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        state.gitiExpanded[f] = !exp;
-        reRenderGitignore();
-      });
-      frow.append(expBtn);
-    } else {
-      frow.append(el('span', {class:'texp blank'}));
-    }
+    frow.append(el('span', {class:'texp blank'}));
 
     const chip = el('span', {class:'gi-frag' + (on ? ' on' : '')}, f);
     chip.addEventListener('click', e => {
@@ -903,32 +901,29 @@ function buildGitignore() {
     frow.append(chip);
     tree.append(frow);
 
-    if (exp && pats.length) {
-      pats.forEach((pat, pi) => {
-        const isLastPat = pi === pats.length - 1;
-        const patPfx    = kidPfx + (isLastPat ? '└── ' : '├── ');
-        const patOn     = on && (state.gitiPatterns[f][pi] !== false);
+    pats.forEach((pat, pi) => {
+      const isLastPat = pi === pats.length - 1;
+      const patPfx    = kidPfx + (isLastPat ? '└── ' : '├── ');
+      const patOn     = on && (state.gitiPatterns[f][pi] !== false);
 
-        const prow = el('div', {class:'trow' + (patOn ? ' on' : '')});
-        prow.append(el('span', {class:'tpfx'}, patPfx));
-        prow.append(el('span', {class:'texp blank'}));
+      const prow = el('div', {class:'trow' + (patOn ? ' on' : '')});
+      prow.append(el('span', {class:'tpfx'}, patPfx));
+      prow.append(el('span', {class:'texp blank'}));
 
-        const pcb = el('div', {class:'tcb' + (!on ? ' lck' : '')});
-        pcb.addEventListener('click', () => {
-          if (!on) { showToast('Enable ' + f + ' to toggle individual patterns'); return; }
-          state.gitiPatterns[f][pi] = !patOn;
-          reRenderGitignore();
-        });
-        prow.append(pcb);
-        prow.append(el('span', {class:'tname'}, pat));
-        tree.append(prow);
+      const pcb = el('div', {class:'tcb' + (!on ? ' lck' : '')});
+      pcb.addEventListener('click', () => {
+        if (!on) { showToast('Enable ' + f + ' to toggle individual patterns'); return; }
+        state.gitiPatterns[f][pi] = !patOn;
+        reRenderGitignore();
       });
-    }
+      prow.append(pcb);
+      prow.append(el('span', {class:'tname'}, pat));
+      tree.append(prow);
+    });
   });
 
   wrap.append(tree);
 
-  // Extra patterns below the tree
   wrap.append(el('div', {class:'gi-sep'}, 'extra patterns'));
 
   if (state.extraGiti.length) {
@@ -954,6 +949,10 @@ function buildGitignore() {
 }
 
 // ── Build: Validation (accordion) ─────────────────────────────────────────────
+
+function hintTitle(k) {
+  return k.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+}
 
 function buildValidation() {
   const wrap = el('div', {class:'val-list'});
@@ -981,10 +980,9 @@ function buildValidation() {
       el('span', {class:'vdesc-short'}, val.description)
     );
 
-    const badge = el('span', {class:'sev-badge sev-' + val.severity}, val.severity);
     const chev  = el('span', {class:'val-chev'}, exp ? '▾' : '▸');
 
-    hdr.append(tog, info, badge, chev);
+    hdr.append(tog, info, chev);
     hdr.addEventListener('click', () => {
       state.valExpanded[key] = !exp;
       reRenderValidation();
@@ -1017,74 +1015,86 @@ function buildValidation() {
       body.append(sevSec);
 
       // Hints section
-      const hintDefs    = val.hintsMap;
-      const hintKeys    = val.availHints;
+      const hintDefs   = val.hintsMap;
+      const hintKeys   = val.availHints;
       const customHints = val.selectedHints.filter(h => !hintDefs[h]);
 
       if (hintKeys.length || customHints.length) {
         const hintSec = el('div', {class:'val-section'});
         hintSec.append(el('span', {class:'val-sec-lbl'}, 'Hints'));
 
-        // Predefined hint chips — gi-frag style, title attr = full text
-        if (hintKeys.length) {
-          const chipsRow = el('div', {class:'gi-frags'});
-          hintKeys.forEach(h => {
-            const isOn = val.selectedHints.includes(h);
-            const chip = el('span', {class:'gi-frag' + (isOn ? ' on' : ''), title: hintDefs[h]}, h);
-            chip.addEventListener('click', () => {
-              const arr = state.validation[key].selectedHints;
-              const idx = arr.indexOf(h);
-              if (idx >= 0) arr.splice(idx, 1); else arr.push(h);
-              reRenderValidation();
-            });
-            chipsRow.append(chip);
-          });
-          hintSec.append(chipsRow);
+        const hintRows = el('div', {class:'hint-rows'});
 
-          // Inline text for selected predefined hints
-          const selected = hintKeys.filter(h => val.selectedHints.includes(h));
-          if (selected.length) {
-            const texts = el('div', {class:'hint-texts'});
-            selected.forEach(h => {
-              const row = el('div', {class:'hint-text-row'});
-              row.append(el('span', {class:'hint-key'}, h));
-              row.append(el('span', {class:'hint-val'}, hintDefs[h]));
-              texts.append(row);
-            });
-            hintSec.append(texts);
-          }
-        }
+        hintKeys.forEach(h => {
+          const isOn = val.selectedHints.includes(h);
+          const row  = el('div', {class:'hint-row'});
 
-        // Custom hints (free-text entries not in hintDefs)
-        if (customHints.length) {
-          const customRow = el('div', {class:'hint-custom-chips', style: hintKeys.length ? 'margin-top:8px' : ''});
-          customHints.forEach(h => {
-            const x = el('button', {class:'chip-x'}, '×');
-            x.addEventListener('click', () => {
-              const arr = state.validation[key].selectedHints;
-              arr.splice(arr.indexOf(h), 1);
-              reRenderValidation();
-            });
-            customRow.append(el('span', {class:'chip'}, h, x));
-          });
-          hintSec.append(customRow);
-        }
-
-        // Add custom hint input
-        const addRow = el('div', {class:'add-row', style:'margin-top:9px'});
-        const addInp = el('input', {class:'add-inp', type:'text', placeholder:'custom hint text…'});
-        const addBtn = el('button', {class:'add-btn'}, '+ hint');
-        addBtn.addEventListener('click', () => {
-          const v = addInp.value.trim();
-          if (v && !state.validation[key].selectedHints.includes(v)) {
-            state.validation[key].selectedHints.push(v);
-            addInp.value = '';
+          const tog = el('div', {class:'tog' + (isOn ? ' on' : '')});
+          tog.addEventListener('click', () => {
+            const arr = state.validation[key].selectedHints;
+            const idx = arr.indexOf(h);
+            if (idx >= 0) arr.splice(idx, 1); else arr.push(h);
             reRenderValidation();
-          }
+          });
+          row.append(tog);
+
+          const txt = el('div', {class:'hint-row-text'});
+          txt.append(el('span', {class:'hint-row-title' + (isOn ? '' : ' dim')}, hintTitle(h)));
+          txt.append(el('span', {class:'hint-row-body'}, hintDefs[h]));
+          row.append(txt);
+          row.append(el('span'));
+          hintRows.append(row);
         });
-        addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
-        addRow.append(addInp, addBtn);
-        hintSec.append(addRow);
+
+        customHints.forEach(h => {
+          const row = el('div', {class:'hint-row'});
+          const tog = el('div', {class:'tog on', style:'cursor:default'});
+          row.append(tog);
+          const txt = el('div', {class:'hint-row-text'});
+          txt.append(el('span', {class:'hint-row-body'}, h));
+          row.append(txt);
+          const rm = el('button', {class:'chip-x'}, '×');
+          rm.addEventListener('click', () => {
+            const arr = state.validation[key].selectedHints;
+            arr.splice(arr.indexOf(h), 1);
+            reRenderValidation();
+          });
+          row.append(rm);
+          hintRows.append(row);
+        });
+
+        hintSec.append(hintRows);
+
+        if (state.valHintPending[key]) {
+          const formRow = el('div', {style:'display:flex;gap:6px'});
+          const inp = el('input', {class:'add-inp', type:'text', placeholder:'hint text…'});
+          const saveBtn   = el('button', {class:'add-btn'}, 'Save');
+          const cancelBtn = el('button', {class:'add-btn'}, 'Cancel');
+          saveBtn.addEventListener('click', () => {
+            const v = inp.value.trim();
+            if (v && !state.validation[key].selectedHints.includes(v))
+              state.validation[key].selectedHints.push(v);
+            state.valHintPending[key] = false;
+            reRenderValidation();
+          });
+          cancelBtn.addEventListener('click', () => {
+            state.valHintPending[key] = false;
+            reRenderValidation();
+          });
+          inp.addEventListener('keydown', e => {
+            if (e.key === 'Enter') saveBtn.click();
+            if (e.key === 'Escape') cancelBtn.click();
+          });
+          formRow.append(inp, saveBtn, cancelBtn);
+          hintSec.append(formRow);
+        } else {
+          const addHintBtn = el('button', {class:'add-btn'}, '+ Add Hint');
+          addHintBtn.addEventListener('click', () => {
+            state.valHintPending[key] = true;
+            reRenderValidation();
+          });
+          hintSec.append(addHintBtn);
+        }
 
         body.append(hintSec);
       }
@@ -1176,12 +1186,128 @@ function buildValidation() {
 
 // ── Build: Rules ──────────────────────────────────────────────────────────────
 
-function buildRules() {
-  const wrap = el('div');
+function pendingRuleValid(r) {
+  if (r.type === 'script_clean') return r.command.trim().length > 0;
+  if (r.type === 'content_present' || r.type === 'content_absent')
+    return r.target.trim().length > 0 && r.pattern.trim().length > 0;
+  return r.target.trim().length > 0;
+}
+
+function buildRuleFields(rule, rerender) {
+  const frag = document.createDocumentFragment();
   const sevs  = ['skip','warn','error','hard-stop'];
   const TYPES = ['file_present','file_absent','content_present','content_absent','script_clean'];
 
-  if (!state.rules.length) {
+  const typeSec = el('div', {class:'val-section'});
+  typeSec.append(el('span', {class:'val-sec-lbl'}, 'Type'));
+  const typeSeg = el('div', {class:'rule-type-seg'});
+  TYPES.forEach(t => {
+    const btn = el('button', {class:'rule-type-btn' + (rule.type === t ? ' on' : '')},
+      t.replace(/_/g, ' '));
+    btn.addEventListener('click', () => { rule.type = t; rerender(); });
+    typeSeg.append(btn);
+  });
+  typeSec.append(typeSeg);
+  frag.append(typeSec);
+
+  const descSec = el('div', {class:'val-section'});
+  descSec.append(el('span', {class:'val-sec-lbl'}, 'Description'));
+  const descInp = el('input', {class:'inp', type:'text', placeholder:'What does this rule check?'});
+  descInp.value = rule.description;
+  descInp.addEventListener('input', () => { rule.description = descInp.value; });
+  descSec.append(descInp);
+  frag.append(descSec);
+
+  if (rule.type !== 'script_clean') {
+    const tgtSec = el('div', {class:'val-section'});
+    tgtSec.append(el('span', {class:'val-sec-lbl'}, 'Target  —  path or filename glob'));
+    const tgtInp = el('input', {class:'inp', type:'text', placeholder:'Dockerfile, config/*.yml, *.env …'});
+    tgtInp.value = rule.target;
+    tgtInp.addEventListener('input', () => { rule.target = tgtInp.value.trim(); });
+    tgtSec.append(tgtInp);
+    frag.append(tgtSec);
+
+    const scopeSec = el('div', {class:'val-section'});
+    scopeSec.append(el('span', {class:'val-sec-lbl'}, 'Scope'));
+    const scopeSeg = el('div', {class:'sev-seg'});
+    ['recursive','root'].forEach(s => {
+      const btn = el('button', {class:'sev-btn' + (rule.scope === s ? ' on sev-skip' : '')}, s);
+      btn.addEventListener('click', () => { rule.scope = s; rerender(); });
+      scopeSeg.append(btn);
+    });
+    scopeSec.append(scopeSeg);
+    frag.append(scopeSec);
+  }
+
+  if (rule.type === 'content_present' || rule.type === 'content_absent') {
+    const patSec = el('div', {class:'val-section'});
+    patSec.append(el('span', {class:'val-sec-lbl'}, 'Pattern  —  grep regex'));
+    const patInp = el('input', {class:'inp', type:'text', placeholder:'console\\.log, localhost, TODO …'});
+    patInp.value = rule.pattern;
+    patInp.addEventListener('input', () => { rule.pattern = patInp.value; });
+    patSec.append(patInp);
+    frag.append(patSec);
+
+    const exSec = el('div', {class:'val-section'});
+    exSec.append(el('span', {class:'val-sec-lbl'}, 'Exclude  —  glob to skip (optional)'));
+    const exInp = el('input', {class:'inp', type:'text', placeholder:'config/local.yml'});
+    exInp.value = rule.exclude;
+    exInp.addEventListener('input', () => { rule.exclude = exInp.value.trim(); });
+    exSec.append(exInp);
+    frag.append(exSec);
+  }
+
+  if (rule.type === 'script_clean') {
+    const cmdSec = el('div', {class:'val-section'});
+    cmdSec.append(el('span', {class:'val-sec-lbl'}, 'Command'));
+    const cmdInp = el('input', {class:'inp', type:'text', placeholder:'npx tsc --noEmit'});
+    cmdInp.value = rule.command;
+    cmdInp.addEventListener('input', () => { rule.command = cmdInp.value; });
+    cmdSec.append(cmdInp);
+    frag.append(cmdSec);
+  }
+
+  const sevSec = el('div', {class:'val-section'});
+  sevSec.append(el('span', {class:'val-sec-lbl'}, 'Severity'));
+  const seg = el('div', {class:'sev-seg'});
+  sevs.forEach(s => {
+    const btn = el('button', {class:'sev-btn' + (rule.severity === s ? ' on sev-' + s : '')}, s);
+    btn.addEventListener('click', () => { rule.severity = s; rerender(); });
+    seg.append(btn);
+  });
+  sevSec.append(seg);
+  frag.append(sevSec);
+
+  const hintSec = el('div', {class:'val-section'});
+  hintSec.append(el('span', {class:'val-sec-lbl'}, 'Hints  —  shown when this check fails'));
+  if (rule.hints.length) {
+    const hintList = el('div', {class:'hint-custom-chips', style:'margin-bottom:8px'});
+    rule.hints.forEach((h, hi) => {
+      const x = el('button', {class:'chip-x'}, '×');
+      x.addEventListener('click', () => { rule.hints.splice(hi, 1); rerender(); });
+      hintList.append(el('span', {class:'chip'}, h, x));
+    });
+    hintSec.append(hintList);
+  }
+  const addRow = el('div', {class:'add-row'});
+  const addInp = el('input', {class:'add-inp', type:'text', placeholder:'hint text…'});
+  const addBtn = el('button', {class:'add-btn'}, '+ hint');
+  addBtn.addEventListener('click', () => {
+    const v = addInp.value.trim();
+    if (v) { rule.hints.push(v); addInp.value = ''; rerender(); }
+  });
+  addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+  addRow.append(addInp, addBtn);
+  hintSec.append(addRow);
+  frag.append(hintSec);
+
+  return frag;
+}
+
+function buildRules() {
+  const wrap = el('div');
+
+  if (!state.rules.length && !state.pendingRule) {
     wrap.append(el('p', {class:'rules-empty'},
       'No rules yet. Add a rule to enforce file presence, content patterns, or script exits.'));
   }
@@ -1190,17 +1316,14 @@ function buildRules() {
     const exp  = !!rule._exp;
     const card = el('div', {class:'val-card' + (exp ? ' exp on' : '')});
 
-    // ── collapsed header ──
     const hdr = el('div', {class:'val-hdr'});
-
-    const typeCls  = 'rule-type-badge rule-type-' + rule.type.replace(/_/g, '-');
+    const typeCls   = 'rule-type-badge rule-type-' + rule.type.replace(/_/g, '-');
     const typeLabel = rule.type.replace(/_/g, ' ');
     const info = el('div', {class:'val-info'});
     info.append(
       el('span', {class: typeCls}, typeLabel),
       el('span', {class:'vdesc-short'}, rule.description || '—')
     );
-
     const badge     = el('span', {class:'sev-badge sev-' + rule.severity}, rule.severity);
     const removeBtn = el('button', {class:'rule-remove', title:'Remove rule'}, '×');
     removeBtn.addEventListener('click', e => {
@@ -1209,143 +1332,55 @@ function buildRules() {
       reRenderRules();
     });
     const chev = el('span', {class:'val-chev'}, exp ? '▾' : '▸');
-
     hdr.append(info, badge, removeBtn, chev);
     hdr.addEventListener('click', () => { rule._exp = !exp; reRenderRules(); });
     card.append(hdr);
 
-    // ── expanded body ──
     if (exp) {
       const body = el('div', {class:'val-body'});
-
-      // Type selector
-      const typeSec = el('div', {class:'val-section'});
-      typeSec.append(el('span', {class:'val-sec-lbl'}, 'Type'));
-      const typeSeg = el('div', {class:'rule-type-seg'});
-      TYPES.forEach(t => {
-        const btn = el('button', {class:'rule-type-btn' + (rule.type === t ? ' on' : '')},
-          t.replace(/_/g, ' '));
-        btn.addEventListener('click', () => { rule.type = t; reRenderRules(); });
-        typeSeg.append(btn);
-      });
-      typeSec.append(typeSeg);
-      body.append(typeSec);
-
-      // Description
-      const descSec = el('div', {class:'val-section'});
-      descSec.append(el('span', {class:'val-sec-lbl'}, 'Description'));
-      const descInp = el('input', {class:'inp', type:'text', placeholder:'What does this rule check?'});
-      descInp.value = rule.description;
-      descInp.addEventListener('input', () => { rule.description = descInp.value; scheduleSave(); });
-      descSec.append(descInp);
-      body.append(descSec);
-
-      // Target (file_* and content_*)
-      if (rule.type !== 'script_clean') {
-        const tgtSec = el('div', {class:'val-section'});
-        tgtSec.append(el('span', {class:'val-sec-lbl'}, 'Target  —  path or filename glob'));
-        const tgtInp = el('input', {class:'inp', type:'text', placeholder:'Dockerfile, config/*.yml, *.env …'});
-        tgtInp.value = rule.target;
-        tgtInp.addEventListener('input', () => { rule.target = tgtInp.value.trim(); scheduleSave(); });
-        tgtSec.append(tgtInp);
-        body.append(tgtSec);
-
-        // Scope toggle
-        const scopeSec = el('div', {class:'val-section'});
-        scopeSec.append(el('span', {class:'val-sec-lbl'}, 'Scope'));
-        const scopeSeg = el('div', {class:'sev-seg'});
-        ['recursive','root'].forEach(s => {
-          const btn = el('button', {class:'sev-btn' + (rule.scope === s ? ' on sev-skip' : '')}, s);
-          btn.addEventListener('click', () => { rule.scope = s; reRenderRules(); });
-          scopeSeg.append(btn);
-        });
-        scopeSec.append(scopeSeg);
-        body.append(scopeSec);
-      }
-
-      // Pattern + Exclude (content_* only)
-      if (rule.type === 'content_present' || rule.type === 'content_absent') {
-        const patSec = el('div', {class:'val-section'});
-        patSec.append(el('span', {class:'val-sec-lbl'}, 'Pattern  —  grep regex'));
-        const patInp = el('input', {class:'inp', type:'text', placeholder:'console\\.log, localhost, TODO …'});
-        patInp.value = rule.pattern;
-        patInp.addEventListener('input', () => { rule.pattern = patInp.value; scheduleSave(); });
-        patSec.append(patInp);
-        body.append(patSec);
-
-        const exSec = el('div', {class:'val-section'});
-        exSec.append(el('span', {class:'val-sec-lbl'}, 'Exclude  —  glob to skip (optional)'));
-        const exInp = el('input', {class:'inp', type:'text', placeholder:'config/local.yml'});
-        exInp.value = rule.exclude;
-        exInp.addEventListener('input', () => { rule.exclude = exInp.value.trim(); scheduleSave(); });
-        exSec.append(exInp);
-        body.append(exSec);
-      }
-
-      // Command (script_clean only)
-      if (rule.type === 'script_clean') {
-        const cmdSec = el('div', {class:'val-section'});
-        cmdSec.append(el('span', {class:'val-sec-lbl'}, 'Command'));
-        const cmdInp = el('input', {class:'inp', type:'text', placeholder:'npx tsc --noEmit'});
-        cmdInp.value = rule.command;
-        cmdInp.addEventListener('input', () => { rule.command = cmdInp.value; scheduleSave(); });
-        cmdSec.append(cmdInp);
-        body.append(cmdSec);
-      }
-
-      // Severity
-      const sevSec = el('div', {class:'val-section'});
-      sevSec.append(el('span', {class:'val-sec-lbl'}, 'Severity'));
-      const seg = el('div', {class:'sev-seg'});
-      sevs.forEach(s => {
-        const btn = el('button', {class:'sev-btn' + (rule.severity === s ? ' on sev-' + s : '')}, s);
-        btn.addEventListener('click', () => { rule.severity = s; reRenderRules(); });
-        seg.append(btn);
-      });
-      sevSec.append(seg);
-      body.append(sevSec);
-
-      // Hints
-      const hintSec = el('div', {class:'val-section'});
-      hintSec.append(el('span', {class:'val-sec-lbl'}, 'Hints  —  shown when this check fails'));
-      if (rule.hints.length) {
-        const hintList = el('div', {class:'hint-custom-chips', style:'margin-bottom:8px'});
-        rule.hints.forEach((h, hi) => {
-          const x = el('button', {class:'chip-x'}, '×');
-          x.addEventListener('click', () => { rule.hints.splice(hi, 1); reRenderRules(); });
-          hintList.append(el('span', {class:'chip'}, h, x));
-        });
-        hintSec.append(hintList);
-      }
-      const addRow = el('div', {class:'add-row'});
-      const addInp = el('input', {class:'add-inp', type:'text', placeholder:'hint text…'});
-      const addBtn = el('button', {class:'add-btn'}, '+ hint');
-      addBtn.addEventListener('click', () => {
-        const v = addInp.value.trim();
-        if (v) { rule.hints.push(v); addInp.value = ''; reRenderRules(); }
-      });
-      addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
-      addRow.append(addInp, addBtn);
-      hintSec.append(addRow);
-      body.append(hintSec);
-
+      body.append(buildRuleFields(rule, () => { scheduleSave(); reRenderRules(); }));
       card.append(body);
     }
 
     wrap.append(card);
   });
 
-  // Add rule button
-  const addRuleBtn = el('button', {class:'add-rule-btn'}, '+ Add Rule');
-  addRuleBtn.addEventListener('click', () => {
-    state.rules.push({
-      type:'file_present', description:'', target:'', pattern:'',
-      scope:'recursive', exclude:'', command:'', severity:'error',
-      hints:[], _exp:true,
+  // Pending new rule form — only one at a time
+  if (state.pendingRule) {
+    const pr = state.pendingRule;
+    const card = el('div', {class:'val-card exp on', style:'margin-top:8px'});
+    const hdr  = el('div', {class:'val-hdr', style:'cursor:default'});
+    hdr.append(el('span', {class:'vdesc-short', style:'color:var(--tm)'},'New Rule'));
+    card.append(hdr);
+
+    const body = el('div', {class:'val-body'});
+    body.append(buildRuleFields(pr, reRenderRules));
+
+    const footRow = el('div', {style:'display:flex;gap:8px;margin-top:14px'});
+    const cancelBtn = el('button', {class:'btn', style:'flex:0;padding:7px 18px;font-size:12px'}, 'Cancel');
+    cancelBtn.addEventListener('click', () => { state.pendingRule = null; reRenderRules(); });
+    const saveBtn = el('button', {class:'btn pri', style:'flex:0;padding:7px 18px;font-size:12px'}, 'Save Rule');
+    saveBtn.disabled = !pendingRuleValid(pr);
+    saveBtn.addEventListener('click', () => {
+      if (!pendingRuleValid(pr)) return;
+      state.rules.push({...pr, _exp: false});
+      state.pendingRule = null;
+      reRenderRules();
+      scheduleSave();
     });
-    reRenderRules();
-  });
-  wrap.append(addRuleBtn);
+    footRow.append(cancelBtn, saveBtn);
+    body.append(footRow);
+    card.append(body);
+    wrap.append(card);
+  } else {
+    const addRuleBtn = el('button', {class:'add-rule-btn'}, '+ Add Rule');
+    addRuleBtn.addEventListener('click', () => {
+      state.pendingRule = {type:'file_present', description:'', target:'', pattern:'',
+        scope:'recursive', exclude:'', command:'', severity:'error', hints:[]};
+      reRenderRules();
+    });
+    wrap.append(addRuleBtn);
+  }
 
   return wrap;
 }
