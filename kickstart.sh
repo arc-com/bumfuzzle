@@ -80,8 +80,8 @@ usage() {
   printf '  --skip <step[,step,...]>              Skip these steps\n' >&2
   printf '\n' >&2
   printf 'Steps: git_init githooks directories gitignore env_files bumfuzzle_yml\n' >&2
-  printf '       rules deploy_sh start_sh stop_sh vscode_settings claude_settings\n' >&2
-  printf '       dependencies docker_compose readme initial_commit\n' >&2
+  printf '       rules vscode_settings claude_settings\n' >&2
+  printf '       dependencies docker_compose readme\n' >&2
   exit 1
 }
 
@@ -182,7 +182,6 @@ printf '\n-- kickstart v%s (%s) %s\n' \
 . "$KICKSTART_REPO/domains/structure.sh"
 . "$KICKSTART_REPO/domains/env.sh"
 . "$KICKSTART_REPO/domains/preflight-config.sh"
-. "$KICKSTART_REPO/domains/lifecycle.sh"
 . "$KICKSTART_REPO/domains/editor.sh"
 . "$KICKSTART_REPO/domains/dependencies.sh"
 . "$KICKSTART_REPO/domains/docker.sh"
@@ -194,32 +193,9 @@ hooks_setup
 rules_setup
 structure_setup
 env_setup
-lifecycle_setup
 editor_setup
 dependencies_setup
 docker_setup
-
-# ── Final steps (no domain equivalent) ───────────────────────────────────────
-
-if step_enabled initial_commit; then
-  if [[ ! -d "$PROJECT_DIR/.git" ]]; then
-    skip "initial_commit: no git repo"
-  else
-    local_commit_count="$(git -C "$PROJECT_DIR" rev-list --count HEAD 2>/dev/null || printf '0')"
-    if [[ "$local_commit_count" -gt 0 ]]; then
-      skip "initial_commit: repo already has commits"
-    else
-      local_msg="$(cfg '.initial_commit.message' 2>/dev/null)"
-      [[ -z "$local_msg" || "$local_msg" == "null" ]] && local_msg="chore: scaffold {{PROJECT_NAME}}"
-      local_msg="$(printf '%s' "$local_msg" | sed "s|{{PROJECT_NAME}}|$PROJECT_NAME|g")"
-      log "git add -A && git commit --no-verify"
-      if [[ "$DRY_RUN" == false ]]; then
-        git -C "$PROJECT_DIR" add -A
-        git -C "$PROJECT_DIR" commit --no-verify -m "$local_msg"
-      fi
-    fi
-  fi
-fi
 
 printf '%s\n' '-----------------------------------------------------------------------'
 log "done — $PROJECT_NAME scaffolded at $PROJECT_DIR"

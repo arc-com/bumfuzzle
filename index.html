@@ -5,151 +5,232 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>bumfuzzle</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3e;
-  --text: #e2e8f0; --muted: #475569; --accent: #6366f1;
-  --accent-dim: #4f46e5; --success: #22c55e; --error: #ef4444;
-  --radius: 8px; --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surf:#161b22;--surf2:#21262d;--surf3:#2d333b;
+  --b1:#30363d;--b2:#21262d;
+  --tx:#e6edf3;--tm:#8b949e;--td:#484f58;
+  --ac:#58a6ff;--ac2:#388bfd;
+  --gr:#3fb950;--yl:#e3b341;--rd:#f85149;--or:#d29922;
+  --r:6px;--mono:ui-monospace,'SF Mono','Cascadia Code',monospace;
 }
-body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
-#app { max-width: 760px; margin: 0 auto; padding: 40px 24px 80px; }
-h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 4px; }
-.subtitle { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
-.status-line { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 28px; word-break: break-all; }
-.status-path { color: var(--text); }
-.section { margin-bottom: 28px; }
-.section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-.section-subtitle { font-size: 11px; color: var(--muted); margin-bottom: 10px; line-height: 1.6; }
-.field { margin-bottom: 14px; }
-.field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
-.field input[type=text] { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 14px; padding: 8px 12px; outline: none; transition: border-color 0.15s; font-family: inherit; }
-.field input[type=text]:focus { border-color: var(--accent); }
-.badge { display: inline-block; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 12px; font-family: var(--mono); }
+body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
 
-/* ── Tree ──────────────────────────────────────────────────────────────────── */
-.tree { font-family: var(--mono); font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 4px; }
-.tree-root { color: var(--muted); padding: 2px 10px 6px; font-size: 13px; }
-.tree-row { display: flex; align-items: center; padding: 2px 6px; border-radius: 4px; cursor: pointer; user-select: none; min-height: 22px; }
-.tree-row:hover:not(.is-locked):not(.is-required) { background: rgba(99,102,241,0.07); }
-.tree-row.is-locked   { opacity: 0.35; cursor: not-allowed; }
-.tree-row.is-required { cursor: not-allowed; }
-.tree-prefix   { color: var(--muted); white-space: pre; flex-shrink: 0; }
-.tree-expander { width: 16px; flex-shrink: 0; color: var(--muted); font-size: 9px; text-align: center; }
-.tree-expander:hover { color: var(--text); }
-.tree-cb { width: 13px; height: 13px; border: 1.5px solid var(--border); border-radius: 3px; margin: 0 7px 0 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: background 0.1s, border-color 0.1s; font-size: 9px; color: #fff; line-height: 1; }
-.tree-row.is-present .tree-cb { background: var(--success); border-color: var(--success); }
-.tree-row.is-present .tree-cb::after { content: '✓'; }
-.tree-name { color: var(--muted); }
-.tree-row.is-present .tree-name { color: var(--text); }
-.tree-name.is-dir { color: #334155; }
-.tree-row.is-present .tree-name.is-dir { color: #93c5fd; }
-.tree-add { display: flex; gap: 6px; margin: 8px 10px 2px; }
-.tree-add input { flex: 1; background: transparent; border: 1px dashed var(--border); border-radius: 4px; color: var(--muted); font-size: 12px; font-family: var(--mono); padding: 4px 8px; outline: none; }
-.tree-add input:focus { border-color: var(--accent); color: var(--text); }
-.tree-add input::placeholder { color: #334155; }
-.tree-add button { background: transparent; border: 1px dashed var(--border); border-radius: 4px; color: var(--muted); font-size: 11px; padding: 4px 10px; cursor: pointer; white-space: nowrap; font-family: inherit; }
-.tree-add button:hover { border-color: var(--accent); color: var(--text); }
+/* ── Header ── */
+.hdr{position:sticky;top:0;z-index:100;background:var(--surf);border-bottom:1px solid var(--b1);padding:10px 20px;display:flex;align-items:center;gap:10px}
+.hdr-logo{font-weight:700;font-size:15px;letter-spacing:-.3px}
+.hdr-meta{font-size:11px;color:var(--td);font-family:var(--mono)}
+.hdr-path{font-size:11px;color:var(--tm);font-family:var(--mono);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr-save{font-size:11px;white-space:nowrap}
+.hdr-save.idle{color:var(--td)}.hdr-save.saving{color:var(--tm)}.hdr-save.ok{color:var(--gr)}.hdr-save.err{color:var(--rd)}
 
-/* ── Chips ─────────────────────────────────────────────────────────────────── */
-.chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 28px; align-items: center; }
-.chip { display: inline-flex; align-items: center; gap: 5px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px 8px 3px 11px; font-size: 12px; font-family: var(--mono); color: var(--text); }
-.chip-x { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 1px; }
-.chip-x:hover { color: var(--error); }
-.chip-empty { font-size: 12px; color: var(--muted); font-style: italic; }
+/* ── Layout ── */
+.wrap{max-width:820px;margin:0 auto;padding:20px 20px 80px}
 
-/* ── Add row ───────────────────────────────────────────────────────────────── */
-.add-row { display: flex; gap: 7px; margin-top: 7px; }
-.add-row input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 12px; font-family: var(--mono); padding: 6px 10px; outline: none; }
-.add-row input:focus { border-color: var(--accent); }
-.add-row button { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--muted); font-size: 12px; padding: 6px 12px; cursor: pointer; font-family: inherit; }
-.add-row button:hover { border-color: var(--accent); color: var(--text); }
+/* ── Section ── */
+.sec{border:1px solid var(--b1);border-radius:var(--r);margin-bottom:20px;overflow:hidden}
+.sec-hdr{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surf);cursor:pointer;user-select:none}
+.sec-hdr:hover{background:var(--surf2)}
+.sec-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--tm)}
+.sec-chev{margin-left:auto;color:var(--td);font-size:10px;transition:transform .15s}
+.sec-chev.open{transform:rotate(90deg)}
+.sec-body{padding:16px}
+.sec-body.closed{display:none}
 
-/* ── Toast ─────────────────────────────────────────────────────────────────── */
-#toast-container { position: fixed; top: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; align-items: flex-end; }
-.toast { background: #1e1b4b; border: 1px solid #4338ca; border-radius: var(--radius); padding: 8px 14px; font-size: 12px; color: #a5b4fc; max-width: 280px; opacity: 0; transform: translateX(8px); transition: opacity 0.18s, transform 0.18s; }
-.toast.visible { opacity: 1; transform: translateX(0); }
+/* ── Fields ── */
+.field{margin-bottom:14px}.field:last-child{margin-bottom:0}
+.lbl{display:block;font-size:11px;color:var(--tm);margin-bottom:5px}
+.inp{width:100%;background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);color:var(--tx);font-size:13px;padding:6px 10px;outline:none;font-family:inherit}
+.inp:focus{border-color:var(--ac)}
 
-/* ── Save status ───────────────────────────────────────────────────────────── */
-.save-status { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.save-status.is-saved { color: var(--success); }
-.save-status.is-error { color: var(--error); }
+/* ── Chips ── */
+.chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:26px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--surf2);border:1px solid var(--b1);border-radius:20px;padding:2px 8px 2px 10px;font-size:12px;font-family:var(--mono);color:var(--tx)}
+.chip-x{background:none;border:none;color:var(--tm);cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
+.chip-x:hover{color:var(--rd)}
+.chip-empty{font-size:12px;color:var(--td);font-style:italic}
+.add-row{display:flex;gap:6px;margin-top:7px}
+.add-inp{flex:1;background:var(--surf2);border:1px dashed var(--b1);border-radius:var(--r);color:var(--tx);font-size:12px;font-family:var(--mono);padding:4px 8px;outline:none}
+.add-inp:focus{border-color:var(--ac)}
+.add-btn{background:transparent;border:1px dashed var(--b1);border-radius:var(--r);color:var(--tm);font-size:12px;padding:4px 10px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.add-btn:hover{border-color:var(--ac);color:var(--tx)}
 
-/* ── Action buttons ────────────────────────────────────────────────────────── */
-.action-row { display: flex; gap: 10px; }
-.btn-action { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 14px; font-weight: 600; padding: 13px; cursor: pointer; font-family: inherit; transition: border-color 0.15s; }
-.btn-action:hover:not(:disabled) { border-color: var(--accent); }
-.btn-action:disabled { opacity: 0.38; cursor: default; }
-.btn-action.is-confirm { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-action.is-confirm:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
-.btn-action.is-cancel { flex: 0; padding: 13px 20px; color: var(--muted); }
+/* ── Toggle (checkbox) ── */
+.tog{width:14px;height:14px;border:1.5px solid var(--b1);border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:background .1s,border-color .1s}
+.tog.on{background:var(--ac);border-color:var(--ac)}
+.tog.on::after{content:'✓';color:#fff;font-size:9px;line-height:1}
+.tog.dis{opacity:.28;cursor:not-allowed}
 
-/* ── Output log ────────────────────────────────────────────────────────────── */
-.output-wrap { margin-top: 14px; }
-.output-log { background: #000; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; font-family: var(--mono); font-size: 12px; color: #d4d4d4; white-space: pre-wrap; word-break: break-all; max-height: 360px; overflow-y: auto; min-height: 48px; }
-.output-status { margin-top: 8px; font-size: 13px; font-weight: 600; }
-.output-status.is-success { color: var(--success); }
-.output-status.is-error   { color: var(--error); }
+/* ── ASCII tree (shared by tools, scaffold, gitignore) ── */
+.tree{font-family:var(--mono);font-size:12px}
+.tree-root{color:var(--td);padding:2px 0 4px}
+.trow{display:flex;align-items:center;min-height:22px;padding:1px 0;border-radius:3px}
+.trow:hover{background:rgba(255,255,255,.025)}
+.trow.clickable{cursor:pointer}
+.tpfx{color:var(--td);white-space:pre;flex-shrink:0;user-select:none}
+.texp{width:16px;text-align:center;font-size:9px;color:var(--tm);cursor:pointer;flex-shrink:0;border-radius:2px;line-height:16px;user-select:none}
+.texp:hover{color:var(--tx);background:rgba(255,255,255,.07)}
+.texp.blank{cursor:default;pointer-events:none}
+.texp.blank:hover{background:none}
+/* scaffold checkboxes */
+.tcb{width:13px;height:13px;border:1.5px solid var(--b1);border-radius:3px;margin:0 5px 0 2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;transition:background .1s,border-color .1s;cursor:pointer}
+.trow.on .tcb{background:var(--gr);border-color:var(--gr)}
+.trow.on .tcb::after{content:'✓'}
+.trow.req .tcb{background:var(--surf3);border-color:var(--b1);cursor:not-allowed}
+.trow.req .tcb::after{content:'✓';color:var(--tm)}
+.tcb.lck{opacity:.22;cursor:not-allowed}
+.tname{color:var(--tm);font-size:12px;padding-left:2px}
+.trow.on .tname{color:var(--tx)}
+.tname.dir{color:var(--td)}
+.trow.on .tname.dir{color:#79c0ff}
+.trow.lck-row .tname{opacity:.35}
+.tree-meta{font-size:11px;color:var(--td);margin-left:8px}
+.tree-add{display:flex;gap:6px;margin-top:10px}
+
+/* ── gi-frag pills (gitignore toggles + validation hint chips) ── */
+.gi-frag{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:12px;font-family:var(--mono);border:1px solid var(--b1);background:var(--surf2);color:var(--td);cursor:pointer;user-select:none;transition:border-color .12s,color .12s,background .12s;flex-shrink:0}
+.gi-frag:hover{border-color:var(--tm);color:var(--tm)}
+.gi-frag.on{border-color:var(--ac);color:var(--tx);background:rgba(88,166,255,.08)}
+.gi-frag::before{content:'○';font-size:9px;color:inherit;line-height:1}
+.gi-frag.on::before{content:'◉';color:var(--ac)}
+.gi-frags{display:flex;flex-wrap:wrap;gap:5px}
+
+/* ── Gitignore extras ── */
+.gi-sep{font-size:11px;color:var(--td);font-family:var(--mono);margin:14px 0 8px;padding-top:12px;border-top:1px solid var(--b2)}
+
+/* ── Rules ── */
+.rule-type-badge{font-size:10px;font-family:var(--mono);padding:1px 7px;border-radius:3px;border:1px solid var(--b1);color:var(--td);flex-shrink:0;white-space:nowrap}
+.rule-type-file-present  {border-color:rgba(63,185,80,.35); color:var(--gr);background:rgba(63,185,80,.07)}
+.rule-type-file-absent   {border-color:rgba(248,81,73,.35); color:var(--rd);background:rgba(248,81,73,.07)}
+.rule-type-content-present{border-color:rgba(88,166,255,.35);color:var(--ac);background:rgba(88,166,255,.07)}
+.rule-type-content-absent{border-color:rgba(227,179,65,.35);color:var(--yl);background:rgba(227,179,65,.07)}
+.rule-type-script-clean  {border-color:rgba(210,153,34,.35);color:var(--or);background:rgba(210,153,34,.07)}
+.rule-remove{background:none;border:none;color:var(--td);cursor:pointer;font-size:16px;line-height:1;padding:0 4px;flex-shrink:0;transition:color .1s}
+.rule-remove:hover{color:var(--rd)}
+.rule-type-seg{display:flex;flex-wrap:wrap;gap:5px}
+.rule-type-btn{background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);color:var(--tm);font-size:11px;font-family:var(--mono);padding:4px 10px;cursor:pointer;transition:border-color .1s,color .1s,background .1s;white-space:nowrap}
+.rule-type-btn:hover{border-color:var(--tm);color:var(--tx)}
+.rule-type-btn.on{border-color:var(--ac);color:var(--tx);background:rgba(88,166,255,.08)}
+.add-rule-btn{width:100%;background:transparent;border:1px dashed var(--b1);border-radius:var(--r);color:var(--tm);font-size:12px;padding:9px;cursor:pointer;margin-top:8px;font-family:inherit;transition:border-color .1s,color .1s}
+.add-rule-btn:hover{border-color:var(--ac);color:var(--tx)}
+.rules-empty{font-size:12px;color:var(--td);padding:4px 0 8px}
+
+/* ── Validation accordion ── */
+.val-list{display:flex;flex-direction:column;gap:3px}
+.val-card{border:1px solid transparent;border-radius:var(--r);overflow:hidden;transition:border-color .12s}
+.val-card:hover{border-color:var(--b2)}
+.val-card.exp{border-color:var(--b1)}
+.val-hdr{display:flex;align-items:center;gap:9px;padding:7px 10px;cursor:pointer;border-radius:var(--r)}
+.val-hdr:hover{background:rgba(255,255,255,.02)}
+.val-card.exp .val-hdr{border-radius:var(--r) var(--r) 0 0;border-bottom:1px solid var(--b2);background:rgba(255,255,255,.01)}
+.val-info{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden}
+.vkey{font-size:11px;font-family:var(--mono);color:var(--td);flex-shrink:0}
+.val-card.on .vkey{color:var(--ac)}
+.vdesc-short{font-size:12px;color:var(--tm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.val-card.off .val-info{opacity:.42}
+/* severity badge (collapsed row) */
+.sev-badge{font-size:10px;font-family:var(--mono);padding:1px 6px;border-radius:3px;border:1px solid var(--b1);color:var(--td);flex-shrink:0}
+.sev-badge.sev-warn{border-color:rgba(227,179,65,.35);color:var(--yl);background:rgba(227,179,65,.07)}
+.sev-badge.sev-error{border-color:rgba(210,153,34,.35);color:var(--or);background:rgba(210,153,34,.07)}
+.sev-badge.sev-hard-stop{border-color:rgba(248,81,73,.35);color:var(--rd);background:rgba(248,81,73,.07)}
+.val-chev{color:var(--td);font-size:10px;flex-shrink:0}
+/* expanded body */
+.val-body{padding:12px 12px 14px}
+.val-desc{font-size:13px;color:var(--tm);margin-bottom:14px;line-height:1.5}
+.val-section{margin-bottom:14px}
+.val-section:last-child{margin-bottom:0}
+.val-sec-lbl{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--td);font-family:var(--mono);margin-bottom:7px}
+/* severity segmented control */
+.sev-seg{display:inline-flex;border:1px solid var(--b1);border-radius:var(--r);overflow:hidden}
+.sev-btn{background:transparent;border:none;border-right:1px solid var(--b1);color:var(--tm);font-size:11px;font-family:var(--mono);padding:5px 14px;cursor:pointer;white-space:nowrap;transition:background .1s,color .1s}
+.sev-btn:last-child{border-right:none}
+.sev-btn:hover:not([disabled]){background:rgba(255,255,255,.05);color:var(--tx)}
+.sev-btn[disabled]{opacity:.3;cursor:not-allowed}
+.sev-btn.on{font-weight:600}
+.sev-btn.on.sev-skip{background:var(--surf3);color:var(--tm)}
+.sev-btn.on.sev-warn{background:rgba(227,179,65,.13);color:var(--yl)}
+.sev-btn.on.sev-error{background:rgba(210,153,34,.13);color:var(--or)}
+.sev-btn.on.sev-hard-stop{background:rgba(248,81,73,.13);color:var(--rd)}
+/* hint text panel */
+.hint-texts{background:var(--surf2);border:1px solid var(--b2);border-radius:var(--r);padding:8px 10px;margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.hint-text-row{display:grid;grid-template-columns:auto 1fr;gap:10px;font-size:11px;font-family:var(--mono);align-items:start}
+.hint-key{color:var(--ac);white-space:nowrap}
+.hint-val{color:var(--tm);word-break:break-word;line-height:1.45}
+.hint-custom-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+
+/* ── Actions ── */
+.act-row{display:flex;gap:8px}
+.btn{flex:1;padding:10px;border-radius:var(--r);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;background:var(--surf);border:1px solid var(--b1);color:var(--tx);transition:border-color .15s}
+.btn:hover:not(:disabled){border-color:var(--ac)}
+.btn:disabled{opacity:.38;cursor:default}
+.btn.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+.btn.pri:hover:not(:disabled){background:var(--ac2);border-color:var(--ac2)}
+.btn.cancel{flex:0;padding:10px 16px;color:var(--tm)}
+.out-wrap{margin-top:10px;display:none}
+.out-log{background:#010409;border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;font-family:var(--mono);font-size:12px;color:#c9d1d9;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;min-height:36px}
+.out-status{margin-top:5px;font-size:12px;font-weight:600}
+.out-status.ok{color:var(--gr)}.out-status.err{color:var(--rd)}
+
+/* ── Toast ── */
+#toasts{position:fixed;top:14px;right:14px;z-index:200;display:flex;flex-direction:column;gap:5px;align-items:flex-end;pointer-events:none}
+.toast{background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);padding:6px 12px;font-size:12px;color:var(--tm);max-width:280px;opacity:0;transform:translateX(6px);transition:opacity .15s,transform .15s}
+.toast.show{opacity:1;transform:translateX(0)}
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="toasts"></div>
 <script>
-// ── Config & derived state (set by boot) ──────────────────────────────────────
+'use strict';
 
 let S, C, META;
-let wizDirs, wizFiles, TOOL_DEFS, TOOL_KEYS, FRAG_DEFS, GITI_FRAGS, GITI_DEFAULTS;
+let wizDirs, wizFiles, TOOL_DEFS, FRAG_DEFS, GITI_FRAGS, GITI_DEFAULTS;
 let STATIC_TREE, PARENT_MAP, NODE_BREADCRUMBS;
 let state;
 
-// ── static data builders ──────────────────────────────────────────────────────
+// ── Static tree builders ──────────────────────────────────────────────────────
 
 function buildStaticTree() {
-  const byPath = {};
-  const roots  = [];
-  const allEntries = [
-    ...wizDirs.map(d  => ({ ...d,  isDir: true,  nodePath: d.label.replace(/\/$/, '') })),
-    ...wizFiles.map(f => ({ ...f,  isDir: false, nodePath: f.foreach ? null : f.label })),
+  const byPath = {}, roots = [];
+  const all = [
+    ...wizDirs.map(d => ({...d, isDir:true,  nodePath: d.label.replace(/\/$/, '')})),
+    ...wizFiles.map(f => ({...f, isDir:false, nodePath: f.foreach ? null : f.label})),
   ].filter(e => e.nodePath !== null);
 
-  for (const e of allEntries) byPath[e.nodePath] = { ...e, children: [] };
-  for (const e of allEntries) {
+  for (const e of all) byPath[e.nodePath] = {...e, children:[]};
+  for (const e of all) {
     const node = byPath[e.nodePath];
     const slash = e.nodePath.lastIndexOf('/');
-    const par   = slash >= 0 ? e.nodePath.substring(0, slash) : null;
+    const par = slash >= 0 ? e.nodePath.substring(0, slash) : null;
     if (par && byPath[par]) byPath[par].children.push(node);
     else roots.push(node);
   }
-
-  wizFiles.filter(f => f.foreach).forEach(f => roots.push({ ...f, isDir: false, children: [] }));
+  wizFiles.filter(f => f.foreach).forEach(f => roots.push({...f, isDir:false, children:[]}));
   return roots;
 }
 
 function allStaticNodes() {
   const out = [];
-  (function walk(ns) { ns.forEach(n => { out.push(n); walk(n.children || []); }); })(STATIC_TREE);
+  (function walk(ns) { ns.forEach(n => { out.push(n); walk(n.children||[]); }); })(STATIC_TREE);
   return out;
 }
 
 function buildParentMap() {
   const map = {};
   (function walk(nodes, parent) {
-    nodes.forEach(n => { if (parent) map[n.key] = parent; walk(n.children || [], n); });
+    nodes.forEach(n => { if (parent) map[n.key] = parent; walk(n.children||[], n); });
   })(STATIC_TREE, null);
   return map;
 }
 
-// ── data initialization ───────────────────────────────────────────────────────
+// ── Data init ─────────────────────────────────────────────────────────────────
 
 function initData() {
   wizDirs  = (S.bumfuzzle && S.bumfuzzle.directories) || [];
-  wizFiles = (S.bumfuzzle && S.bumfuzzle.files) || [];
-
-  TOOL_DEFS = S.tools || {};
-  TOOL_KEYS = Object.keys(TOOL_DEFS);
-
-  FRAG_DEFS     = (S.gitignore && S.gitignore.fragments) || {};
-  GITI_FRAGS    = Object.keys(FRAG_DEFS);
+  wizFiles = (S.bumfuzzle && S.bumfuzzle.files)       || [];
+  TOOL_DEFS  = S.tools || {};
+  FRAG_DEFS  = (S.gitignore && S.gitignore.fragments) || {};
+  GITI_FRAGS = Object.keys(FRAG_DEFS);
   const gitiCommon = (S.gitignore && S.gitignore.defaults && S.gitignore.defaults.common) || [];
   GITI_DEFAULTS = new Set(gitiCommon);
 
@@ -157,23 +238,24 @@ function initData() {
   PARENT_MAP  = buildParentMap();
 
   NODE_BREADCRUMBS = {};
-  (function buildBreadcrumbs(defs, path, ancestors) {
+  (function bc(defs, path, anc) {
     for (const [k, def] of Object.entries(defs)) {
       const p = path ? path + '.' + k : k;
-      NODE_BREADCRUMBS[p] = [...ancestors, def.label || k].join(' › ');
-      if (def.modules) buildBreadcrumbs(def.modules, p, [...ancestors, def.label || k]);
+      NODE_BREADCRUMBS[p] = [...anc, def.label||k].join(' › ');
+      if (def.modules) bc(def.modules, p, [...anc, def.label||k]);
     }
   })(TOOL_DEFS, '', []);
 
-  const _gitiExcl = (C.gitignore && C.gitignore.exclude_fragments) || [];
-  const _gitiXtra = (C.gitignore && C.gitignore.extra_fragments)   || [];
-  const _gitiPatX = (C.gitignore && C.gitignore.exclude_patterns)  || [];
+  const cGiti    = (C && C.gitignore) || {};
+  const excl     = cGiti.exclude_fragments || [];
+  const xtra     = cGiti.extra_fragments   || [];
+  const exclPats = cGiti.exclude_patterns  || [];
+  const cVal     = (C && C.validation) || {};
+  const sVal     = S.validation || {};
 
   state = {
-    name: (C.project && C.project.name) || META.projectDirName || '',
-
-    envs:   [...((C.environments && C.environments.values) || (S.defaults && S.defaults.environments) || [])],
-    stacks: [...((C.stacks && C.stacks.values) || [])],
+    name: (C && C.project && C.project.name) || META.projectDirName || '',
+    envs: [...((C && C.environments && C.environments.values) || (S.defaults && S.defaults.environments) || [])],
 
     toolEnabled:  {},
     toolExpanded: {},
@@ -182,35 +264,77 @@ function initData() {
     expanded: Object.fromEntries(allStaticNodes().filter(n => n.isDir).map(n => [n.key, true])),
 
     giti: Object.fromEntries(GITI_FRAGS.map(f => [f,
-      _gitiExcl.includes(f) ? false : _gitiXtra.includes(f) ? true : GITI_DEFAULTS.has(f)
+      excl.includes(f) ? false : xtra.includes(f) ? true : GITI_DEFAULTS.has(f)
     ])),
     gitiPatterns: Object.fromEntries(GITI_FRAGS.map(f => {
-      const pats   = FRAG_DEFS[f] || [];
-      const fragOn = !_gitiExcl.includes(f) && (_gitiXtra.includes(f) || GITI_DEFAULTS.has(f));
-      return [f, pats.map(pat => fragOn && !_gitiPatX.includes(pat))];
+      const pats = FRAG_DEFS[f] || [];
+      const on   = !excl.includes(f) && (xtra.includes(f) || GITI_DEFAULTS.has(f));
+      return [f, pats.map(p => on && !exclPats.includes(p))];
     })),
-    gitiExpanded: Object.fromEntries(GITI_FRAGS.map(f => [f, true])),
-    extraGiti: [],
+    gitiExpanded: Object.fromEntries(GITI_FRAGS.map(f => [f, false])),
+    extraGiti: [...(cGiti.extra_patterns || [])],
 
-    extraDirs: [...((C.extra_dirs) || [])],
+    extraDirs: [...((C && C.extra_dirs) || [])],
+
+    validation: Object.fromEntries(Object.entries(sVal).map(([key, def]) => {
+      const ov          = cVal[key] || {};
+      const defEnabled  = def.enabled !== false;
+      const defSeverity = def.severity || 'error';
+      const defHints    = def.selected_hints || [];
+      return [key, {
+        enabled:       ov.enabled  !== undefined ? ov.enabled  : defEnabled,
+        severity:      ov.severity !== undefined ? ov.severity : defSeverity,
+        selectedHints: ov.selected_hints ? [...ov.selected_hints] : [...defHints],
+        description:   def.description || key,
+        availHints:    Object.keys(def.hints || {}),
+        hintsMap:      def.hints || {},
+        _de: defEnabled, _ds: defSeverity, _dh: [...defHints],
+      }];
+    })),
+
+    valExpanded: Object.fromEntries(Object.keys(sVal).map(k => [k, false])),
+
+    rules: ((C && C.rules) || []).map(r => ({
+      type:        r.type        || 'file_present',
+      description: r.description || '',
+      target:      r.target      || '',
+      pattern:     r.pattern     || '',
+      scope:       r.scope       || 'recursive',
+      exclude:     r.exclude     || '',
+      command:     r.command     || '',
+      severity:    r.severity    || 'error',
+      hints:       [...(r.hints  || [])],
+      _exp:        false,
+    })),
+
+    sections: { project:true, tools:true, scaffold:true, gitignore:true, rules:true, validation:true, actions:true },
   };
 
-  allStaticNodes().forEach(n => { state.checked[n.key] = defaultCheckState(n); });
+  if (state.validation.command_checks) {
+    const ov = cVal.command_checks || {};
+    state.validation.command_checks.items = (ov.items || []).map(it => ({
+      label:    it.label    || '',
+      command:  it.command  || '',
+      severity: it.severity || 'error',
+      hints:    [...(it.hints || [])],
+    }));
+  }
 
-  walkNodes(TOOL_DEFS, '', (path, def) => {
-    state.toolEnabled[path]  = initNodeEnabled(path, def);
-    state.toolExpanded[path] = true;
+  allStaticNodes().forEach(n => { state.checked[n.key] = defCheck(n); });
+  walkDefs(TOOL_DEFS, '', (p, def) => {
+    state.toolEnabled[p]  = initEnabled(p, def);
+    state.toolExpanded[p] = true;
   });
 }
 
-// ── state helpers ─────────────────────────────────────────────────────────────
+// ── State helpers ─────────────────────────────────────────────────────────────
 
-function defaultCheckState(node) {
+function defCheck(node) {
   if (node.kind === 'step') {
-    const v = C.scaffold && C.scaffold.steps && C.scaffold.steps[node.key];
+    const v = C && C.scaffold && C.scaffold.steps && C.scaffold.steps[node.key];
     return (v === false || node.bumfuzzle_default === false) ? null : 'present';
   }
-  const art = C.artifacts && C.artifacts[node.key];
+  const art = C && C.artifacts && C.artifacts[node.key];
   if (art) {
     if (art.enabled === true)  return 'present';
     if (art.enabled === false) return null;
@@ -218,11 +342,11 @@ function defaultCheckState(node) {
   return node.bumfuzzle_default !== false ? 'present' : null;
 }
 
-function walkNodes(defs, path, cb) {
+function walkDefs(defs, path, cb) {
   for (const [k, def] of Object.entries(defs)) {
     const p = path ? path + '.' + k : k;
     cb(p, def);
-    if (def.modules) walkNodes(def.modules, p, cb);
+    if (def.modules) walkDefs(def.modules, p, cb);
   }
 }
 
@@ -231,20 +355,18 @@ function readCfgNode(cfgTools, path) {
   let cur = cfgTools;
   for (const p of parts) {
     if (cur == null || typeof cur !== 'object') return undefined;
-    if (cur.modules && typeof cur.modules === 'object') cur = cur.modules;
+    if (cur.modules) cur = cur.modules;
     cur = cur[p];
   }
   return cur;
 }
 
-function initNodeEnabled(path, def) {
-  const ov = readCfgNode(C.tools || {}, path);
+function initEnabled(path, def) {
+  const ov = readCfgNode((C && C.tools) || {}, path);
   if (typeof ov === 'boolean') return ov;
   if (ov && typeof ov.enabled === 'boolean') return ov.enabled;
   return def.enabled !== false;
 }
-
-// ── lock helpers ──────────────────────────────────────────────────────────────
 
 function computeLockedKeys() {
   const locked = new Set();
@@ -252,7 +374,7 @@ function computeLockedKeys() {
     for (const [k, def] of Object.entries(defs)) {
       const p  = path ? path + '.' + k : k;
       const on = !parentOff && state.toolEnabled[p];
-      if (!on) (def.locks || []).forEach(l => locked.add(l));
+      if (!on) (def.locks||[]).forEach(l => locked.add(l));
       if (def.modules) walk(def.modules, p, !on);
     }
   }
@@ -261,21 +383,26 @@ function computeLockedKeys() {
 }
 
 function lockingLabel(key) {
-  const baseKey = key.includes(':') ? key.split(':')[0] : key;
+  const base = key.includes(':') ? key.split(':')[0] : key;
   let result = null;
-  walkNodes(TOOL_DEFS, '', (p, def) => {
-    if (!result && (def.locks || []).includes(baseKey))
-      result = NODE_BREADCRUMBS[p];
+  walkDefs(TOOL_DEFS, '', (p, def) => {
+    if (!result && (def.locks||[]).includes(base)) result = NODE_BREADCRUMBS[p];
   });
   return result || 'the required tool';
+}
+
+function resolveVals(foreachKey) {
+  if (foreachKey === 'environments.values') return state.envs;
+  return [];
 }
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
 function el(tag, attrs, ...children) {
   const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) {
+  for (const [k, v] of Object.entries(attrs||{})) {
     if (k === 'class') e.className = v;
+    else if (k === 'style') e.style.cssText = v;
     else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2).toLowerCase(), v);
     else e.setAttribute(k, v);
   }
@@ -283,216 +410,429 @@ function el(tag, attrs, ...children) {
   return e;
 }
 
-function addRow(placeholder, onAdd) {
-  const inp = el('input', { type: 'text', placeholder });
-  const btn = el('button', {}, '+ add');
-  btn.addEventListener('click', () => { const v = inp.value.trim(); if (v) { onAdd(v); inp.value = ''; } });
-  inp.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
-  return el('div', { class: 'add-row' }, inp, btn);
-}
-
-function section(title, subtitle, ...children) {
-  const s = el('div', { class: 'section' });
-  if (title)    s.append(el('div', { class: 'section-title' }, title));
-  if (subtitle) s.append(el('div', { class: 'section-subtitle' }, subtitle));
-  children.filter(Boolean).forEach(c => s.append(c));
-  return s;
-}
-
-function renderChips(listEl, items, onRemove) {
-  listEl.innerHTML = '';
-  if (!items.length) { listEl.append(el('span', { class: 'chip-empty' }, 'none')); return; }
-  items.forEach((item, i) => {
-    const x = el('button', { class: 'chip-x' }, '×');
-    x.addEventListener('click', e => { e.stopPropagation(); onRemove(i); });
-    listEl.append(el('span', { class: 'chip' }, item, x));
-  });
-}
-
-// ── toast ─────────────────────────────────────────────────────────────────────
-
 function showToast(msg) {
-  const ctr = document.getElementById('toast-container');
-  if (!ctr) return;
-  const t = el('div', { class: 'toast' }, msg);
-  ctr.append(t);
-  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('visible')));
-  setTimeout(() => { t.classList.remove('visible'); setTimeout(() => t.remove(), 200); }, 3000);
+  const t = el('div', {class:'toast'}, msg);
+  document.getElementById('toasts').append(t);
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); }, 2800);
 }
 
-// ── auto-save ─────────────────────────────────────────────────────────────────
+// ── Auto-save ─────────────────────────────────────────────────────────────────
 
-let saveTimer     = null;
-let saveStatusEl  = null;
-let cmdRunning    = false;
-let confirmingCmd = null;
-let outputLogEl   = null;
-let outputStatusEl = null;
-let outputWrapEl  = null;
-let actionRowEl   = null;
+let saveTimer = null, saveEl = null;
+let cmdRunning = false, confirmCmd = null;
+let outLogEl = null, outStatusEl = null, outWrapEl = null, actRowEl = null;
 
 function scheduleSave() {
   clearTimeout(saveTimer);
-  updateSaveStatus('saving');
+  setSaveStatus('saving');
   saveTimer = setTimeout(doSave, 600);
 }
 
 async function doSave() {
   try {
-    const res = await fetch('/save', { method: 'POST', body: generateYaml() });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    updateSaveStatus('saved');
-  } catch (_) {
-    updateSaveStatus('error');
+    const res = await fetch('/save', {method:'POST', body:generateYaml()});
+    if (!res.ok) throw new Error();
+    setSaveStatus('ok');
+  } catch {
+    setSaveStatus('err');
   }
 }
 
-function updateSaveStatus(s) {
-  if (!saveStatusEl) return;
-  const labels = { saving: 'Saving…', saved: 'Saved ✓', error: 'Save error', idle: '' };
-  saveStatusEl.textContent = labels[s] || '';
-  saveStatusEl.className = 'save-status' + (s === 'saved' ? ' is-saved' : s === 'error' ? ' is-error' : '');
+function setSaveStatus(s) {
+  if (!saveEl) return;
+  const labels = {idle:'', saving:'Saving…', ok:'Saved ✓', err:'Save failed'};
+  saveEl.textContent = labels[s] || '';
+  saveEl.className = 'hdr-save ' + s;
 }
 
-// ── command runner (SSE streaming) ────────────────────────────────────────────
+// ── Command runner ────────────────────────────────────────────────────────────
 
 async function runCmd(cmd) {
   try {
-    const res = await fetch('/run/' + cmd, { method: 'POST' });
+    const res = await fetch('/run/' + cmd, {method:'POST'});
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const reader = res.body.getReader();
-    const dec    = new TextDecoder();
+    const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = '';
     outer: while (true) {
-      const { value, done } = await reader.read();
+      const {value, done} = await reader.read();
       if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const events = buf.split('\n\n');
-      buf = events.pop();
-      for (const ev of events) {
+      buf += dec.decode(value, {stream:true});
+      const evts = buf.split('\n\n');
+      buf = evts.pop();
+      for (const ev of evts) {
         if (!ev.startsWith('data: ')) continue;
         const line = JSON.parse(ev.slice(6));
         if (typeof line === 'string' && line.startsWith('__DONE__')) {
           const ec = parseInt(line.split(' ')[1], 10);
-          outputStatusEl.textContent = ec === 0 ? '✓ Done' : '✗ Exited with code ' + ec;
-          outputStatusEl.className = 'output-status ' + (ec === 0 ? 'is-success' : 'is-error');
+          outStatusEl.textContent = ec === 0 ? '✓ Done' : '✗ Exited ' + ec;
+          outStatusEl.className = 'out-status ' + (ec === 0 ? 'ok' : 'err');
           break outer;
         }
-        outputLogEl.textContent += line + '\n';
-        outputLogEl.scrollTop = outputLogEl.scrollHeight;
+        outLogEl.textContent += line + '\n';
+        outLogEl.scrollTop = outLogEl.scrollHeight;
       }
     }
   } catch (e) {
-    outputStatusEl.textContent = '✗ Failed: ' + e.message;
-    outputStatusEl.className = 'output-status is-error';
+    outStatusEl.textContent = '✗ ' + e.message;
+    outStatusEl.className = 'out-status err';
   }
   cmdRunning = false;
-  renderActionButtons();
+  renderActBtns();
 }
 
-function renderActionButtons() {
-  if (!actionRowEl) return;
-  actionRowEl.innerHTML = '';
-  if (confirmingCmd) {
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn-action is-cancel';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.addEventListener('click', () => { confirmingCmd = null; renderActionButtons(); });
-
-    const runBtn = document.createElement('button');
-    runBtn.className = 'btn-action is-confirm';
-    runBtn.textContent = 'Run ' + confirmingCmd;
-    runBtn.addEventListener('click', () => {
-      const cmd = confirmingCmd;
-      confirmingCmd = null;
-      cmdRunning = true;
-      outputLogEl.textContent = '';
-      outputStatusEl.textContent = '';
-      outputStatusEl.className = 'output-status';
-      outputWrapEl.style.display = '';
-      renderActionButtons();
-      runCmd(cmd);
-    });
-
-    actionRowEl.append(cancelBtn, runBtn);
+function renderActBtns() {
+  if (!actRowEl) return;
+  actRowEl.innerHTML = '';
+  if (confirmCmd) {
+    actRowEl.append(
+      el('button', {class:'btn cancel', onclick:() => { confirmCmd = null; renderActBtns(); }}, 'Cancel'),
+      el('button', {class:'btn pri', onclick:() => {
+        const cmd = confirmCmd; confirmCmd = null;
+        cmdRunning = true;
+        outLogEl.textContent = '';
+        outStatusEl.textContent = '';
+        outStatusEl.className = 'out-status';
+        outWrapEl.style.display = '';
+        renderActBtns();
+        runCmd(cmd);
+      }}, 'Run ' + confirmCmd)
+    );
   } else {
-    ['kickstart', 'preflight'].forEach(cmd => {
-      const btn = document.createElement('button');
-      btn.className = 'btn-action';
-      btn.textContent = cmd.charAt(0).toUpperCase() + cmd.slice(1);
-      btn.disabled = cmdRunning;
-      btn.addEventListener('click', () => {
-        if (!cmdRunning) { confirmingCmd = cmd; renderActionButtons(); }
-      });
-      actionRowEl.append(btn);
+    ['kickstart','preflight'].forEach((cmd, i) => {
+      const b = el('button', {class:'btn' + (i === 0 ? ' pri' : '')},
+        cmd.charAt(0).toUpperCase() + cmd.slice(1));
+      b.disabled = cmdRunning;
+      b.addEventListener('click', () => { if (!cmdRunning) { confirmCmd = cmd; renderActBtns(); } });
+      actRowEl.append(b);
     });
   }
 }
 
-// ── tools tree ────────────────────────────────────────────────────────────────
+// ── Section factory ───────────────────────────────────────────────────────────
 
-let toolTreeEl = null;
+function makeSection(key, title) {
+  const sec  = el('div', {class:'sec'});
+  const hdr  = el('div', {class:'sec-hdr'});
+  const chev = el('span', {class:'sec-chev open'}, '▶');
+  hdr.append(el('span', {class:'sec-title'}, title), chev);
+  sec.append(hdr);
+  const body = el('div', {class:'sec-body'});
+  sec.append(body);
+  hdr.addEventListener('click', () => {
+    const open = !body.classList.contains('closed');
+    body.classList.toggle('closed', open);
+    chev.classList.toggle('open', !open);
+    state.sections[key] = !open;
+  });
+  return {sec, body};
+}
 
-function renderToolNodes(defs, path, linePrefix, container) {
+// ── YAML generation ───────────────────────────────────────────────────────────
+
+function genToolYaml(defs, path, indent) {
+  const lines = [];
+  for (const [k, def] of Object.entries(defs)) {
+    const p  = path ? path + '.' + k : k;
+    const on = state.toolEnabled[p];
+    if (def.modules && Object.keys(def.modules).length) {
+      lines.push(indent + k + ':');
+      lines.push(indent + '  enabled: ' + on);
+      lines.push(indent + '  modules:');
+      lines.push(...genToolYaml(def.modules, p, indent + '    '));
+    } else {
+      lines.push(indent + k + ': ' + on);
+    }
+  }
+  return lines;
+}
+
+function generateYaml() {
+  const lines = [], locked = computeLockedKeys();
+
+  lines.push('project:');
+  lines.push('  name: ' + (state.name || META.projectDirName));
+
+  lines.push('environments:');
+  lines.push('  values: ' + (state.envs.length ? '' : '[]'));
+  state.envs.forEach(e => lines.push('    - ' + e));
+
+  lines.push('tools:');
+  lines.push(...genToolYaml(TOOL_DEFS, '', '  '));
+
+  const stepNodes   = allStaticNodes().filter(n => n.kind === 'step');
+  const deselSteps  = stepNodes.filter(n => state.checked[n.key] !== 'present' || locked.has(n.key));
+  const edFalse     = ['vscode','claude'].filter(k => !state.toolEnabled[k]);
+  if (deselSteps.length || edFalse.length) {
+    lines.push('scaffold:');
+    if (deselSteps.length) {
+      lines.push('  steps:');
+      deselSteps.forEach(n => lines.push('    ' + n.key + ': false'));
+    }
+    if (edFalse.length) {
+      lines.push('  editor:');
+      edFalse.forEach(k => lines.push('    ' + k + ': false'));
+    }
+  }
+
+  lines.push('artifacts:');
+  for (const [k, def] of Object.entries(S.artifacts||{})) {
+    if (def.foreach) {
+      const vals = resolveVals(def.foreach);
+      if (!vals.length) { lines.push('  ' + k + ': { enabled: false }'); continue; }
+      const anyPresent = vals.some(v => state.checked[k + ':' + v] === 'present');
+      lines.push('  ' + k + ':');
+      lines.push('    enabled: ' + (!locked.has(k) && anyPresent));
+    } else {
+      const chk = locked.has(k) ? null : state.checked[k];
+      lines.push('  ' + k + ': { enabled: ' + (chk === 'present') + ' }');
+    }
+  }
+
+  const exclFrags = [], xtraFrags = [], xtraPats = [...state.extraGiti];
+  for (const f of GITI_FRAGS) {
+    const pats   = FRAG_DEFS[f] || [];
+    const fragOn = state.giti[f];
+    const patSt  = state.gitiPatterns[f] || pats.map(() => true);
+    const anyOn  = patSt.some(v => v !== false);
+    if (!fragOn || !anyOn) {
+      if (GITI_DEFAULTS.has(f)) exclFrags.push(f);
+      continue;
+    }
+    if (!GITI_DEFAULTS.has(f)) xtraFrags.push(f);
+    const allOn = patSt.every(v => v !== false);
+    if (!allOn) {
+      if (GITI_DEFAULTS.has(f)) exclFrags.push(f);
+      const idx = xtraFrags.indexOf(f); if (idx >= 0) xtraFrags.splice(idx, 1);
+      pats.forEach((pat, pi) => {
+        if (patSt[pi] !== false) {
+          if (pat.includes('{{VALUE}}') || pat.includes('{{ENV}}')) {
+            state.envs.forEach(v => xtraPats.push(pat.replace(/\{\{VALUE\}\}|\{\{ENV\}\}/g, v)));
+          } else xtraPats.push(pat);
+        }
+      });
+    }
+  }
+  lines.push('gitignore:');
+  lines.push('  exclude_fragments: ' + (exclFrags.length ? '' : '[]'));
+  exclFrags.forEach(f => lines.push('    - ' + f));
+  lines.push('  extra_fragments: ' + (xtraFrags.length ? '' : '[]'));
+  xtraFrags.forEach(f => lines.push('    - ' + f));
+  lines.push('  extra_patterns: ' + (xtraPats.length ? '' : '[]'));
+  xtraPats.forEach(p => lines.push('    - ' + p));
+
+  lines.push('extra_dirs: ' + (state.extraDirs.length ? '' : '[]'));
+  state.extraDirs.forEach(d => lines.push('  - ' + d));
+
+  if (state.rules.length) {
+    lines.push('rules:');
+    for (const r of state.rules) {
+      lines.push('  - type: ' + r.type);
+      if (r.description) lines.push('    description: ' + JSON.stringify(r.description));
+      if (r.target)      lines.push('    target: '      + r.target);
+      if (r.pattern)     lines.push('    pattern: '     + JSON.stringify(r.pattern));
+      if (r.scope && r.scope !== 'recursive') lines.push('    scope: ' + r.scope);
+      if (r.exclude)     lines.push('    exclude: '     + r.exclude);
+      if (r.command)     lines.push('    command: '     + JSON.stringify(r.command));
+      if (r.severity && r.severity !== 'error') lines.push('    severity: ' + r.severity);
+      if (r.hints && r.hints.length) {
+        lines.push('    hints:');
+        r.hints.forEach(h => lines.push('      - ' + JSON.stringify(h)));
+      }
+    }
+  }
+
+  const valLines = [];
+  for (const [key, val] of Object.entries(state.validation)) {
+    const hintsSame = JSON.stringify([...val.selectedHints].sort()) === JSON.stringify([...val._dh].sort());
+    const hasItems  = val.items && val.items.length > 0;
+    const changed   = val.enabled !== val._de || val.severity !== val._ds || !hintsSame || hasItems;
+    if (!changed) continue;
+    valLines.push('  ' + key + ':');
+    valLines.push('    enabled: ' + val.enabled);
+    if (val.severity !== val._ds) valLines.push('    severity: ' + val.severity);
+    if (!hintsSame) valLines.push('    selected_hints: [' + val.selectedHints.join(', ') + ']');
+    if (hasItems) {
+      valLines.push('    items:');
+      for (const item of val.items) {
+        valLines.push('      - label: '   + JSON.stringify(item.label   || ''));
+        valLines.push('        command: ' + JSON.stringify(item.command || ''));
+        if (item.severity && item.severity !== 'error')
+          valLines.push('        severity: ' + item.severity);
+        if (item.hints && item.hints.length) {
+          valLines.push('        hints:');
+          item.hints.forEach(h => valLines.push('          - ' + JSON.stringify(h)));
+        }
+      }
+    }
+  }
+  if (valLines.length) {
+    lines.push('validation:');
+    lines.push(...valLines);
+  }
+
+  return lines.join('\n') + '\n';
+}
+
+// ── Re-render targets ─────────────────────────────────────────────────────────
+
+let toolsBodyEl = null, scaffoldBodyEl = null, gitBodyEl = null, rulesBodyEl = null, valBodyEl = null;
+
+function repl(bodyEl, buildFn) {
+  if (!bodyEl) return;
+  bodyEl.innerHTML = '';
+  bodyEl.append(buildFn());
+}
+
+function reRenderTools()      { repl(toolsBodyEl,    buildTools);      scheduleSave(); }
+function reRenderScaffold()   { repl(scaffoldBodyEl, buildScaffold);   scheduleSave(); }
+function reRenderGitignore()  { repl(gitBodyEl,      buildGitignore);  scheduleSave(); }
+function reRenderRules()      { repl(rulesBodyEl,    buildRules);      scheduleSave(); }
+function reRenderValidation() { repl(valBodyEl,      buildValidation); scheduleSave(); }
+
+// ── Build: Tools (ASCII tree + parent→child cascade) ─────────────────────────
+
+function buildTools() {
+  const wrap = el('div', {class:'tree'});
+  wrap.append(el('div', {class:'tree-root'}, 'tools/'));
+  renderToolLevel(TOOL_DEFS, '', wrap, '', false);
+  return wrap;
+}
+
+function renderToolLevel(defs, path, container, prefix, parentOff) {
   const entries = Object.entries(defs);
   entries.forEach(([k, def], i) => {
     const p      = path ? path + '.' + k : k;
-    const isOn   = state.toolEnabled[p];
+    const on     = !!state.toolEnabled[p];
+    const mods   = def.modules && Object.keys(def.modules).length ? def.modules : null;
     const isLast = i === entries.length - 1;
-    const mods   = def.modules ? Object.keys(def.modules) : [];
-    const exp    = state.toolExpanded[p];
+    const rowPfx = prefix + (isLast ? '└── ' : '├── ');
+    const kidPfx = prefix + (isLast ? '    ' : '│   ');
+    const exp    = !!state.toolExpanded[p];
+    const effOff = parentOff || !on;
 
-    const row = el('div', { class: 'tree-row' + (isOn ? ' is-present' : '') });
-    row.append(el('span', { class: 'tree-prefix' }, linePrefix + (isLast ? '└── ' : '├── ')));
-    const expBtn = el('span', { class: 'tree-expander' },
-      (mods.length && isOn) ? (exp ? '▼' : '▶') : '');
-    if (mods.length && isOn) {
-      expBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        state.toolExpanded[p] = !exp;
-        renderToolTree();
+    const row = el('div', {class:'trow' + (on ? ' on' : '') + (parentOff ? ' lck-row' : '') + (mods ? ' clickable' : '')});
+
+    // Entire row click → toggle expand (when has children)
+    if (mods) {
+      row.addEventListener('click', () => {
+        state.toolExpanded[p] = !state.toolExpanded[p];
+        reRenderTools();
       });
     }
-    row.append(expBtn);
-    row.append(el('span', { class: 'tree-cb' }));
-    row.append(el('span', { class: 'tree-name' }, def.label || k));
-    row.addEventListener('click', () => {
-      state.toolEnabled[p] = !isOn;
-      renderToolTree(); renderToolSections(); renderTree();
+
+    row.append(el('span', {class:'tpfx'}, rowPfx));
+    row.append(el('span', {class:'texp' + (mods ? '' : ' blank')}, mods ? (exp ? '▾' : '▸') : ''));
+
+    // Toggle — stopPropagation prevents row-click expand firing
+    const tog = el('div', {class:'tog' + (on ? ' on' : '') + (parentOff ? ' dis' : '')});
+    tog.addEventListener('click', e => {
+      e.stopPropagation();
+      if (parentOff) { showToast('Enable parent tool first'); return; }
+      const next = !on;
+      state.toolEnabled[p] = next;
+      if (!next && mods) {
+        // cascade off to all descendants
+        walkDefs(mods, p, cp => { state.toolEnabled[cp] = false; });
+        state.toolExpanded[p] = false;
+      }
+      reRenderTools();
+      reRenderScaffold();
     });
+    row.append(tog);
+    row.append(el('span', {class:'tname'}, def.label || k));
+
     container.append(row);
 
-    if (isOn && exp && mods.length) {
-      renderToolNodes(def.modules, p, linePrefix + (isLast ? '    ' : '│   '), container);
+    if (mods && exp) {
+      renderToolLevel(mods, p, container, kidPfx, effOff);
     }
   });
 }
 
-function renderToolTree() {
-  const container = el('div', { class: 'tree' });
-  renderToolNodes(TOOL_DEFS, '', '', container);
-  if (toolTreeEl) toolTreeEl.replaceWith(container);
-  toolTreeEl = container;
-  scheduleSave();
+// ── Build: Scaffold ───────────────────────────────────────────────────────────
+
+function buildScaffold() {
+  const wrap   = el('div');
+  const locked = computeLockedKeys();
+  const tree   = el('div', {class:'tree'});
+  tree.append(el('div', {class:'tree-root'}, META.projectDirName + '/'));
+
+  flattenVisible(STATIC_TREE, '').forEach(({node, prefix}) => {
+    tree.append(buildScaffoldRow(node, prefix, locked));
+  });
+
+  state.extraDirs.forEach((d, i) => {
+    const isLast = i === state.extraDirs.length - 1;
+    const row    = el('div', {class:'trow on'});
+    row.append(el('span', {class:'tpfx'}, isLast ? '└── ' : '├── '));
+    row.append(el('span', {class:'texp blank'}));
+    const cb = el('div', {class:'tcb'});
+    cb.addEventListener('click', () => { state.extraDirs.splice(i, 1); reRenderScaffold(); });
+    row.append(cb);
+    row.append(el('span', {class:'tname dir'}, d + '/'));
+    tree.append(row);
+  });
+
+  wrap.append(tree);
+
+  const addInp = el('input', {class:'add-inp', type:'text', placeholder:'custom dir…'});
+  const addBtn = el('button', {class:'add-btn'}, '+ dir');
+  addBtn.addEventListener('click', () => {
+    const v = addInp.value.trim().replace(/\/$/, '');
+    if (v && !state.extraDirs.includes(v)) { state.extraDirs.push(v); addInp.value = ''; reRenderScaffold(); }
+  });
+  addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+  wrap.append(el('div', {class:'tree-add'}, addInp, addBtn));
+
+  return wrap;
 }
 
-// ── scaffold tree ─────────────────────────────────────────────────────────────
+function buildScaffoldRow(node, prefix, locked) {
+  const isRequired  = node.required === true;
+  const baseKey     = node.key.includes(':') ? node.key.split(':')[0] : node.key;
+  const isLocked    = locked.has(baseKey);
+  const chk         = isLocked ? null : isRequired ? 'present'
+    : (state.checked[node.key] !== undefined ? state.checked[node.key]
+      : (node.bumfuzzle_default !== false ? 'present' : null));
+  const hasChildren = node.isDir && (node.children||[]).length > 0;
 
-let treeRowsEl = null;
+  let cls = 'trow';
+  if (chk === 'present') cls += ' on';
+  if (isRequired) cls += ' req';
+  if (isLocked)   cls += ' lck-row';
+  const row = el('div', {class:cls});
 
-function cycleState(node, current) {
-  return current === 'present' ? null : 'present';
-}
+  row.append(el('span', {class:'tpfx'}, prefix));
 
-function propagate(node, val) {
-  state.checked[node.key] = val;
-  (node.children || []).forEach(c => propagate(c, val));
-}
+  const expBtn = el('span', {class:'texp' + (hasChildren ? '' : ' blank')},
+    hasChildren ? (state.expanded[node.key] ? '▾' : '▸') : '');
+  if (hasChildren) {
+    expBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      state.expanded[node.key] = !state.expanded[node.key];
+      reRenderScaffold();
+    });
+  }
+  row.append(expBtn);
 
-function resolveVals(foreachKey) {
-  if (foreachKey === 'stacks.values')       return state.stacks;
-  if (foreachKey === 'environments.values') return state.envs;
-  return [];
+  const cb = el('div', {class:'tcb' + (isLocked ? ' lck' : '')});
+  cb.addEventListener('click', e => {
+    e.stopPropagation();
+    if (isLocked)   { showToast('Enable ' + lockingLabel(node.key) + ' to use ' + node.label); return; }
+    if (isRequired) { showToast(node.label + ' is required'); return; }
+    const next = state.checked[node.key] === 'present' ? null : 'present';
+    if (!node.foreach && (node.children||[]).length) propagate(node, next);
+    else state.checked[node.key] = next;
+    reRenderScaffold();
+  });
+  row.append(cb);
+  row.append(el('span', {class:'tname' + (node.isDir ? ' dir' : '')}, node.label));
+
+  if (isRequired) row.append(el('span', {class:'tree-meta'}, 'required'));
+  if (isLocked)   row.append(el('span', {class:'tree-meta'}, '🔒 ' + lockingLabel(node.key)));
+
+  return row;
 }
 
 function flattenVisible(nodes, prefix) {
@@ -502,388 +842,630 @@ function flattenVisible(nodes, prefix) {
     if (node.foreach) {
       const vals = resolveVals(node.foreach);
       vals.forEach((val, vi) => {
-        const isLastV = vi === vals.length - 1 && isLast;
-        const instKey = node.key + ':' + val;
-        const label   = node.label.replace(/\{\{VALUE\}\}/g, val);
-        rows.push({ node: { ...node, key: instKey, label, foreach: null }, prefix: prefix + (isLastV ? '└── ' : '├── ') });
+        const isLastV  = vi === vals.length - 1 && isLast;
+        const instKey  = node.key + ':' + val;
+        const label    = node.label.replace(/\{\{VALUE\}\}/g, val);
+        if (!(instKey in state.checked)) state.checked[instKey] = defCheck({...node, key:instKey});
+        rows.push({node:{...node, key:instKey, label, foreach:null}, prefix: prefix + (isLastV ? '└── ' : '├── ')});
       });
       return;
     }
-    rows.push({ node, prefix: prefix + (isLast ? '└── ' : '├── ') });
+    rows.push({node, prefix: prefix + (isLast ? '└── ' : '├── ')});
     if (node.isDir && node.children.length && state.expanded[node.key])
       rows.push(...flattenVisible(node.children, prefix + (isLast ? '    ' : '│   ')));
   });
   return rows;
 }
 
-function getChecked(key, defaultVal) {
-  if (!(key in state.checked)) state.checked[key] = defaultVal !== undefined ? defaultVal : 'present';
-  return state.checked[key];
+function propagate(node, val) {
+  state.checked[node.key] = val;
+  (node.children||[]).forEach(c => propagate(c, val));
 }
 
-function renderTree() {
-  const lockedKeys = computeLockedKeys();
-  const container  = el('div');
+// ── Build: Gitignore (ASCII tree) ─────────────────────────────────────────────
 
-  flattenVisible(STATIC_TREE, '').forEach(({ node, prefix }) => {
-    const isRequired   = node.required === true;
-    const baseKey      = node.key.includes(':') ? node.key.split(':')[0] : node.key;
-    const isToolLocked = lockedKeys.has(baseKey);
-    const defVal       = node.bumfuzzle_default !== false ? 'present' : null;
-    const chk          = isToolLocked
-      ? null
-      : isRequired
-        ? 'present'
-        : getChecked(node.key, defVal);
-    const hasChildren  = node.isDir && (node.children || []).length > 0;
+function buildGitignore() {
+  const wrap = el('div');
+  const tree = el('div', {class:'tree'});
+  tree.append(el('div', {class:'tree-root'}, '.gitignore/'));
 
-    let cls = 'tree-row';
-    if (chk === 'present') cls += ' is-present';
-    if (isToolLocked)      cls += ' is-locked';
-    if (isRequired && !isToolLocked) cls += ' is-required';
-    const row = el('div', { class: cls });
-
-    row.append(el('span', { class: 'tree-prefix' }, prefix));
-    const exp = el('span', { class: 'tree-expander' }, hasChildren ? (state.expanded[node.key] ? '▼' : '▶') : '');
-    if (hasChildren && !isToolLocked && !isRequired) {
-      exp.addEventListener('click', e => {
-        e.stopPropagation();
-        state.expanded[node.key] = !state.expanded[node.key];
-        renderTree();
-      });
-    }
-    row.append(exp);
-    row.append(el('span', { class: 'tree-cb' }));
-    row.append(el('span', { class: 'tree-name' + (node.isDir ? ' is-dir' : '') }, node.label));
-
-    if (isToolLocked) {
-      row.addEventListener('click', () => showToast(`Enable ${lockingLabel(node.key)} to use ${node.label}`));
-    } else if (isRequired) {
-      row.addEventListener('click', () => showToast(`${node.label} is required and cannot be disabled`));
-    } else {
-      row.addEventListener('click', () => {
-        const next = cycleState(node, state.checked[node.key] !== undefined ? state.checked[node.key] : defVal);
-        if (node.foreach === null && (node.children || []).length) propagate(node, next);
-        else state.checked[node.key] = next;
-        renderToolSections(); renderTree();
-      });
-    }
-    container.append(row);
-  });
-
-  // custom extra dirs
-  state.extraDirs.forEach((d, i) => {
-    const row = el('div', { class: 'tree-row is-present' });
-    row.append(el('span', { class: 'tree-prefix' }, i === state.extraDirs.length - 1 ? '└── ' : '├── '));
-    row.append(el('span', { class: 'tree-expander' }));
-    row.append(el('span', { class: 'tree-cb' }));
-    row.append(el('span', { class: 'tree-name is-dir' }, d + '/'));
-    row.addEventListener('click', () => { state.extraDirs.splice(i, 1); renderTree(); });
-    container.append(row);
-  });
-
-  if (treeRowsEl) treeRowsEl.replaceWith(container);
-  treeRowsEl = container;
-  scheduleSave();
-}
-
-// ── gitignore tree ────────────────────────────────────────────────────────────
-
-function renderGitSection() {
-  const container = el('div', { class: 'tree' });
   GITI_FRAGS.forEach((f, fi) => {
     const isLastFrag = fi === GITI_FRAGS.length - 1;
+    const fragPfx    = isLastFrag ? '└── ' : '├── ';
+    const kidPfx     = isLastFrag ? '    ' : '│   ';
+    const on         = state.giti[f];
+    const exp        = state.gitiExpanded[f];
     const pats       = FRAG_DEFS[f] || [];
-    const expanded   = state.gitiExpanded[f] !== false;
-    const fragOn     = state.giti[f];
 
-    const fragRow = el('div', { class: 'tree-row' + (fragOn ? ' is-present' : '') });
-    fragRow.append(el('span', { class: 'tree-prefix' }, isLastFrag ? '└── ' : '├── '));
-    const exp = el('span', { class: 'tree-expander' }, pats.length ? (expanded ? '▼' : '▶') : '');
-    exp.addEventListener('click', e => { e.stopPropagation(); state.gitiExpanded[f] = !expanded; renderToolSections(); });
-    fragRow.append(exp);
-    fragRow.append(el('span', { class: 'tree-cb' }));
-    fragRow.append(el('span', { class: 'tree-name' }, f));
-    fragRow.addEventListener('click', () => {
-      const next = !fragOn;
+    const frow = el('div', {class:'trow' + (on ? ' on' : '')});
+    frow.append(el('span', {class:'tpfx'}, fragPfx));
+
+    if (pats.length) {
+      const expBtn = el('span', {class:'texp'}, exp ? '▾' : '▸');
+      expBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        state.gitiExpanded[f] = !exp;
+        reRenderGitignore();
+      });
+      frow.append(expBtn);
+    } else {
+      frow.append(el('span', {class:'texp blank'}));
+    }
+
+    const chip = el('span', {class:'gi-frag' + (on ? ' on' : '')}, f);
+    chip.addEventListener('click', e => {
+      e.stopPropagation();
+      const next = !on;
       state.giti[f] = next;
       state.gitiPatterns[f] = pats.map(() => next);
-      renderToolSections();
+      reRenderGitignore();
     });
-    container.append(fragRow);
+    frow.append(chip);
+    tree.append(frow);
 
-    if (expanded && pats.length) {
-      const childPfx = isLastFrag ? '    ' : '│   ';
+    if (exp && pats.length) {
       pats.forEach((pat, pi) => {
-        const expandedPats = pat.includes('{{VALUE}}') || pat.includes('{{STACK}}') || pat.includes('{{ENV}}')
-          ? [...state.stacks, ...state.envs].map(v => pat.replace(/\{\{VALUE\}\}|\{\{STACK\}\}|\{\{ENV\}\}/g, v))
-          : [pat];
+        const isLastPat = pi === pats.length - 1;
+        const patPfx    = kidPfx + (isLastPat ? '└── ' : '├── ');
+        const patOn     = on && (state.gitiPatterns[f][pi] !== false);
 
-        expandedPats.forEach((resolvedPat, rpi) => {
-          const isLastPat = pi === pats.length - 1 && rpi === expandedPats.length - 1;
-          const patOn     = fragOn && (state.gitiPatterns[f][pi] !== false);
-          const cls       = 'tree-row' + (patOn ? ' is-present' : '') + (!fragOn ? ' is-locked' : '');
-          const patRow    = el('div', { class: cls });
-          patRow.append(el('span', { class: 'tree-prefix' }, childPfx + (isLastPat ? '└── ' : '├── ')));
-          patRow.append(el('span', { class: 'tree-expander' }));
-          patRow.append(el('span', { class: 'tree-cb' }));
-          patRow.append(el('span', { class: 'tree-name' }, resolvedPat));
-          if (fragOn) {
-            patRow.addEventListener('click', () => {
-              state.gitiPatterns[f][pi] = !state.gitiPatterns[f][pi];
-              renderToolSections();
-            });
-          }
-          container.append(patRow);
+        const prow = el('div', {class:'trow' + (patOn ? ' on' : '')});
+        prow.append(el('span', {class:'tpfx'}, patPfx));
+        prow.append(el('span', {class:'texp blank'}));
+
+        const pcb = el('div', {class:'tcb' + (!on ? ' lck' : '')});
+        pcb.addEventListener('click', () => {
+          if (!on) { showToast('Enable ' + f + ' to toggle individual patterns'); return; }
+          state.gitiPatterns[f][pi] = !patOn;
+          reRenderGitignore();
         });
+        prow.append(pcb);
+        prow.append(el('span', {class:'tname'}, pat));
+        tree.append(prow);
       });
     }
   });
 
-  return section('Gitignore', null, container,
-    addRow('extra pattern…', v => { if (!state.extraGiti.includes(v)) { state.extraGiti.push(v); renderToolSections(); } })
-  );
+  wrap.append(tree);
+
+  // Extra patterns below the tree
+  wrap.append(el('div', {class:'gi-sep'}, 'extra patterns'));
+
+  if (state.extraGiti.length) {
+    const list = el('div', {class:'chips', style:'margin-bottom:8px'});
+    state.extraGiti.forEach((p, i) => {
+      const x = el('button', {class:'chip-x'}, '×');
+      x.addEventListener('click', () => { state.extraGiti.splice(i, 1); reRenderGitignore(); });
+      list.append(el('span', {class:'chip'}, p, x));
+    });
+    wrap.append(list);
+  }
+
+  const addInp = el('input', {class:'add-inp', type:'text', placeholder:'pattern…'});
+  const addBtn = el('button', {class:'add-btn'}, '+ add');
+  addBtn.addEventListener('click', () => {
+    const v = addInp.value.trim();
+    if (v && !state.extraGiti.includes(v)) { state.extraGiti.push(v); addInp.value = ''; reRenderGitignore(); }
+  });
+  addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+  wrap.append(el('div', {class:'add-row'}, addInp, addBtn));
+
+  return wrap;
 }
 
-// ── tool sub-sections ─────────────────────────────────────────────────────────
+// ── Build: Validation (accordion) ─────────────────────────────────────────────
 
-let toolSectionsEl = null;
+function buildValidation() {
+  const wrap = el('div', {class:'val-list'});
+  const sevs = (S.preflight && S.preflight.valid_severities) || ['skip','warn','error','hard-stop'];
 
-function renderToolSections() {
-  const container = el('div');
-  if (state.toolEnabled['git'] && state.toolEnabled['git.gitignore'] && state.checked.gitignore === 'present')
-    container.append(renderGitSection());
-  if (toolSectionsEl) toolSectionsEl.replaceWith(container);
-  toolSectionsEl = container;
-  scheduleSave();
+  for (const [key, val] of Object.entries(state.validation)) {
+    const on  = val.enabled;
+    const exp = !!state.valExpanded[key];
+
+    const card = el('div', {class:'val-card' + (on ? ' on' : ' off') + (exp ? ' exp' : '')});
+
+    // ── collapsed header ──
+    const hdr = el('div', {class:'val-hdr'});
+
+    const tog = el('div', {class:'tog' + (on ? ' on' : '')});
+    tog.addEventListener('click', e => {
+      e.stopPropagation();
+      state.validation[key].enabled = !on;
+      reRenderValidation();
+    });
+
+    const info = el('div', {class:'val-info'});
+    info.append(
+      el('span', {class:'vkey'}, key),
+      el('span', {class:'vdesc-short'}, val.description)
+    );
+
+    const badge = el('span', {class:'sev-badge sev-' + val.severity}, val.severity);
+    const chev  = el('span', {class:'val-chev'}, exp ? '▾' : '▸');
+
+    hdr.append(tog, info, badge, chev);
+    hdr.addEventListener('click', () => {
+      state.valExpanded[key] = !exp;
+      reRenderValidation();
+    });
+
+    card.append(hdr);
+
+    // ── expanded body ──
+    if (exp) {
+      const body = el('div', {class:'val-body'});
+
+      body.append(el('p', {class:'val-desc'}, val.description));
+
+      // Severity segmented control
+      const sevSec = el('div', {class:'val-section'});
+      sevSec.append(el('span', {class:'val-sec-lbl'}, 'Severity'));
+      const seg = el('div', {class:'sev-seg'});
+      sevs.forEach(s => {
+        const active = val.severity === s;
+        const btn = el('button', {class:'sev-btn' + (active ? ' on sev-' + s : '')}, s);
+        if (!on) btn.setAttribute('disabled', '');
+        btn.addEventListener('click', () => {
+          if (!on) return;
+          state.validation[key].severity = s;
+          reRenderValidation();
+        });
+        seg.append(btn);
+      });
+      sevSec.append(seg);
+      body.append(sevSec);
+
+      // Hints section
+      const hintDefs    = val.hintsMap;
+      const hintKeys    = val.availHints;
+      const customHints = val.selectedHints.filter(h => !hintDefs[h]);
+
+      if (hintKeys.length || customHints.length) {
+        const hintSec = el('div', {class:'val-section'});
+        hintSec.append(el('span', {class:'val-sec-lbl'}, 'Hints'));
+
+        // Predefined hint chips — gi-frag style, title attr = full text
+        if (hintKeys.length) {
+          const chipsRow = el('div', {class:'gi-frags'});
+          hintKeys.forEach(h => {
+            const isOn = val.selectedHints.includes(h);
+            const chip = el('span', {class:'gi-frag' + (isOn ? ' on' : ''), title: hintDefs[h]}, h);
+            chip.addEventListener('click', () => {
+              const arr = state.validation[key].selectedHints;
+              const idx = arr.indexOf(h);
+              if (idx >= 0) arr.splice(idx, 1); else arr.push(h);
+              reRenderValidation();
+            });
+            chipsRow.append(chip);
+          });
+          hintSec.append(chipsRow);
+
+          // Inline text for selected predefined hints
+          const selected = hintKeys.filter(h => val.selectedHints.includes(h));
+          if (selected.length) {
+            const texts = el('div', {class:'hint-texts'});
+            selected.forEach(h => {
+              const row = el('div', {class:'hint-text-row'});
+              row.append(el('span', {class:'hint-key'}, h));
+              row.append(el('span', {class:'hint-val'}, hintDefs[h]));
+              texts.append(row);
+            });
+            hintSec.append(texts);
+          }
+        }
+
+        // Custom hints (free-text entries not in hintDefs)
+        if (customHints.length) {
+          const customRow = el('div', {class:'hint-custom-chips', style: hintKeys.length ? 'margin-top:8px' : ''});
+          customHints.forEach(h => {
+            const x = el('button', {class:'chip-x'}, '×');
+            x.addEventListener('click', () => {
+              const arr = state.validation[key].selectedHints;
+              arr.splice(arr.indexOf(h), 1);
+              reRenderValidation();
+            });
+            customRow.append(el('span', {class:'chip'}, h, x));
+          });
+          hintSec.append(customRow);
+        }
+
+        // Add custom hint input
+        const addRow = el('div', {class:'add-row', style:'margin-top:9px'});
+        const addInp = el('input', {class:'add-inp', type:'text', placeholder:'custom hint text…'});
+        const addBtn = el('button', {class:'add-btn'}, '+ hint');
+        addBtn.addEventListener('click', () => {
+          const v = addInp.value.trim();
+          if (v && !state.validation[key].selectedHints.includes(v)) {
+            state.validation[key].selectedHints.push(v);
+            addInp.value = '';
+            reRenderValidation();
+          }
+        });
+        addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+        addRow.append(addInp, addBtn);
+        hintSec.append(addRow);
+
+        body.append(hintSec);
+      }
+
+      // Items editor — command_checks only
+      if (key === 'command_checks') {
+        const itemsSec = el('div', {class:'val-section'});
+        itemsSec.append(el('span', {class:'val-sec-lbl'}, 'Checks'));
+
+        (val.items || []).forEach((item, ii) => {
+          const itemWrap = el('div', {style:'border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;margin-bottom:8px'});
+
+          const lblRow = el('div', {class:'field'});
+          lblRow.append(el('span', {class:'lbl'}, 'Label'));
+          const lblInp = el('input', {class:'inp', type:'text', placeholder:'ESLint'});
+          lblInp.value = item.label;
+          lblInp.addEventListener('input', () => { item.label = lblInp.value; scheduleSave(); });
+          lblRow.append(lblInp);
+          itemWrap.append(lblRow);
+
+          const cmdRow = el('div', {class:'field'});
+          cmdRow.append(el('span', {class:'lbl'}, 'Command'));
+          const cmdInp = el('input', {class:'inp', type:'text',
+            placeholder:'npx eslint src --max-warnings=0',
+            style:'font-family:var(--mono)'});
+          cmdInp.value = item.command;
+          cmdInp.addEventListener('input', () => { item.command = cmdInp.value; scheduleSave(); });
+          cmdRow.append(cmdInp);
+          itemWrap.append(cmdRow);
+
+          const sevRow = el('div', {class:'field'});
+          sevRow.append(el('span', {class:'lbl'}, 'Severity'));
+          const seg = el('div', {class:'sev-seg'});
+          ['skip','warn','error','hard-stop'].forEach(s => {
+            const btn = el('button', {class:'sev-btn' + (item.severity === s ? ' on sev-' + s : '')}, s);
+            btn.addEventListener('click', () => { item.severity = s; reRenderValidation(); });
+            seg.append(btn);
+          });
+          sevRow.append(seg);
+          itemWrap.append(sevRow);
+
+          const hintRow = el('div', {class:'field'});
+          hintRow.append(el('span', {class:'lbl'}, 'Hints'));
+          if (item.hints.length) {
+            const hintChips = el('div', {class:'hint-custom-chips', style:'margin-bottom:6px'});
+            item.hints.forEach((h, hi) => {
+              const x = el('button', {class:'chip-x'}, '×');
+              x.addEventListener('click', () => { item.hints.splice(hi, 1); reRenderValidation(); });
+              hintChips.append(el('span', {class:'chip'}, h, x));
+            });
+            hintRow.append(hintChips);
+          }
+          const hAddRow = el('div', {class:'add-row'});
+          const hInp = el('input', {class:'add-inp', type:'text', placeholder:'hint text…'});
+          const hBtn = el('button', {class:'add-btn'}, '+ hint');
+          hBtn.addEventListener('click', () => {
+            const v = hInp.value.trim();
+            if (v) { item.hints.push(v); hInp.value = ''; reRenderValidation(); }
+          });
+          hInp.addEventListener('keydown', e => { if (e.key === 'Enter') hBtn.click(); });
+          hAddRow.append(hInp, hBtn);
+          hintRow.append(hAddRow);
+          itemWrap.append(hintRow);
+
+          const rmBtn = el('button', {class:'add-btn',
+            style:'margin-top:4px;color:var(--rd);border-color:rgba(248,81,73,.35)'}, '× Remove');
+          rmBtn.addEventListener('click', () => { val.items.splice(ii, 1); reRenderValidation(); });
+          itemWrap.append(rmBtn);
+
+          itemsSec.append(itemWrap);
+        });
+
+        const addBtn = el('button', {class:'add-rule-btn'}, '+ Add Check');
+        addBtn.addEventListener('click', () => {
+          val.items.push({label:'', command:'', severity:'error', hints:[]});
+          reRenderValidation();
+        });
+        itemsSec.append(addBtn);
+        body.append(itemsSec);
+      }
+
+      card.append(body);
+    }
+
+    wrap.append(card);
+  }
+  return wrap;
 }
 
-// ── full page render (once) ───────────────────────────────────────────────────
+// ── Build: Rules ──────────────────────────────────────────────────────────────
+
+function buildRules() {
+  const wrap = el('div');
+  const sevs  = ['skip','warn','error','hard-stop'];
+  const TYPES = ['file_present','file_absent','content_present','content_absent','script_clean'];
+
+  if (!state.rules.length) {
+    wrap.append(el('p', {class:'rules-empty'},
+      'No rules yet. Add a rule to enforce file presence, content patterns, or script exits.'));
+  }
+
+  state.rules.forEach((rule, ri) => {
+    const exp  = !!rule._exp;
+    const card = el('div', {class:'val-card' + (exp ? ' exp on' : '')});
+
+    // ── collapsed header ──
+    const hdr = el('div', {class:'val-hdr'});
+
+    const typeCls  = 'rule-type-badge rule-type-' + rule.type.replace(/_/g, '-');
+    const typeLabel = rule.type.replace(/_/g, ' ');
+    const info = el('div', {class:'val-info'});
+    info.append(
+      el('span', {class: typeCls}, typeLabel),
+      el('span', {class:'vdesc-short'}, rule.description || '—')
+    );
+
+    const badge     = el('span', {class:'sev-badge sev-' + rule.severity}, rule.severity);
+    const removeBtn = el('button', {class:'rule-remove', title:'Remove rule'}, '×');
+    removeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      state.rules.splice(ri, 1);
+      reRenderRules();
+    });
+    const chev = el('span', {class:'val-chev'}, exp ? '▾' : '▸');
+
+    hdr.append(info, badge, removeBtn, chev);
+    hdr.addEventListener('click', () => { rule._exp = !exp; reRenderRules(); });
+    card.append(hdr);
+
+    // ── expanded body ──
+    if (exp) {
+      const body = el('div', {class:'val-body'});
+
+      // Type selector
+      const typeSec = el('div', {class:'val-section'});
+      typeSec.append(el('span', {class:'val-sec-lbl'}, 'Type'));
+      const typeSeg = el('div', {class:'rule-type-seg'});
+      TYPES.forEach(t => {
+        const btn = el('button', {class:'rule-type-btn' + (rule.type === t ? ' on' : '')},
+          t.replace(/_/g, ' '));
+        btn.addEventListener('click', () => { rule.type = t; reRenderRules(); });
+        typeSeg.append(btn);
+      });
+      typeSec.append(typeSeg);
+      body.append(typeSec);
+
+      // Description
+      const descSec = el('div', {class:'val-section'});
+      descSec.append(el('span', {class:'val-sec-lbl'}, 'Description'));
+      const descInp = el('input', {class:'inp', type:'text', placeholder:'What does this rule check?'});
+      descInp.value = rule.description;
+      descInp.addEventListener('input', () => { rule.description = descInp.value; scheduleSave(); });
+      descSec.append(descInp);
+      body.append(descSec);
+
+      // Target (file_* and content_*)
+      if (rule.type !== 'script_clean') {
+        const tgtSec = el('div', {class:'val-section'});
+        tgtSec.append(el('span', {class:'val-sec-lbl'}, 'Target  —  path or filename glob'));
+        const tgtInp = el('input', {class:'inp', type:'text', placeholder:'Dockerfile, config/*.yml, *.env …'});
+        tgtInp.value = rule.target;
+        tgtInp.addEventListener('input', () => { rule.target = tgtInp.value.trim(); scheduleSave(); });
+        tgtSec.append(tgtInp);
+        body.append(tgtSec);
+
+        // Scope toggle
+        const scopeSec = el('div', {class:'val-section'});
+        scopeSec.append(el('span', {class:'val-sec-lbl'}, 'Scope'));
+        const scopeSeg = el('div', {class:'sev-seg'});
+        ['recursive','root'].forEach(s => {
+          const btn = el('button', {class:'sev-btn' + (rule.scope === s ? ' on sev-skip' : '')}, s);
+          btn.addEventListener('click', () => { rule.scope = s; reRenderRules(); });
+          scopeSeg.append(btn);
+        });
+        scopeSec.append(scopeSeg);
+        body.append(scopeSec);
+      }
+
+      // Pattern + Exclude (content_* only)
+      if (rule.type === 'content_present' || rule.type === 'content_absent') {
+        const patSec = el('div', {class:'val-section'});
+        patSec.append(el('span', {class:'val-sec-lbl'}, 'Pattern  —  grep regex'));
+        const patInp = el('input', {class:'inp', type:'text', placeholder:'console\\.log, localhost, TODO …'});
+        patInp.value = rule.pattern;
+        patInp.addEventListener('input', () => { rule.pattern = patInp.value; scheduleSave(); });
+        patSec.append(patInp);
+        body.append(patSec);
+
+        const exSec = el('div', {class:'val-section'});
+        exSec.append(el('span', {class:'val-sec-lbl'}, 'Exclude  —  glob to skip (optional)'));
+        const exInp = el('input', {class:'inp', type:'text', placeholder:'config/local.yml'});
+        exInp.value = rule.exclude;
+        exInp.addEventListener('input', () => { rule.exclude = exInp.value.trim(); scheduleSave(); });
+        exSec.append(exInp);
+        body.append(exSec);
+      }
+
+      // Command (script_clean only)
+      if (rule.type === 'script_clean') {
+        const cmdSec = el('div', {class:'val-section'});
+        cmdSec.append(el('span', {class:'val-sec-lbl'}, 'Command'));
+        const cmdInp = el('input', {class:'inp', type:'text', placeholder:'npx tsc --noEmit'});
+        cmdInp.value = rule.command;
+        cmdInp.addEventListener('input', () => { rule.command = cmdInp.value; scheduleSave(); });
+        cmdSec.append(cmdInp);
+        body.append(cmdSec);
+      }
+
+      // Severity
+      const sevSec = el('div', {class:'val-section'});
+      sevSec.append(el('span', {class:'val-sec-lbl'}, 'Severity'));
+      const seg = el('div', {class:'sev-seg'});
+      sevs.forEach(s => {
+        const btn = el('button', {class:'sev-btn' + (rule.severity === s ? ' on sev-' + s : '')}, s);
+        btn.addEventListener('click', () => { rule.severity = s; reRenderRules(); });
+        seg.append(btn);
+      });
+      sevSec.append(seg);
+      body.append(sevSec);
+
+      // Hints
+      const hintSec = el('div', {class:'val-section'});
+      hintSec.append(el('span', {class:'val-sec-lbl'}, 'Hints  —  shown when this check fails'));
+      if (rule.hints.length) {
+        const hintList = el('div', {class:'hint-custom-chips', style:'margin-bottom:8px'});
+        rule.hints.forEach((h, hi) => {
+          const x = el('button', {class:'chip-x'}, '×');
+          x.addEventListener('click', () => { rule.hints.splice(hi, 1); reRenderRules(); });
+          hintList.append(el('span', {class:'chip'}, h, x));
+        });
+        hintSec.append(hintList);
+      }
+      const addRow = el('div', {class:'add-row'});
+      const addInp = el('input', {class:'add-inp', type:'text', placeholder:'hint text…'});
+      const addBtn = el('button', {class:'add-btn'}, '+ hint');
+      addBtn.addEventListener('click', () => {
+        const v = addInp.value.trim();
+        if (v) { rule.hints.push(v); addInp.value = ''; reRenderRules(); }
+      });
+      addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+      addRow.append(addInp, addBtn);
+      hintSec.append(addRow);
+      body.append(hintSec);
+
+      card.append(body);
+    }
+
+    wrap.append(card);
+  });
+
+  // Add rule button
+  const addRuleBtn = el('button', {class:'add-rule-btn'}, '+ Add Rule');
+  addRuleBtn.addEventListener('click', () => {
+    state.rules.push({
+      type:'file_present', description:'', target:'', pattern:'',
+      scope:'recursive', exclude:'', command:'', severity:'error',
+      hints:[], _exp:true,
+    });
+    reRenderRules();
+  });
+  wrap.append(addRuleBtn);
+
+  return wrap;
+}
+
+// ── Page render ───────────────────────────────────────────────────────────────
 
 function renderPage() {
   const app = document.getElementById('app');
-  app.innerHTML = '';
 
-  app.append(el('h1', {}, 'bumfuzzle'));
-  app.append(el('p', { class: 'subtitle' }, 'v' + META.version + ' · ' + META.projectDirName));
-
-  // ── Project path + save status ────────────────────────────────────────────
-  saveStatusEl = el('span', { class: 'save-status' });
-  app.append(el('div', { class: 'status-line' },
-    el('span', { class: 'status-path' }, META.projectDir),
-    el('span', {}, ' · auto-saving '),
-    saveStatusEl
+  saveEl = el('span', {class:'hdr-save idle'});
+  app.append(el('div', {class:'hdr'},
+    el('span', {class:'hdr-logo'}, 'bumfuzzle'),
+    el('span', {class:'hdr-meta'}, 'v' + META.version),
+    el('span', {class:'hdr-path'}, META.projectDir),
+    saveEl
   ));
 
-  // ── Project ───────────────────────────────────────────────────────────────
-  const nameInp = el('input', { type: 'text', placeholder: META.projectDirName });
+  const wrap = el('div', {class:'wrap'});
+
+  // ── Project ────────────────────────────────────────────────────────────────
+  const {sec: projSec, body: projBody} = makeSection('project', 'Project');
+
+  const nameInp = el('input', {class:'inp', type:'text', placeholder:META.projectDirName});
   nameInp.value = state.name;
-  nameInp.addEventListener('input', () => { state.name = nameInp.value.trim() || META.projectDirName; scheduleSave(); });
-  app.append(section('Project', null,
-    el('div', { class: 'field' }, el('label', {}, 'Name'), nameInp)
-  ));
-
-  // ── App Environments ──────────────────────────────────────────────────────
-  const envsListEl = el('div', { class: 'chip-list' });
-  const refreshEnvs = () => {
-    renderChips(envsListEl, state.envs, i => { state.envs.splice(i, 1); refreshEnvs(); renderTree(); renderToolSections(); });
-  };
-  refreshEnvs();
-  app.append(section('App Environments', null, envsListEl,
-    addRow('env name…', v => { if (!state.envs.includes(v)) { state.envs.push(v); refreshEnvs(); renderTree(); renderToolSections(); } })
-  ));
-
-  // ── Stacks ────────────────────────────────────────────────────────────────
-  const stacksListEl = el('div', { class: 'chip-list' });
-  const refreshStacks = () => {
-    renderChips(stacksListEl, state.stacks, i => { state.stacks.splice(i, 1); refreshStacks(); renderTree(); renderToolSections(); });
-  };
-  refreshStacks();
-  app.append(section('Stacks', null, stacksListEl,
-    addRow('stack name…', v => { if (!state.stacks.includes(v)) { state.stacks.push(v); refreshStacks(); renderTree(); renderToolSections(); } })
-  ));
-
-  // ── Tools ─────────────────────────────────────────────────────────────────
-  toolTreeEl = el('div');
-  const toolsSec = el('div', { class: 'section' });
-  toolsSec.append(el('div', { class: 'section-title' }, 'Tools'));
-  toolsSec.append(toolTreeEl);
-  app.append(toolsSec);
-  renderToolTree();
-
-  // ── Scaffold ──────────────────────────────────────────────────────────────
-  treeRowsEl = el('div');
-  const treeWrap = el('div', { class: 'tree' },
-    el('div', { class: 'tree-root' }, META.projectDirName + '/'),
-    treeRowsEl
-  );
-  const addDirInp = el('input', { type: 'text', placeholder: 'add custom dir…' });
-  const addDirBtn = el('button', {}, '+ dir');
-  addDirBtn.addEventListener('click', () => {
-    const v = addDirInp.value.trim().replace(/\/$/, '');
-    if (v && !state.extraDirs.includes(v)) { state.extraDirs.push(v); addDirInp.value = ''; renderTree(); }
+  nameInp.addEventListener('input', () => {
+    state.name = nameInp.value.trim() || META.projectDirName;
+    scheduleSave();
   });
-  addDirInp.addEventListener('keydown', e => { if (e.key === 'Enter') addDirBtn.click(); });
-  treeWrap.append(el('div', { class: 'tree-add' }, addDirInp, addDirBtn));
+  projBody.append(el('div', {class:'field'}, el('label', {class:'lbl'}, 'Name'), nameInp));
 
-  const scaffoldSec = el('div', { class: 'section' });
-  scaffoldSec.append(el('div', { class: 'section-title' }, 'Scaffold Files / Folders'));
-  scaffoldSec.append(el('div', { class: 'section-subtitle' },
-    'Kickstart creates if doesn\'t exist', el('br', {}), 'Preflight checks presence'));
-  scaffoldSec.append(treeWrap);
-  app.append(scaffoldSec);
-  renderTree();
-
-  // ── Tool sub-sections (Gitignore etc.) ────────────────────────────────────
-  toolSectionsEl = el('div');
-  app.append(toolSectionsEl);
-  renderToolSections();
-
-  // ── Actions ───────────────────────────────────────────────────────────────
-  actionRowEl    = el('div', { class: 'action-row' });
-  outputLogEl    = el('pre',  { class: 'output-log' });
-  outputStatusEl = el('div',  { class: 'output-status' });
-  outputWrapEl   = el('div',  { class: 'output-wrap' }, outputLogEl, outputStatusEl);
-  outputWrapEl.style.display = 'none';
-  renderActionButtons();
-  app.append(section(null, null, actionRowEl, outputWrapEl));
-}
-
-// ── YAML generation ───────────────────────────────────────────────────────────
-
-function genToolNodesYaml(defs, path, indent) {
-  const lines = [];
-  for (const [k, def] of Object.entries(defs)) {
-    const p       = path ? path + '.' + k : k;
-    const enabled = state.toolEnabled[p];
-    if (def.modules && Object.keys(def.modules).length) {
-      lines.push(indent + k + ':');
-      lines.push(indent + '  enabled: ' + enabled);
-      lines.push(indent + '  modules:');
-      lines.push(...genToolNodesYaml(def.modules, p, indent + '    '));
-    } else {
-      lines.push(indent + k + ': ' + enabled);
-    }
-  }
-  return lines;
-}
-
-function generateYaml() {
-  const lines      = [];
-  const name       = state.name || META.projectDirName;
-  const lockedKeys = computeLockedKeys();
-
-  lines.push('project:');
-  lines.push('  name: ' + name);
-
-  lines.push('environments:');
-  lines.push('  values: ' + (state.envs.length   ? '' : '[]'));
-  state.envs.forEach(e => lines.push('    - ' + e));
-
-  lines.push('stacks:');
-  lines.push('  values: ' + (state.stacks.length ? '' : '[]'));
-  state.stacks.forEach(s => lines.push('    - ' + s));
-
-  lines.push('tools:');
-  lines.push(...genToolNodesYaml(TOOL_DEFS, '', '  '));
-
-  const stepNodes       = allStaticNodes().filter(n => n.kind === 'step');
-  const deselectedSteps = stepNodes.filter(n => state.checked[n.key] !== 'present' || lockedKeys.has(n.key));
-  const editorFalse     = ['vscode', 'claude'].filter(k => !state.toolEnabled[k]);
-  if (deselectedSteps.length || editorFalse.length) {
-    lines.push('scaffold:');
-    if (deselectedSteps.length) {
-      lines.push('  steps:');
-      deselectedSteps.forEach(n => lines.push('    ' + n.key + ': false'));
-    }
-    if (editorFalse.length) {
-      lines.push('  editor:');
-      editorFalse.forEach(k => lines.push('    ' + k + ': false'));
-    }
-  }
-
-  lines.push('artifacts:');
-  const artDefs = S.artifacts || {};
-  for (const k of Object.keys(artDefs)) {
-    const def = artDefs[k];
-    if (def.foreach) {
-      const vals = resolveVals(def.foreach);
-      if (!vals.length) {
-        lines.push('  ' + k + ': { enabled: false }');
-        continue;
-      }
-      const instStates = vals.map(v => getChecked(k + ':' + v, null));
-      const anyPresent = instStates.some(s => s === 'present');
-      const isLocked   = lockedKeys.has(k);
-      lines.push('  ' + k + ':');
-      lines.push('    enabled: ' + (!isLocked && anyPresent));
-    } else {
-      const chk     = lockedKeys.has(k) ? null : state.checked[k];
-      const enabled = chk === 'present';
-      lines.push('  ' + k + ': { enabled: ' + enabled + ' }');
-    }
-  }
-
-  const excl_frags    = [];
-  const extra_frags   = [];
-  const extra_patterns = [...state.extraGiti];
-
-  for (const f of GITI_FRAGS) {
-    const pats   = FRAG_DEFS[f] || [];
-    const fragOn = state.giti[f];
-    const patSt  = state.gitiPatterns[f] || pats.map(() => true);
-    const anyOn  = patSt.some(v => v !== false);
-
-    if (!fragOn || !anyOn) {
-      if (GITI_DEFAULTS.has(f)) excl_frags.push(f);
-      continue;
-    }
-    if (!GITI_DEFAULTS.has(f)) extra_frags.push(f);
-    const allOn = patSt.every(v => v !== false);
-    if (!allOn) {
-      if (GITI_DEFAULTS.has(f)) excl_frags.push(f);
-      const idx = extra_frags.indexOf(f); if (idx >= 0) extra_frags.splice(idx, 1);
-      pats.forEach((pat, pi) => {
-        if (patSt[pi] !== false) {
-          if (pat.includes('{{VALUE}}') || pat.includes('{{STACK}}') || pat.includes('{{ENV}}')) {
-            [...state.stacks, ...state.envs].forEach(v =>
-              extra_patterns.push(pat.replace(/\{\{VALUE\}\}|\{\{STACK\}\}|\{\{ENV\}\}/g, v)));
-          } else {
-            extra_patterns.push(pat);
-          }
-        }
+  const envsEl = el('div', {class:'chips'});
+  function refreshEnvs() {
+    envsEl.innerHTML = '';
+    if (!state.envs.length) envsEl.append(el('span', {class:'chip-empty'}, 'none'));
+    state.envs.forEach((e, i) => {
+      const x = el('button', {class:'chip-x'}, '×');
+      x.addEventListener('click', () => {
+        state.envs.splice(i, 1);
+        refreshEnvs();
+        reRenderScaffold();
+        reRenderGitignore();
+        scheduleSave();
       });
-    }
+      envsEl.append(el('span', {class:'chip'}, e, x));
+    });
   }
+  refreshEnvs();
 
-  lines.push('gitignore:');
-  lines.push('  exclude_fragments: ' + (excl_frags.length    ? '' : '[]'));
-  excl_frags.forEach(f => lines.push('    - ' + f));
-  lines.push('  extra_fragments: '   + (extra_frags.length   ? '' : '[]'));
-  extra_frags.forEach(f => lines.push('    - ' + f));
-  lines.push('  extra_patterns: '    + (extra_patterns.length ? '' : '[]'));
-  extra_patterns.forEach(p => lines.push('    - ' + p));
+  const envInp = el('input', {class:'add-inp', type:'text', placeholder:'env name…'});
+  const envBtn = el('button', {class:'add-btn'}, '+ add');
+  envBtn.addEventListener('click', () => {
+    const v = envInp.value.trim();
+    if (v && !state.envs.includes(v)) {
+      state.envs.push(v); envInp.value = '';
+      refreshEnvs(); reRenderScaffold(); reRenderGitignore(); scheduleSave();
+    }
+  });
+  envInp.addEventListener('keydown', e => { if (e.key === 'Enter') envBtn.click(); });
 
-  lines.push('extra_dirs: ' + (state.extraDirs.length ? '' : '[]'));
-  state.extraDirs.forEach(d => lines.push('  - ' + d));
+  projBody.append(el('div', {class:'field'},
+    el('label', {class:'lbl'}, 'Environments'),
+    envsEl,
+    el('div', {class:'add-row'}, envInp, envBtn)
+  ));
+  wrap.append(projSec);
 
-  return lines.join('\n') + '\n';
+  // ── Tools ──────────────────────────────────────────────────────────────────
+  const {sec: toolsSec, body: tb} = makeSection('tools', 'Tools');
+  toolsBodyEl = tb;
+  repl(toolsBodyEl, buildTools);
+  wrap.append(toolsSec);
+
+  // ── Scaffold ───────────────────────────────────────────────────────────────
+  const {sec: scaffSec, body: sb} = makeSection('scaffold', 'Scaffold');
+  scaffoldBodyEl = sb;
+  repl(scaffoldBodyEl, buildScaffold);
+  wrap.append(scaffSec);
+
+  // ── Gitignore ──────────────────────────────────────────────────────────────
+  const {sec: gitSec, body: gb} = makeSection('gitignore', 'Gitignore');
+  gitBodyEl = gb;
+  repl(gitBodyEl, buildGitignore);
+  wrap.append(gitSec);
+
+  // ── Rules ──────────────────────────────────────────────────────────────────
+  const {sec: rulesSec, body: rb} = makeSection('rules', 'Rules');
+  rulesBodyEl = rb;
+  repl(rulesBodyEl, buildRules);
+  wrap.append(rulesSec);
+
+  // ── Validation Rules ───────────────────────────────────────────────────────
+  const {sec: valSec, body: vb} = makeSection('validation', 'Validation Rules');
+  valBodyEl = vb;
+  repl(valBodyEl, buildValidation);
+  wrap.append(valSec);
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+  const {sec: actSec, body: ab} = makeSection('actions', 'Actions');
+  actRowEl    = el('div', {class:'act-row'});
+  outLogEl    = el('pre',  {class:'out-log'});
+  outStatusEl = el('div',  {class:'out-status'});
+  outWrapEl   = el('div',  {class:'out-wrap'}, outLogEl, outStatusEl);
+  renderActBtns();
+  ab.append(actRowEl, outWrapEl);
+  wrap.append(actSec);
+
+  app.append(wrap);
 }
 
-// ── boot ──────────────────────────────────────────────────────────────────────
+// ── Boot ──────────────────────────────────────────────────────────────────────
 
-document.body.append(el('div', { id: 'toast-container' }));
 (async () => {
   try {
     const res = await fetch('/config');
     if (!res.ok) throw new Error();
     const cfg = await res.json();
-    S    = cfg.settings;
-    C    = cfg.current;
-    META = cfg.meta;
+    S = cfg.settings; C = cfg.current; META = cfg.meta;
     initData();
     renderPage();
-  } catch (_) {
+  } catch {
     document.getElementById('app').textContent = 'Run bumfuzzle to open this page.';
   }
 })();

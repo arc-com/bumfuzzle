@@ -121,15 +121,6 @@ validation:
       fix_extends: "Create the referenced config file or correct the extends path"
     selected_hints: [fix_extends]
 
-  single_package_manager:
-    enabled: true
-    severity: hard-stop
-    description: "Project root declares exactly one package manager"
-    error: "Multiple package managers detected in project root: {details}"
-    hints:
-      remove_extra: "Remove all but one package manager manifest from the project root"
-    selected_hints: [remove_extra]
-
   pnpm_checks:
     enabled: true
     description: "pnpm quality checks pass"
@@ -154,14 +145,13 @@ validation:
       run_locally: "Run: ./gradlew test --no-daemon to see the full error output"
     selected_hints: [run_locally]
 
-  lifecycle_scripts_present:
+  command_checks:
     enabled: false
-    description: "Lifecycle scripts are present and have description comments"
-    error: "{issue}"
+    description: "Command checks pass"
+    error: "Command check failed: {label}"
     hints:
-      create_script: "Create the missing script — see scripts/lifecycle/ in the preflight framework"
-      add_comment: "Add a description comment on line 2: # <script>.sh — <description>"
-    selected_hints: [create_script, add_comment]
+      run_locally: "Run the failing command locally to see full output"
+    selected_hints: [run_locally]
 
   preflight_config_valid:
     enabled: true
@@ -195,7 +185,6 @@ scaffold:
     dependencies: true
     docker_compose: true
     readme: true
-    initial_commit: true
 
 artifacts:
   docs:          { path: docs,                     type: dir,     enabled: false }
@@ -318,52 +307,15 @@ gitignore:
       - tmp
       - secrets
       - claude
-    by_manifest:
-      package.json:
-        - node
-      pom.xml:
-        - java
-      build.gradle:
-        - java
-      build.gradle.kts:
-        - java
-      pyproject.toml:
-        - python
-      requirements.txt:
-        - python
-      Cargo.toml:
-        - rust
-      go.mod:
-        - go
-      composer.json:
-        - php
   exclude_fragments: []
   extra_fragments: []
   extra_patterns: []
-
-lifecycle:
-  scripts:
-    - deploy.sh
-    - start.sh
-    - stop.sh
 
 docker:
   config_exempt_stacks: []
 
 project:
   name: ""
-  package_managers:
-    - { manifest: Package.swift,    purpose: backend  }
-    - { manifest: composer.json,    purpose: backend  }
-    - { manifest: Gemfile,          purpose: backend  }
-    - { manifest: Cargo.toml,       purpose: backend  }
-    - { manifest: go.mod,           purpose: backend  }
-    - { manifest: pyproject.toml,   purpose: backend  }
-    - { manifest: requirements.txt, purpose: backend  }
-    - { manifest: package.json,     purpose: frontend }
-    - { manifest: pom.xml,          purpose: backend  }
-    - { manifest: build.gradle,     purpose: backend  }
-    - { manifest: build.gradle.kts, purpose: backend  }
 
 preflight:
   valid_severities: [skip, warn, error, hard-stop]
@@ -439,14 +391,13 @@ tools:
 
 extra_dirs: []
 
+rules: []
+
 defaults:
   environments:
     - local
     - test
     - prod
-
-initial_commit:
-  message: "chore: scaffold {{PROJECT_NAME}}"
 
 bumfuzzle:
   directories:

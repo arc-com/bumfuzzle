@@ -14,17 +14,6 @@ _generate_gitignore() {
     _frags+=("$_f")
   done < <(yq '.gitignore.defaults.common[]' "$settings" 2>/dev/null || true)
 
-  # Manifest fragments
-  local _pm_entry _pm_manifest _pm_frag
-  while IFS= read -r _pm_entry; do
-    _pm_manifest="${_pm_entry%%|*}"
-    _pm_frag="${_pm_entry##*|}"
-    [[ -f "$PROJECT_DIR/$_pm_manifest" ]] || continue
-    local _already=false _ef2
-    for _ef2 in "${_frags[@]:-}"; do [[ "$_ef2" == "$_pm_frag" ]] && _already=true && break; done
-    [[ "$_already" == false ]] && _frags+=("$_pm_frag")
-  done < <(yq '.gitignore.defaults.by_manifest | to_entries[] | .key + "|" + .value[]' "$settings" 2>/dev/null || true)
-
   # Apply exclude_fragments from merged config
   local _excluded=()
   local _ex
@@ -139,28 +128,6 @@ structure_check() {
     [[ "$_rd_ok" == true ]] && pass "$(rule_get '.validation.required_dirs.description')"
   fi
 
-  CURRENT_RULE="single_package_manager"
-  if rule_enabled '.validation.single_package_manager'; then
-    local desc err _pm_found=()
-    desc=$(rule_get '.validation.single_package_manager.description')
-    err=$(rule_get '.validation.single_package_manager.error')
-    local _pm_entry _pm_manifest _pm_purpose
-    while IFS= read -r _pm_entry; do
-      _pm_manifest="${_pm_entry%%|*}"
-      _pm_purpose="${_pm_entry##*|}"
-      [[ -f "$_pm_manifest" ]] || continue
-      local _seen=false _pt
-      for _pt in "${_pm_found[@]:-}"; do [[ "$_pt" == "$_pm_purpose" ]] && _seen=true && break; done
-      [[ "$_seen" == false ]] && _pm_found+=("$_pm_purpose")
-    done < <(yq '.project.package_managers[] | .manifest + "|" + .purpose' "$PREFLIGHT_REPO/settings.yml" 2>/dev/null)
-    if [[ ${#_pm_found[@]} -gt 1 ]]; then
-      local _pm_list="${_pm_found[*]}"
-      _pm_list="${_pm_list// /, }"
-      fail "$(interp "$err" "details=$_pm_list")"
-    else
-      pass "$desc"
-    fi
-  fi
 }
 
 structure_setup() {

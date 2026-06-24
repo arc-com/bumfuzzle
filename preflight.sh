@@ -105,11 +105,12 @@ pass() {
 }
 
 fail() {
-  local _sev="error"
-  if [[ -n "$CURRENT_RULE" && -f "$PREFLIGHT_FILE" ]]; then
+  local _sev="${2:-}"
+  if [[ -z "$_sev" && -n "$CURRENT_RULE" && -f "$PREFLIGHT_FILE" ]]; then
     _sev=$(yq ".validation.${CURRENT_RULE}.severity // \"error\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
     [[ -z "$_sev" || "$_sev" == "null" ]] && _sev="error"
   fi
+  [[ -z "$_sev" ]] && _sev="error"
   case "$_sev" in
     skip) return ;;
     warn)
@@ -268,7 +269,7 @@ PREFLIGHT_FILE="$_merged"
 . "$PREFLIGHT_REPO/domains/docker.sh"
 . "$PREFLIGHT_REPO/domains/config.sh"
 . "$PREFLIGHT_REPO/domains/dependencies.sh"
-. "$PREFLIGHT_REPO/domains/lifecycle.sh"
+. "$PREFLIGHT_REPO/domains/user-rules.sh"
 
 preflight_config_check
 structure_check
@@ -279,7 +280,7 @@ env_check
 docker_check
 config_check
 dependencies_check
-lifecycle_check
+user_rules_check
 
 printf '%s\n' '-----------------------------------------------------------------------'
 if [[ ${#ERRORS[@]} -eq 0 && ${#WARNINGS[@]} -eq 0 ]]; then
