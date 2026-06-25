@@ -60,6 +60,8 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .tog.on{background:var(--ac);border-color:var(--ac)}
 .tog.on::after{content:'✓';color:#fff;font-size:9px;line-height:1}
 .tog.dis{opacity:.28;cursor:not-allowed}
+.tog.req{background:var(--surf3);border-color:var(--b1);cursor:not-allowed}
+.tog.req::after{content:'✓';color:var(--tm);font-size:9px;line-height:1}
 
 /* ── ASCII tree (shared by tools, scaffold, gitignore) ── */
 .tree{font-family:var(--mono);font-size:12px}
@@ -72,13 +74,6 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .texp:hover{color:var(--tx);background:rgba(255,255,255,.07)}
 .texp.blank{cursor:default;pointer-events:none}
 .texp.blank:hover{background:none}
-/* scaffold checkboxes */
-.tcb{width:13px;height:13px;border:1.5px solid var(--b1);border-radius:3px;margin:0 5px 0 2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;transition:background .1s,border-color .1s;cursor:pointer}
-.trow.on .tcb{background:var(--gr);border-color:var(--gr)}
-.trow.on .tcb::after{content:'✓'}
-.trow.req .tcb{background:var(--surf3);border-color:var(--b1);cursor:not-allowed}
-.trow.req .tcb::after{content:'✓';color:var(--tm)}
-.tcb.lck{opacity:.22;cursor:not-allowed}
 .tname{color:var(--tm);font-size:12px;padding-left:2px}
 .trow.on .tname{color:var(--tx)}
 .tname.dir{color:var(--td)}
@@ -87,13 +82,6 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .tree-meta{font-size:11px;color:var(--td);margin-left:8px}
 .tree-add{display:flex;gap:6px;margin-top:10px}
 
-/* ── gi-frag pills (gitignore toggles + validation hint chips) ── */
-.gi-frag{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:12px;font-family:var(--mono);border:1px solid var(--b1);background:var(--surf2);color:var(--td);cursor:pointer;user-select:none;transition:border-color .12s,color .12s,background .12s;flex-shrink:0}
-.gi-frag:hover{border-color:var(--tm);color:var(--tm)}
-.gi-frag.on{border-color:var(--ac);color:var(--tx);background:rgba(88,166,255,.08)}
-.gi-frag::before{content:'○';font-size:9px;color:inherit;line-height:1}
-.gi-frag.on::before{content:'◉';color:var(--ac)}
-.gi-frags{display:flex;flex-wrap:wrap;gap:5px}
 
 /* ── Gitignore extras ── */
 .gi-sep{font-size:11px;color:var(--td);font-family:var(--mono);margin:14px 0 8px;padding-top:12px;border-top:1px solid var(--b2)}
@@ -701,91 +689,132 @@ function reRenderGitignore()  { repl(gitBodyEl,      buildGitignore);  scheduleS
 function reRenderRules()      { repl(rulesBodyEl,    buildRules);      scheduleSave(); }
 function reRenderValidation() { repl(valBodyEl,      buildValidation); scheduleSave(); }
 
-// ── Build: Tools (ASCII tree + parent→child cascade) ─────────────────────────
+// ── Tree: unified row renderer ────────────────────────────────────────────────
 
-function buildTools() {
-  const wrap = el('div', {class:'tree'});
-  wrap.append(el('div', {class:'tree-root'}, 'tools/'));
-  renderToolLevel(TOOL_DEFS, '', wrap, '', false);
-  return wrap;
+function buildTreeRow(node) {
+  const {prefix, label, isDir, on, hasExpander, expanded, disabled, required, meta, onExpand, onToggle} = node;
+  let rowCls = 'trow';
+  if (on) rowCls += ' on';
+  if (required) rowCls += ' req';
+  if (disabled) rowCls += ' lck-row';
+  if (hasExpander && onExpand) rowCls += ' clickable';
+  const row = el('div', {class: rowCls});
+  if (hasExpander && onExpand) row.addEventListener('click', () => onExpand());
+
+  row.append(el('span', {class:'tpfx'}, prefix));
+  row.append(el('span', {class:'texp' + (hasExpander ? '' : ' blank')},
+    hasExpander ? (expanded ? '▾' : '▸') : ''));
+
+  let togCls = 'tog';
+  if (on && !required) togCls += ' on';
+  if (required) togCls += ' req';
+  if (disabled) togCls += ' dis';
+  const togEl = el('div', {class: togCls});
+  togEl.addEventListener('click', e => { e.stopPropagation(); onToggle(e); });
+  row.append(togEl);
+
+  row.append(el('span', {class:'tname' + (isDir ? ' dir' : '')}, label));
+  if (meta) row.append(el('span', {class:'tree-meta'}, meta));
+  return row;
 }
 
-function renderToolLevel(defs, path, container, prefix, parentOff) {
-  const entries = Object.entries(defs);
-  entries.forEach(([k, def], i) => {
-    const p      = path ? path + '.' + k : k;
-    const on     = !!state.toolEnabled[p];
-    const mods   = def.modules && Object.keys(def.modules).length ? def.modules : null;
-    const isLast = i === entries.length - 1;
-    const rowPfx = prefix + (isLast ? '└── ' : '├── ');
-    const kidPfx = prefix + (isLast ? '    ' : '│   ');
-    const exp    = !!state.toolExpanded[p];
-    const effOff = parentOff || !on;
+function buildTree(rootLabel, nodes) {
+  const tree = el('div', {class:'tree'});
+  tree.append(el('div', {class:'tree-root'}, rootLabel));
+  nodes.forEach(n => tree.append(buildTreeRow(n)));
+  return tree;
+}
 
-    const row = el('div', {class:'trow' + (on ? ' on' : '') + (parentOff ? ' lck-row' : '') + (mods ? ' clickable' : '')});
+// ── Build: Tools ─────────────────────────────────────────────────────────────
 
-    // Entire row click → toggle expand (when has children)
-    if (mods) {
-      row.addEventListener('click', () => {
-        state.toolExpanded[p] = !state.toolExpanded[p];
-        reRenderTools();
+function computeToolNodes() {
+  const nodes = [];
+  function walk(defs, path, prefix, parentOff) {
+    const entries = Object.entries(defs);
+    entries.forEach(([k, def], i) => {
+      const p      = path ? path + '.' + k : k;
+      const on     = !!state.toolEnabled[p];
+      const mods   = def.modules && Object.keys(def.modules).length ? def.modules : null;
+      const isLast = i === entries.length - 1;
+      const rowPfx = prefix + (isLast ? '└── ' : '├── ');
+      const kidPfx = prefix + (isLast ? '    ' : '│   ');
+      const exp    = !!state.toolExpanded[p];
+      nodes.push({
+        prefix: rowPfx, label: def.label || k, isDir: false, on,
+        hasExpander: !!mods, expanded: exp,
+        disabled: parentOff, required: false, meta: null,
+        onExpand: mods ? () => { state.toolExpanded[p] = !exp; reRenderTools(); } : null,
+        onToggle: () => {
+          if (parentOff) { showToast('Enable parent tool first'); return; }
+          const next = !on;
+          state.toolEnabled[p] = next;
+          if (!next && mods) walkDefs(mods, p, cp => { state.toolEnabled[cp] = false; });
+          reRenderTools();
+          reRenderScaffold();
+        },
       });
-    }
-
-    row.append(el('span', {class:'tpfx'}, rowPfx));
-    row.append(el('span', {class:'texp' + (mods ? '' : ' blank')}, mods ? (exp ? '▾' : '▸') : ''));
-
-    // Toggle — stopPropagation prevents row-click expand firing
-    const tog = el('div', {class:'tog' + (on ? ' on' : '') + (parentOff ? ' dis' : '')});
-    tog.addEventListener('click', e => {
-      e.stopPropagation();
-      if (parentOff) { showToast('Enable parent tool first'); return; }
-      const next = !on;
-      state.toolEnabled[p] = next;
-      if (!next && mods) {
-        // cascade off to all descendants
-        walkDefs(mods, p, cp => { state.toolEnabled[cp] = false; });
-      }
-      reRenderTools();
-      reRenderScaffold();
+      if (mods && exp) walk(mods, p, kidPfx, parentOff || !on);
     });
-    row.append(tog);
-    row.append(el('span', {class:'tname'}, def.label || k));
+  }
+  walk(TOOL_DEFS, '', '', false);
+  return nodes;
+}
 
-    container.append(row);
-
-    if (mods && exp) {
-      renderToolLevel(mods, p, container, kidPfx, effOff);
-    }
-  });
+function buildTools() {
+  return buildTree('tools/', computeToolNodes());
 }
 
 // ── Build: Scaffold ───────────────────────────────────────────────────────────
 
-function buildScaffold() {
-  const wrap   = el('div');
+function computeScaffoldNodes() {
+  const nodes  = [];
   const locked = computeLockedKeys();
-  const tree   = el('div', {class:'tree'});
-  tree.append(el('div', {class:'tree-root'}, META.projectDirName + '/'));
 
   flattenVisible(STATIC_TREE, '').forEach(({node, prefix}) => {
-    tree.append(buildScaffoldRow(node, prefix, locked));
+    const isRequired  = node.required === true;
+    const baseKey     = node.key.includes(':') ? node.key.split(':')[0] : node.key;
+    const isLocked    = locked.has(baseKey);
+    const chk         = isLocked ? null : isRequired ? 'present'
+      : (state.checked[node.key] !== undefined ? state.checked[node.key]
+        : (node.bumfuzzle_default !== false ? 'present' : null));
+    const on          = chk === 'present' || isRequired;
+    const hasChildren = node.isDir && (node.children || []).length > 0;
+    nodes.push({
+      prefix, label: node.label, isDir: node.isDir, on,
+      hasExpander: hasChildren, expanded: !!state.expanded[node.key],
+      disabled: isLocked, required: isRequired,
+      meta: isRequired ? 'required' : isLocked ? '🔒 ' + lockingLabel(node.key) : null,
+      onExpand: hasChildren ? () => {
+        state.expanded[node.key] = !state.expanded[node.key];
+        reRenderScaffold();
+      } : null,
+      onToggle: () => {
+        if (isLocked)   { showToast('Enable ' + lockingLabel(node.key) + ' to use ' + node.label); return; }
+        if (isRequired) { showToast(node.label + ' is required'); return; }
+        const next = state.checked[node.key] === 'present' ? null : 'present';
+        if (!node.foreach && (node.children || []).length) propagate(node, next);
+        else state.checked[node.key] = next;
+        reRenderScaffold();
+      },
+    });
   });
 
   state.extraDirs.forEach((d, i) => {
     const isLast = i === state.extraDirs.length - 1;
-    const row    = el('div', {class:'trow on'});
-    row.append(el('span', {class:'tpfx'}, isLast ? '└── ' : '├── '));
-    row.append(el('span', {class:'texp blank'}));
-    const cb = el('div', {class:'tcb'});
-    cb.addEventListener('click', () => { state.extraDirs.splice(i, 1); reRenderScaffold(); });
-    row.append(cb);
-    row.append(el('span', {class:'tname dir'}, d + '/'));
-    tree.append(row);
+    nodes.push({
+      prefix: isLast ? '└── ' : '├── ', label: d + '/', isDir: true, on: true,
+      hasExpander: false, expanded: false, disabled: false, required: false, meta: null,
+      onExpand: null,
+      onToggle: () => { state.extraDirs.splice(i, 1); reRenderScaffold(); },
+    });
   });
 
-  wrap.append(tree);
+  return nodes;
+}
 
+function buildScaffold() {
+  const wrap = el('div');
+  wrap.append(buildTree(META.projectDirName + '/', computeScaffoldNodes()));
   const addInp = el('input', {class:'add-inp', type:'text', placeholder:'custom dir…'});
   const addBtn = el('button', {class:'add-btn'}, '+ dir');
   addBtn.addEventListener('click', () => {
@@ -794,55 +823,7 @@ function buildScaffold() {
   });
   addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
   wrap.append(el('div', {class:'tree-add'}, addInp, addBtn));
-
   return wrap;
-}
-
-function buildScaffoldRow(node, prefix, locked) {
-  const isRequired  = node.required === true;
-  const baseKey     = node.key.includes(':') ? node.key.split(':')[0] : node.key;
-  const isLocked    = locked.has(baseKey);
-  const chk         = isLocked ? null : isRequired ? 'present'
-    : (state.checked[node.key] !== undefined ? state.checked[node.key]
-      : (node.bumfuzzle_default !== false ? 'present' : null));
-  const hasChildren = node.isDir && (node.children||[]).length > 0;
-
-  let cls = 'trow';
-  if (chk === 'present') cls += ' on';
-  if (isRequired) cls += ' req';
-  if (isLocked)   cls += ' lck-row';
-  const row = el('div', {class:cls});
-
-  row.append(el('span', {class:'tpfx'}, prefix));
-
-  const expBtn = el('span', {class:'texp' + (hasChildren ? '' : ' blank')},
-    hasChildren ? (state.expanded[node.key] ? '▾' : '▸') : '');
-  if (hasChildren) {
-    expBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      state.expanded[node.key] = !state.expanded[node.key];
-      reRenderScaffold();
-    });
-  }
-  row.append(expBtn);
-
-  const cb = el('div', {class:'tcb' + (isLocked ? ' lck' : '')});
-  cb.addEventListener('click', e => {
-    e.stopPropagation();
-    if (isLocked)   { showToast('Enable ' + lockingLabel(node.key) + ' to use ' + node.label); return; }
-    if (isRequired) { showToast(node.label + ' is required'); return; }
-    const next = state.checked[node.key] === 'present' ? null : 'present';
-    if (!node.foreach && (node.children||[]).length) propagate(node, next);
-    else state.checked[node.key] = next;
-    reRenderScaffold();
-  });
-  row.append(cb);
-  row.append(el('span', {class:'tname' + (node.isDir ? ' dir' : '')}, node.label));
-
-  if (isRequired) row.append(el('span', {class:'tree-meta'}, 'required'));
-  if (isLocked)   row.append(el('span', {class:'tree-meta'}, '🔒 ' + lockingLabel(node.key)));
-
-  return row;
 }
 
 function flattenVisible(nodes, prefix) {
@@ -872,57 +853,54 @@ function propagate(node, val) {
   (node.children||[]).forEach(c => propagate(c, val));
 }
 
-// ── Build: Gitignore (ASCII tree) ─────────────────────────────────────────────
+// ── Build: Gitignore ──────────────────────────────────────────────────────────
 
-function buildGitignore() {
-  const wrap = el('div');
-  const tree = el('div', {class:'tree'});
-  tree.append(el('div', {class:'tree-root'}, '.gitignore/'));
-
+function computeGitignoreNodes() {
+  const nodes = [];
   GITI_FRAGS.forEach((f, fi) => {
     const isLastFrag = fi === GITI_FRAGS.length - 1;
     const fragPfx    = isLastFrag ? '└── ' : '├── ';
     const kidPfx     = isLastFrag ? '    ' : '│   ';
     const on         = state.giti[f];
     const pats       = FRAG_DEFS[f] || [];
-
-    const frow = el('div', {class:'trow' + (on ? ' on' : '')});
-    frow.append(el('span', {class:'tpfx'}, fragPfx));
-    frow.append(el('span', {class:'texp blank'}));
-
-    const chip = el('span', {class:'gi-frag' + (on ? ' on' : '')}, f);
-    chip.addEventListener('click', e => {
-      e.stopPropagation();
-      const next = !on;
-      state.giti[f] = next;
-      state.gitiPatterns[f] = pats.map(() => next);
-      reRenderGitignore();
-    });
-    frow.append(chip);
-    tree.append(frow);
-
-    pats.forEach((pat, pi) => {
-      const isLastPat = pi === pats.length - 1;
-      const patPfx    = kidPfx + (isLastPat ? '└── ' : '├── ');
-      const patOn     = on && (state.gitiPatterns[f][pi] !== false);
-
-      const prow = el('div', {class:'trow' + (patOn ? ' on' : '')});
-      prow.append(el('span', {class:'tpfx'}, patPfx));
-      prow.append(el('span', {class:'texp blank'}));
-
-      const pcb = el('div', {class:'tcb' + (!on ? ' lck' : '')});
-      pcb.addEventListener('click', () => {
-        if (!on) { showToast('Enable ' + f + ' to toggle individual patterns'); return; }
-        state.gitiPatterns[f][pi] = !patOn;
+    const exp        = !!state.gitiExpanded[f];
+    nodes.push({
+      prefix: fragPfx, label: f, isDir: false, on,
+      hasExpander: pats.length > 0, expanded: exp,
+      disabled: false, required: false, meta: null,
+      onExpand: pats.length > 0 ? () => { state.gitiExpanded[f] = !exp; reRenderGitignore(); } : null,
+      onToggle: () => {
+        const next = !on;
+        state.giti[f] = next;
+        state.gitiPatterns[f] = pats.map(() => next);
         reRenderGitignore();
-      });
-      prow.append(pcb);
-      prow.append(el('span', {class:'tname'}, pat));
-      tree.append(prow);
+      },
     });
+    if (exp) {
+      pats.forEach((pat, pi) => {
+        const isLastPat = pi === pats.length - 1;
+        const patPfx    = kidPfx + (isLastPat ? '└── ' : '├── ');
+        const patOn     = on && (state.gitiPatterns[f][pi] !== false);
+        nodes.push({
+          prefix: patPfx, label: pat, isDir: false, on: patOn,
+          hasExpander: false, expanded: false,
+          disabled: !on, required: false, meta: null,
+          onExpand: null,
+          onToggle: () => {
+            if (!on) { showToast('Enable ' + f + ' to toggle individual patterns'); return; }
+            state.gitiPatterns[f][pi] = !patOn;
+            reRenderGitignore();
+          },
+        });
+      });
+    }
   });
+  return nodes;
+}
 
-  wrap.append(tree);
+function buildGitignore() {
+  const wrap = el('div');
+  wrap.append(buildTree('.gitignore/', computeGitignoreNodes()));
 
   wrap.append(el('div', {class:'gi-sep'}, 'extra patterns'));
 

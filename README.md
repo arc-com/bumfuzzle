@@ -1,164 +1,154 @@
-# bumfuzzle
+<div align="center">
 
-**Project scaffolding and validation for archicode projects.**
+# 🌀 Bumfuzzle
 
-<audio controls src="public/bumfuzzle.mp3" style="width:100%;max-width:400px"></audio>
+**Constitutional linter for your codebase and AI agents.**  
+Structure as law, not vibes.
 
-> [▶ bumfuzzle.mp3](public/bumfuzzle.mp3)
+[![Version](https://img.shields.io/badge/version-1.0-blue)](https://github.com/arc-com/bumfuzzle/releases)
+[![License](https://img.shields.io/github/license/arc-com/bumfuzzle)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/arc-com/bumfuzzle?style=flat)](https://github.com/arc-com/bumfuzzle/stargazers)
 
----
+<!-- DEMO: replace with asciinema cast or GIF -->
 
-## What it is
-
-Three tools, one repo:
-
-- **`kickstart`** — scaffolds a new project in the current directory; detects package manager manifests; writes `bumfuzzle.yml`
-- **`bumfuzzle`** — browser-based scaffolding UI wrapping kickstart
-- **`preflight`** — reads `bumfuzzle.yml` and runs the declared validation checks; deterministic and side-effect-free
+</div>
 
 ---
 
-## Core concepts
+> Your AI agent forgot its instructions and nuked important files — again.  
+> A half-finished refactor left a prod landmine in the codebase.  
+> `.env.template` drifted from `.env` three commits ago, and the agent ignored it.  
+> Config broke because of yet another hardcoded value.
 
-### bumfuzzle.yml — the project contract
-
-Every project owns a `bumfuzzle.yml` that declares what exists and what to check:
-
-```yaml
-project:
-  name: my-service
-
-preset: backend
-
-environments:
-  values: [local, test, prod]
-
-stacks:
-  values: [server, etl, shared-infra]
-```
-
-`preflight` reads this and runs only what's declared.
-
-### settings.yml — the rule registry
-
-All validation rules, scaffold defaults, scaffold paths, and the package manager table live here. The merge order is:
-
-```
-settings.yml  <  preset  <  bumfuzzle.yml
-```
-
-Later layers win.
-
-### Scaffold settings — unified create + check control
-
-Every artifact bumfuzzle manages has a single `scaffold.*` toggle in `bumfuzzle.yml`. Setting it to `false` disables both kickstart creation and preflight checking atomically.
-
-```yaml
-# disable tmp/ entirely (kickstart won't create it, preflight won't check it)
-scaffold:
-  dirs:
-    tmp: false
-
-# disable test env file
-  files:
-    env_test: false
-```
-
-### Presets
-
-Each preset (`bare`, `backend`, `node`, `web`, `python`, `java`, `swift`, `php`, `ruby`, `rust`, `workspace`) configures the right validation rules and scaffold settings for its type.
+**Bumfuzzle won't allow it. Your project structure will never drift again.**
 
 ---
 
-## How to use
+## Working with AI coding agents
 
-### Install globally
+Add one line to your `AGENTS.md`:
+
+```
+After finishing each feature, run: preflight
+```
+
+Or reference `BUMFUZZLE_SKILL.md` from your `AGENTS.md` for a full agent-facing instruction set.
+
+When a check fails, preflight prints exactly what broke and how to fix it. The agent reads the hint, resolves the issue, and reruns — in a loop — until the board is clean.
+
+---
+
+## Table of contents
+
+- [Why Bumfuzzle](#why-bumfuzzle)
+- [Features](#features)
+- [Install](#install)
+- [How to use](#how-to-use)
+- [How it works](#how-it-works)
+- [Contributing](#contributing)
+
+---
+
+## Why Bumfuzzle
+
+- **One config file for everything.** A single `bumfuzzle.yml` at your project root declares all rules. No fragmented configs across tools.
+- **Wizard setup in seconds.** Run `bumfuzzle` in any project and configure every check visually — no YAML hand-editing required.
+- **Zero prod footprint.** Bumfuzzle is a dev dependency. It is never included in your build.
+- **Works everywhere.** Any language, any framework, any OS. Any project size.
+
+---
+
+## Features
+
+- **Out-of-the-box integrations.** Whatever stack you use, bumfuzzle validates the structural invariants that are universal: config drift, missing files, stale hooks, undeclared env vars.
+- **Deterministic and side-effect-free.** `preflight` reads and checks. It never writes, installs, or modifies state. Same inputs, same output, every time.
+- **Fast, simple, universal.** One YAML file. Three commands. No pipeline integration required. Works with any IDE, terminal, or agent harness.
+- **Pre-configured presets, fully customizable.** Choose a preset (`backend`, `node`, `python`, `web`, and more) that enables the right checks for your project type. Disable anything, extend with your own rules via `command_checks`.
+- **File and directory presence checks.** Ensure required files exist — or don't. Hooks, `AGENTS.md`, config files, any artifact your project depends on.
+- **Env file consistency.** Catches `.env` ↔ `.env.template` drift: missing keys, undeclared keys, blank values, vars used in configs but never declared in template.
+- **Custom grep checks.** Use `command_checks` to flag hardcoded IP addresses, API keys, or any pattern that doesn't belong outside your config files.
+
+---
+
+## Install
+
+### Homebrew
 
 ```bash
-git clone https://github.com/archicode-ai/bumfuzzle ~/.local/share/bumfuzzle
+brew install bumfuzzle
+```
+
+### Package managers
+
+```bash
+pnpm add -D bumfuzzle
+npm install -D bumfuzzle
+yarn add -D bumfuzzle
+
+pip install bumfuzzle
+uv add --dev bumfuzzle
+poetry add --group dev bumfuzzle
+```
+
+### From source
+
+```bash
+git clone https://github.com/arc-com/bumfuzzle ~/.local/share/bumfuzzle
 bash ~/.local/share/bumfuzzle/setup.sh
 ```
 
 Adds `kickstart`, `bumfuzzle`, and `preflight` to `~/.local/bin`.
 
-### Scaffold a new project
+---
+
+## How to use
+
+### Path A — visual (`bumfuzzle`)
 
 ```bash
-cd ~/projects/my-service
-kickstart
-```
-
-kickstart detects the project type from manifests (`pom.xml` → java, `package.json` → node, etc.), creates directories and config files, installs git hooks, and writes `bumfuzzle.yml`.
-
-### Run validation
-
-```bash
-# From your project root (preflight is on PATH)
-preflight
-
-# With verbose output
-preflight --verbose
-
-# Scoped to one environment and stack
-preflight --env local --stack server
-```
-
-### Run bumfuzzle
-
-```bash
+cd my-project
 bumfuzzle
+# → opens web wizard in browser; configure checks, environments, stacks, rules
+# → save → bumfuzzle.yml written to project root
+preflight
+# → runs all checks; exits 0 or 1
 ```
+
+### Path B — fast (`kickstart`)
+
+```bash
+cd my-project
+kickstart
+# → detects project type from manifests; scaffolds files and dirs; writes bumfuzzle.yml
+# → edit bumfuzzle.yml directly, or run bumfuzzle to open the wizard later
+preflight
+# → runs all checks; exits 0 or 1
+```
+
+### Every subsequent run
+
+```bash
+preflight              # run all checks
+preflight --verbose    # show passing checks too
+preflight --env prod   # scope to one environment
+```
+
+`preflight` also runs automatically on every `git commit` via the pre-commit hook installed by `kickstart`.
+
+Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumfuzzle.yml` directly. `kickstart` is safe to rerun — it never deletes or overwrites. `preflight` is read-only. Both are idempotent.
 
 ---
 
-## Project structure
+## How it works
 
-```
-bumfuzzle/
-├── kickstart.sh              # Scaffolding entrypoint
-├── preflight.sh            # Validation entrypoint
-├── bumfuzzle.sh            # Browser-based scaffolding UI wrapping kickstart
-├── setup.sh                # Installs kickstart/bumfuzzle/preflight to ~/.local/bin
-├── settings.yml            # Rule registry, scaffold defaults, scaffold paths
-├── kickstart.settings.yml    # Kickstart step config and bumfuzzle questions
-├── bumfuzzle.yml           # Self-validation config for the bumfuzzle repo itself
-├── domains/                # Check and setup implementations (one domain per concern)
-│   ├── git.sh              # gitignore, AI coauthor check; git init
-│   ├── hooks.sh            # git hook installation and validation
-│   ├── rules.sh            # AGENTS.md / CLAUDE.md symlinks
-│   ├── structure.sh        # Required files/dirs, single package manager, .gitignore generation
-│   ├── env.sh              # .env file checks and scaffolding
-│   ├── docker.sh           # Docker Compose checks and scaffolding
-│   ├── config.sh           # Service config file checks
-│   ├── lifecycle.sh        # Deploy/start/stop script checks and scaffolding
-│   ├── editor.sh           # VS Code / Claude settings scaffolding
-│   ├── dependencies.sh     # pnpm / maven / gradle checks
-│   ├── preflight-config.sh # bumfuzzle.yml validity check and scaffolding
-│   ├── build.sh            # (stub)
-│   ├── meta.sh             # (stub)
-│   └── instruct.sh         # (stub)
-├── presets/                # Per-type validation rule and scaffold enablement
-│   ├── bare.yml
-│   ├── backend.yml
-│   ├── node.yml
-│   └── ... (web, python, java, swift, php, ruby, rust, workspace)
-└── scripts/                # Reusable scripts scaffolded into new projects
-    └── hooks/              # pre-commit, commit-msg, hooks.sh
-```
+`bumfuzzle` is a single self-contained HTML file served by a lightweight local Python server. It shuts down when you close the tab. Nothing leaves your machine.
+
+`bumfuzzle.yml` is the only config file created in your project. One file, all rules.
+
+`preflight` only reads, never writes. `kickstart` only creates, never overwrites. They are symmetric: if you declare a file as expected, `kickstart` creates it and `preflight` checks it.
 
 ---
 
-## Design invariants
+## Contributing
 
-- **preflight is deterministic and side-effect-free.** It reads `bumfuzzle.yml` and runs what it says. It never scans directories or infers anything.
-- **No ambiguity in generated config.** Every rule key in a generated `bumfuzzle.yml` is explicitly `true` or `false`. No `auto`.
-- **Scaffold toggle is atomic.** `scaffold.*: false` disables both creation (kickstart) and checking (preflight) for that artifact. There is no separate create-only or check-only mode.
-- **Generated files are write-once.** kickstart never overwrites files that already exist.
-- **Every domain completes its work.** If a domain creates an artifact that must be activated (e.g. a git hook), it activates it in the same step. No half-scaffolded state.
-
----
-
-## Requirements
-
-- bash 4+
-- [yq](https://github.com/mikefarah/yq) v4+
+Open an issue: [github.com/arc-com/bumfuzzle/issues](https://github.com/arc-com/bumfuzzle/issues)
