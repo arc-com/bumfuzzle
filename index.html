@@ -11,7 +11,7 @@
   --b1:#30363d;--b2:#21262d;
   --tx:#e6edf3;--tm:#8b949e;--td:#484f58;
   --ac:#58a6ff;--ac2:#388bfd;
-  --gr:#3fb950;--yl:#e3b341;--rd:#f85149;--or:#d29922;
+  --gr:#3fb950;--yl:#e3b341;--rd:#f85149;--or:#d29922;--pu:#a371f7;
   --r:6px;--mono:ui-monospace,'SF Mono','Cascadia Code',monospace;
 }
 body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
@@ -32,8 +32,6 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .sec-hdr{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surf);cursor:pointer;user-select:none}
 .sec-hdr:hover{background:var(--surf2)}
 .sec-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--tm)}
-.sec-chev{margin-left:auto;color:var(--td);font-size:10px;transition:transform .15s}
-.sec-chev.open{transform:rotate(90deg)}
 .sec-body{padding:16px}
 .sec-body.closed{display:none}
 
@@ -42,6 +40,7 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .lbl{display:block;font-size:11px;color:var(--tm);margin-bottom:5px}
 .inp{width:100%;background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);color:var(--tx);font-size:13px;padding:6px 10px;outline:none;font-family:inherit}
 .inp:focus{border-color:var(--ac)}
+.inp.mono{font-family:var(--mono);font-size:12px}
 
 /* ── Chips ── */
 .chips{display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:26px}
@@ -55,96 +54,91 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .add-btn{background:transparent;border:1px dashed var(--b1);border-radius:var(--r);color:var(--tm);font-size:12px;padding:4px 10px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .add-btn:hover{border-color:var(--ac);color:var(--tx)}
 
-/* ── Toggle (checkbox) ── */
-.tog{width:14px;height:14px;border:1.5px solid var(--b1);border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:background .1s,border-color .1s}
-.tog.on{background:var(--ac);border-color:var(--ac)}
-.tog.on::after{content:'✓';color:#fff;font-size:9px;line-height:1}
-.tog.dis{opacity:.28;cursor:not-allowed}
-.tog.req{background:var(--surf3);border-color:var(--b1);cursor:not-allowed}
-.tog.req::after{content:'✓';color:var(--tm);font-size:9px;line-height:1}
+/* ── Rule tree ── */
+.rtree{padding:2px 0}
 
-/* ── ASCII tree (shared by tools, scaffold, gitignore) ── */
-.tree{font-family:var(--mono);font-size:12px}
-.tree-root{color:var(--td);padding:2px 0 4px}
-.trow{display:flex;align-items:center;min-height:22px;padding:1px 0;border-radius:3px}
-.trow:hover{background:rgba(255,255,255,.025)}
-.trow.clickable{cursor:pointer}
-.tpfx{color:var(--td);white-space:pre;flex-shrink:0;user-select:none}
-.texp{width:16px;text-align:center;font-size:9px;color:var(--tm);cursor:pointer;flex-shrink:0;border-radius:2px;line-height:16px;user-select:none}
-.texp:hover{color:var(--tx);background:rgba(255,255,255,.07)}
-.texp.blank{cursor:default;pointer-events:none}
-.texp.blank:hover{background:none}
-.tname{color:var(--tm);font-size:12px;padding-left:2px}
-.trow.on .tname{color:var(--tx)}
-.tname.dir{color:var(--td)}
-.trow.on .tname.dir{color:#79c0ff}
-.trow.lck-row .tname{opacity:.35}
-.tree-meta{font-size:11px;color:var(--td);margin-left:8px}
-.tree-add{display:flex;gap:6px;margin-top:10px}
+/* ── Tree line segments ── */
+.rt-pfx{display:flex;flex-shrink:0;align-self:stretch}
+.tl-seg{width:16px;flex-shrink:0;position:relative;align-self:stretch}
+.tl-pipe::before{content:'';position:absolute;left:7px;top:0;bottom:0;border-left:1px solid var(--b1)}
+.tl-tee::before{content:'';position:absolute;left:7px;top:0;bottom:0;border-left:1px solid var(--b1)}
+.tl-tee::after{content:'';position:absolute;left:7px;right:0;top:50%;border-top:1px solid var(--b1)}
+.tl-end::before{content:'';position:absolute;left:7px;top:0;height:50%;border-left:1px solid var(--b1)}
+.tl-end::after{content:'';position:absolute;left:7px;right:0;top:50%;border-top:1px solid var(--b1)}
 
+/* ── Line numbers / row outer ── */
+.rt-outer{display:flex;margin-left:-16px}
+.rt-ln{display:flex;align-items:center;justify-content:flex-end;width:20px;flex-shrink:0;font-size:10px;font-family:var(--mono);color:var(--td);padding-right:5px;user-select:none}
+.rt-status{font-size:10px;color:var(--yl);margin-left:5px;flex-shrink:0;white-space:nowrap}
+.rt-grp-count{font-size:11px;color:var(--td);font-family:var(--mono);margin-left:6px;font-weight:400;white-space:nowrap}
 
-/* ── Gitignore extras ── */
-.gi-sep{font-size:11px;color:var(--td);font-family:var(--mono);margin:14px 0 8px;padding-top:12px;border-top:1px solid var(--b2)}
+/* ── Row ── */
+.rt-row{flex:1;display:flex;align-items:center;min-height:36px;padding:0 4px 0 0;border-radius:4px;cursor:pointer;user-select:none;position:relative;min-width:0}
+.rt-row:hover{background:rgba(255,255,255,.03)}
+.rt-row:hover .rt-actions{opacity:1}
+.rt-row.rt-dragging{background:rgba(88,166,255,.08);outline:1px solid rgba(88,166,255,.25);outline-offset:-1px}
 
-/* ── Rules ── */
-.rule-type-badge{font-size:10px;font-family:var(--mono);padding:1px 7px;border-radius:3px;border:1px solid var(--b1);color:var(--td);flex-shrink:0;white-space:nowrap}
-.rule-type-file-present  {border-color:rgba(63,185,80,.35); color:var(--gr);background:rgba(63,185,80,.07)}
-.rule-type-file-absent   {border-color:rgba(248,81,73,.35); color:var(--rd);background:rgba(248,81,73,.07)}
-.rule-type-content-present{border-color:rgba(88,166,255,.35);color:var(--ac);background:rgba(88,166,255,.07)}
-.rule-type-content-absent{border-color:rgba(227,179,65,.35);color:var(--yl);background:rgba(227,179,65,.07)}
-.rule-type-script-clean  {border-color:rgba(210,153,34,.35);color:var(--or);background:rgba(210,153,34,.07)}
-.rule-remove{background:none;border:none;color:var(--td);cursor:pointer;font-size:16px;line-height:1;padding:0 4px;flex-shrink:0;transition:color .1s}
-.rule-remove:hover{color:var(--rd)}
-.rule-type-seg{display:flex;flex-wrap:wrap;gap:5px}
-.rule-type-btn{background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);color:var(--tm);font-size:11px;font-family:var(--mono);padding:4px 10px;cursor:pointer;transition:border-color .1s,color .1s,background .1s;white-space:nowrap}
-.rule-type-btn:hover{border-color:var(--tm);color:var(--tx)}
-.rule-type-btn.on{border-color:var(--ac);color:var(--tx);background:rgba(88,166,255,.08)}
-.add-rule-btn{width:100%;background:transparent;border:1px dashed var(--b1);border-radius:var(--r);color:var(--tm);font-size:12px;padding:9px;cursor:pointer;margin-top:8px;font-family:inherit;transition:border-color .1s,color .1s}
-.add-rule-btn:hover{border-color:var(--ac);color:var(--tx)}
-.rules-empty{font-size:12px;color:var(--td);padding:4px 0 8px}
+/* ── Content ── */
+.rt-content{flex:1;min-width:0;padding:5px 4px 5px 0}
+.rt-name{display:block;font-size:13px;font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.rt-name.grp{font-weight:600}
+.rt-subdesc{display:block;font-size:11px;color:var(--td);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;line-height:1.3}
+.rt-name-inp{background:none;border:none;color:var(--tx);font-size:13px;font-weight:600;font-family:inherit;outline:none;padding:0;width:100%;cursor:text;line-height:1.35;display:block}
+.rt-name-inp::placeholder{color:var(--td)}
+.rt-name-inp:focus{background:var(--surf3);border-radius:3px;padding:0 5px;margin:0 -5px}
 
-/* ── Validation accordion ── */
-.val-list{display:flex;flex-direction:column;gap:3px}
-.val-card{border:1px solid transparent;border-radius:var(--r);overflow:hidden;transition:border-color .12s}
-.val-card:hover{border-color:var(--b2)}
-.val-card.exp{border-color:var(--b1)}
-.val-hdr{display:flex;align-items:center;gap:9px;padding:7px 10px;cursor:pointer;border-radius:var(--r)}
-.val-hdr:hover{background:rgba(255,255,255,.02)}
-.val-card.exp .val-hdr{border-radius:var(--r) var(--r) 0 0;border-bottom:1px solid var(--b2);background:rgba(255,255,255,.01)}
-.val-info{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden}
-.vkey{font-size:11px;font-family:var(--mono);color:var(--td);flex-shrink:0}
-.val-card.on .vkey{color:var(--ac)}
-.vdesc-short{font-size:12px;color:var(--tm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.val-card.off .val-info{opacity:.42}
-/* severity badge (collapsed row) */
-.sev-badge{font-size:10px;font-family:var(--mono);padding:1px 6px;border-radius:3px;border:1px solid var(--b1);color:var(--td);flex-shrink:0}
-.sev-badge.sev-warn{border-color:rgba(227,179,65,.35);color:var(--yl);background:rgba(227,179,65,.07)}
-.sev-badge.sev-error{border-color:rgba(210,153,34,.35);color:var(--or);background:rgba(210,153,34,.07)}
-.sev-badge.sev-hard-stop{border-color:rgba(248,81,73,.35);color:var(--rd);background:rgba(248,81,73,.07)}
-.val-chev{color:var(--td);font-size:10px;flex-shrink:0}
-/* expanded body */
-.val-body{padding:12px 12px 14px}
-.val-desc{font-size:13px;color:var(--tm);margin-bottom:14px;line-height:1.5}
-.val-section{margin-bottom:14px}
-.val-section:last-child{margin-bottom:0}
-.val-sec-lbl{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--td);font-family:var(--mono);margin-bottom:7px}
-/* severity segmented control */
-.sev-seg{display:inline-flex;border:1px solid var(--b1);border-radius:var(--r);overflow:hidden}
-.sev-btn{background:transparent;border:none;border-right:1px solid var(--b1);color:var(--tm);font-size:11px;font-family:var(--mono);padding:5px 14px;cursor:pointer;white-space:nowrap;transition:background .1s,color .1s}
-.sev-btn:last-child{border-right:none}
-.sev-btn:hover:not([disabled]){background:rgba(255,255,255,.05);color:var(--tx)}
-.sev-btn[disabled]{opacity:.3;cursor:not-allowed}
-.sev-btn.on{font-weight:600}
-.sev-btn.on.sev-skip{background:var(--surf3);color:var(--tm)}
-.sev-btn.on.sev-warn{background:rgba(227,179,65,.13);color:var(--yl)}
-.sev-btn.on.sev-error{background:rgba(210,153,34,.13);color:var(--or)}
-.sev-btn.on.sev-hard-stop{background:rgba(248,81,73,.13);color:var(--rd)}
-/* hint text panel */
-.hint-texts{background:var(--surf2);border:1px solid var(--b2);border-radius:var(--r);padding:8px 10px;margin-top:8px;display:flex;flex-direction:column;gap:6px}
-.hint-text-row{display:grid;grid-template-columns:auto 1fr;gap:10px;font-size:11px;font-family:var(--mono);align-items:start}
-.hint-key{color:var(--ac);white-space:nowrap}
-.hint-val{color:var(--tm);word-break:break-word;line-height:1.45}
-.hint-custom-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+/* ── Hover actions ── */
+.rt-actions{opacity:0;transition:opacity .1s;display:flex;align-items:center;flex-shrink:0;padding-left:4px}
+.rt-rm{background:none;border:none;color:var(--td);cursor:pointer;width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;transition:color .1s,background .1s}
+.rt-rm:hover{color:var(--rd);background:rgba(248,81,73,.1)}
+.rt-edit:hover{color:var(--pu);background:rgba(163,113,247,.1)}
+
+/* ── Expanded panel ── */
+.rt-panel-wrap{display:flex;align-items:flex-start}
+.rt-panel{flex:1;border:1px solid var(--b1);border-radius:var(--r);padding:14px 14px 16px;margin:2px 6px 6px;background:var(--surf)}
+.rf-sec{margin-bottom:14px}.rf-sec:last-child{margin-bottom:0}
+.rf-lbl{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--td);font-family:var(--mono);margin-bottom:7px}
+
+/* ── Segmented control ── */
+.seg{display:inline-flex;border:1px solid var(--b1);border-radius:var(--r);overflow:hidden;flex-wrap:wrap}
+.seg-btn{background:transparent;border:none;border-right:1px solid var(--b1);color:var(--tm);font-size:11px;font-family:var(--mono);padding:5px 12px;cursor:pointer;white-space:nowrap;transition:background .1s,color .1s}
+.seg-btn:last-child{border-right:none}
+.seg-btn:hover{background:rgba(255,255,255,.05);color:var(--tx)}
+.seg-btn.on{font-weight:600}
+.seg-btn.on.t-info     {background:rgba(88,166,255,.08);color:var(--ac)}
+.seg-btn.on.t-warn     {background:rgba(227,179,65,.13);color:var(--yl)}
+.seg-btn.on.t-error    {background:rgba(210,153,34,.13);color:var(--or)}
+.seg-btn.on.t-hard-stop{background:rgba(248,81,73,.13);color:var(--rd)}
+.seg-btn.on.t-on       {background:rgba(88,166,255,.1);color:var(--ac)}
+
+/* ── Instruction textarea ── */
+.instr-ta{width:100%;min-height:72px;resize:vertical;background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);color:var(--tx);font-size:13px;font-family:inherit;padding:8px 10px;outline:none;line-height:1.5}
+.instr-ta:focus{border-color:var(--ac)}
+
+/* ── Panel status bar ── */
+.rf-status-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--b1)}
+.rf-actions-bar{display:flex;gap:5px}
+.rf-btn{background:none;border:1px solid var(--b1);border-radius:4px;color:var(--tm);font-size:11px;font-family:inherit;padding:3px 10px;cursor:pointer;transition:border-color .1s,color .1s,background .1s}
+.rf-btn:hover{border-color:var(--tm);color:var(--tx)}
+.rf-btn-save{border-color:rgba(63,185,80,.4);color:var(--gr)}
+.rf-btn-save:hover{border-color:var(--gr);background:rgba(63,185,80,.07)}
+.rf-btn-cancel{border-color:rgba(248,81,73,.3);color:var(--rd)}
+.rf-btn-cancel:hover{border-color:var(--rd);background:rgba(248,81,73,.06)}
+
+/* ── Diff view ── */
+.rf-diff-empty{font-size:12px;color:var(--td);padding:12px 0;font-style:italic}
+.rf-diff-row{display:grid;grid-template-columns:80px 1fr 16px 1fr;gap:4px 8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--b2);font-size:12px}
+.rf-diff-row:last-child{border-bottom:none}
+.rf-diff-field{font-family:var(--mono);font-size:10px;color:var(--td);padding-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rf-diff-from{color:var(--tm);font-family:var(--mono);font-size:11px;word-break:break-all;text-decoration:line-through;opacity:.7}
+.rf-diff-arrow{color:var(--td);font-size:10px;text-align:center}
+.rf-diff-to{color:var(--gr);font-family:var(--mono);font-size:11px;word-break:break-all}
+
+/* ── Root add buttons ── */
+.add-root-row{display:flex;gap:6px;margin-top:12px}
+.add-root-btn{flex:1;background:transparent;border:1px dashed var(--b1);border-radius:var(--r);color:var(--tm);font-size:12px;padding:8px;cursor:pointer;font-family:inherit;transition:border-color .1s,color .1s}
+.add-root-btn:hover{border-color:var(--ac);color:var(--tx)}
+
 
 /* ── Actions ── */
 .act-row{display:flex;gap:8px}
@@ -163,15 +157,6 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 #toasts{position:fixed;top:14px;right:14px;z-index:200;display:flex;flex-direction:column;gap:5px;align-items:flex-end;pointer-events:none}
 .toast{background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);padding:6px 12px;font-size:12px;color:var(--tm);max-width:280px;opacity:0;transform:translateX(6px);transition:opacity .15s,transform .15s}
 .toast.show{opacity:1;transform:translateX(0)}
-
-/* ── Hint rows (validation) ── */
-.hint-rows{border:1px solid var(--b2);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
-.hint-row{display:grid;grid-template-columns:20px 1fr auto;gap:0 10px;padding:6px 10px;border-bottom:1px solid var(--b2);align-items:start}
-.hint-row:last-child{border-bottom:none}
-.hint-row-text{display:flex;flex-direction:column;gap:2px}
-.hint-row-title{font-size:12px;color:var(--tx)}
-.hint-row-title.dim{color:var(--td)}
-.hint-row-body{font-size:11px;color:var(--tm);line-height:1.4;word-break:break-word}
 </style>
 </head>
 <body>
@@ -181,225 +166,118 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 'use strict';
 
 let S, C, META;
-let wizDirs, wizFiles, TOOL_DEFS, FRAG_DEFS, GITI_FRAGS, GITI_DEFAULTS;
-let STATIC_TREE, PARENT_MAP, NODE_BREADCRUMBS;
 let state;
 
-// ── Static tree builders ──────────────────────────────────────────────────────
+// ── Tree helpers ──────────────────────────────────────────────────────────────
 
-function buildStaticTree() {
-  const byPath = {}, roots = [];
-  const all = [
-    ...wizDirs.map(d => ({...d, isDir:true,  nodePath: d.label.replace(/\/$/, '')})),
-    ...wizFiles.map(f => ({...f, isDir:false, nodePath: f.foreach ? null : f.label})),
-  ].filter(e => e.nodePath !== null);
+function isGroup(item) { return 'group' in item; }
+function isRule(item)  { return 'type'  in item; }
+function isEnum(item)  { return 'values' in item; }
 
-  for (const e of all) byPath[e.nodePath] = {...e, children:[]};
-  for (const e of all) {
-    const node = byPath[e.nodePath];
-    const slash = e.nodePath.lastIndexOf('/');
-    const par = slash >= 0 ? e.nodePath.substring(0, slash) : null;
-    if (par && byPath[par]) byPath[par].children.push(node);
-    else roots.push(node);
+function getParentArr(path, rootArr) {
+  let arr = rootArr;
+  for (let i = 0; i < path.length - 1; i++) arr = arr[path[i]].rules;
+  return arr;
+}
+
+function removeByPath(path, rootArr) {
+  const arr = getParentArr(path, rootArr);
+  return arr.splice(path[path.length - 1], 1)[0];
+}
+
+function insertByPath(path, item, rootArr) {
+  const arr = getParentArr(path, rootArr);
+  arr.splice(path[path.length - 1], 0, item);
+}
+
+function findPath(target, items, base) {
+  for (let i = 0; i < items.length; i++) {
+    if (items[i] === target) return [...base, i];
+    if (isGroup(items[i])) {
+      const r = findPath(target, items[i].rules || [], [...base, i]);
+      if (r) return r;
+    }
   }
-  wizFiles.filter(f => f.foreach).forEach(f => roots.push({...f, isDir:false, children:[]}));
-  return roots;
+  return null;
 }
 
-function allStaticNodes() {
-  const out = [];
-  (function walk(ns) { ns.forEach(n => { out.push(n); walk(n.children||[]); }); })(STATIC_TREE);
-  return out;
-}
-
-function buildParentMap() {
-  const map = {};
-  (function walk(nodes, parent) {
-    nodes.forEach(n => { if (parent) map[n.key] = parent; walk(n.children||[], n); });
-  })(STATIC_TREE, null);
-  return map;
+function isAncestorOf(ancestor, item) {
+  if (!isGroup(ancestor)) return false;
+  const check = rules => (rules || []).some(r => r === item || (isGroup(r) && check(r.rules)));
+  return check(ancestor.rules);
 }
 
 // ── Data init ─────────────────────────────────────────────────────────────────
 
+function defaultEnums() {
+  return [{
+    group: 'Claude Model Configuration',
+    rules: [
+      { name: 'model', description: 'Selects the default model.', values: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-haiku'] },
+      { name: 'availableModels', description: 'Restricts the models available to users or subagents.', values: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-haiku'] },
+      { name: 'effortLevel', description: 'Controls the depth of extended thinking.', values: ['low', 'medium', 'high'] },
+    ],
+  }];
+}
+
 function initData() {
-  wizDirs  = (S.bumfuzzle && S.bumfuzzle.directories) || [];
-  wizFiles = (S.bumfuzzle && S.bumfuzzle.files)       || [];
-  TOOL_DEFS  = S.tools || {};
-  FRAG_DEFS  = (S.gitignore && S.gitignore.fragments) || {};
-  GITI_FRAGS = Object.keys(FRAG_DEFS);
-  const gitiCommon = (S.gitignore && S.gitignore.defaults && S.gitignore.defaults.common) || [];
-  GITI_DEFAULTS = new Set(gitiCommon);
-
-  STATIC_TREE = buildStaticTree();
-  PARENT_MAP  = buildParentMap();
-
-  NODE_BREADCRUMBS = {};
-  (function bc(defs, path, anc) {
-    for (const [k, def] of Object.entries(defs)) {
-      const p = path ? path + '.' + k : k;
-      NODE_BREADCRUMBS[p] = [...anc, def.label||k].join(' › ');
-      if (def.modules) bc(def.modules, p, [...anc, def.label||k]);
-    }
-  })(TOOL_DEFS, '', []);
-
-  const cGiti    = (C && C.gitignore) || {};
-  const excl     = cGiti.exclude_fragments || [];
-  const xtra     = cGiti.extra_fragments   || [];
-  const exclPats = cGiti.exclude_patterns  || [];
-  const cVal     = (C && C.validation) || {};
-  const sVal     = S.validation || {};
-
+  const cRules = C && C.rules;
+  const sRules = S && S.rules;
+  const cEnums = C && C.enums;
+  const sEnums = S && S.enums;
   state = {
-    name: (C && C.project && C.project.name) || META.projectDirName || '',
-    envs: [...((C && C.environments && C.environments.values) || (S.defaults && S.defaults.environments) || [])],
-
-    toolEnabled:  {},
-    toolExpanded: {},
-
-    checked:  {},
-    expanded: Object.fromEntries(allStaticNodes().filter(n => n.isDir).map(n => [n.key, true])),
-
-    giti: Object.fromEntries(GITI_FRAGS.map(f => [f,
-      excl.includes(f) ? false : xtra.includes(f) ? true : GITI_DEFAULTS.has(f)
-    ])),
-    gitiPatterns: Object.fromEntries(GITI_FRAGS.map(f => {
-      const pats = FRAG_DEFS[f] || [];
-      const on   = !excl.includes(f) && (xtra.includes(f) || GITI_DEFAULTS.has(f));
-      return [f, pats.map(p => on && !exclPats.includes(p))];
-    })),
-    gitiExpanded: Object.fromEntries(GITI_FRAGS.map(f => [f, false])),
-    extraGiti: [...(cGiti.extra_patterns || [])],
-
-    extraDirs: [...((C && C.extra_dirs) || [])],
-
-    validation: Object.fromEntries(Object.entries(sVal).map(([key, def]) => {
-      const ov          = cVal[key] || {};
-      const defEnabled  = def.enabled !== false;
-      const defSeverity = def.severity || 'error';
-      const defHints    = def.selected_hints || [];
-      return [key, {
-        enabled:       ov.enabled  !== undefined ? ov.enabled  : defEnabled,
-        severity:      ov.severity !== undefined ? ov.severity : defSeverity,
-        selectedHints: ov.selected_hints ? [...ov.selected_hints] : [...defHints],
-        description:   def.description || key,
-        availHints:    Object.keys(def.hints || {}),
-        hintsMap:      def.hints || {},
-        _de: defEnabled, _ds: defSeverity, _dh: [...defHints],
-      }];
-    })),
-
-    valExpanded: Object.fromEntries(Object.keys(sVal).map(k => [k, false])),
-
-    rules: ((C && C.rules) || []).map(r => ({
-      type:        r.type        || 'file_present',
-      description: r.description || '',
-      target:      r.target      || '',
-      pattern:     r.pattern     || '',
-      scope:       r.scope       || 'recursive',
-      exclude:     r.exclude     || '',
-      command:     r.command     || '',
-      severity:    r.severity    || 'error',
-      hints:       [...(r.hints  || [])],
-      _exp:        false,
-    })),
-
-    sections: { project:true, tools:true, scaffold:true, gitignore:true, rules:true, validation:true, actions:true },
-    pendingRule:    null,
-    valHintPending: {},
+    rules: JSON.parse(JSON.stringify(cRules || sRules || [])),
+    enums: JSON.parse(JSON.stringify(cEnums || sEnums || defaultEnums())),
+    sections: { rules: true, enums: true, actions: true },
   };
-
-  if (state.validation.command_checks) {
-    const ov = cVal.command_checks || {};
-    state.validation.command_checks.items = (ov.items || []).map(it => ({
-      label:    it.label    || '',
-      command:  it.command  || '',
-      severity: it.severity || 'error',
-      hints:    [...(it.hints || [])],
-    }));
-  }
-
-  allStaticNodes().forEach(n => { state.checked[n.key] = defCheck(n); });
-  walkDefs(TOOL_DEFS, '', (p, def) => {
-    state.toolEnabled[p]  = initEnabled(p, def);
-    state.toolExpanded[p] = true;
-  });
+  annotate(state.rules);
+  annotateEnums(state.enums);
 }
 
-// ── State helpers ─────────────────────────────────────────────────────────────
-
-function defCheck(node) {
-  if (node.kind === 'step') {
-    const v = C && C.scaffold && C.scaffold.steps && C.scaffold.steps[node.key];
-    return (v === false || node.bumfuzzle_default === false) ? null : 'present';
-  }
-  const art = C && C.artifacts && C.artifacts[node.key];
-  if (art) {
-    if (art.enabled === true)  return 'present';
-    if (art.enabled === false) return null;
-  }
-  return node.bumfuzzle_default !== false ? 'present' : null;
-}
-
-function walkDefs(defs, path, cb) {
-  for (const [k, def] of Object.entries(defs)) {
-    const p = path ? path + '.' + k : k;
-    cb(p, def);
-    if (def.modules) walkDefs(def.modules, p, cb);
-  }
-}
-
-function readCfgNode(cfgTools, path) {
-  const parts = path.split('.');
-  let cur = cfgTools;
-  for (const p of parts) {
-    if (cur == null || typeof cur !== 'object') return undefined;
-    if (cur.modules) cur = cur.modules;
-    cur = cur[p];
-  }
-  return cur;
-}
-
-function initEnabled(path, def) {
-  const ov = readCfgNode((C && C.tools) || {}, path);
-  if (typeof ov === 'boolean') return ov;
-  if (ov && typeof ov.enabled === 'boolean') return ov.enabled;
-  return def.enabled !== false;
-}
-
-function computeLockedKeys() {
-  const locked = new Set();
-  function walk(defs, path, parentOff) {
-    for (const [k, def] of Object.entries(defs)) {
-      const p  = path ? path + '.' + k : k;
-      const on = !parentOff && state.toolEnabled[p];
-      if (!on) (def.locks||[]).forEach(l => locked.add(l));
-      if (def.modules) walk(def.modules, p, !on);
+function annotate(items) {
+  (items || []).forEach(item => {
+    if (isGroup(item)) {
+      if (item._col === undefined) item._col = false;
+      if (!item.rules) item.rules = [];
+      annotate(item.rules);
+    } else {
+      if (item._exp === undefined) item._exp = false;
+      if (!item.name) item.name = '';
+      if (!item.scope || item.scope === 'recursive') item.scope = 'root';
+      if (Array.isArray(item.hints)) {
+        item.instruction = item.hints.join('\n');
+        delete item.hints;
+      } else if (item.instruction === undefined) {
+        item.instruction = '';
+      }
+      if (item._saved === undefined) item._saved = ruleSnapshot(item);
+      if (item._mode === undefined) item._mode = 'edit';
     }
-  }
-  walk(TOOL_DEFS, '', false);
-  return locked;
-}
-
-function lockingLabel(key) {
-  const base = key.includes(':') ? key.split(':')[0] : key;
-  let result = null;
-  walkDefs(TOOL_DEFS, '', (p, def) => {
-    if (!result && (def.locks||[]).includes(base)) result = NODE_BREADCRUMBS[p];
   });
-  return result || 'the required tool';
 }
 
-function resolveVals(foreachKey) {
-  if (foreachKey === 'environments.values') return state.envs;
-  return [];
+function annotateEnums(items) {
+  (items || []).forEach(item => {
+    if (isGroup(item)) {
+      if (item._col === undefined) item._col = false;
+      // normalize group children key from saved YAML
+      if (item.enums && !item.rules) { item.rules = item.enums; delete item.enums; }
+      if (!item.rules) item.rules = [];
+      annotateEnums(item.rules);
+    } else {
+      if (item._exp === undefined) item._exp = false;
+      if (!item.name) item.name = '';
+      if (!item.description) item.description = '';
+      if (!Array.isArray(item.values)) item.values = [];
+    }
+  });
 }
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
 function el(tag, attrs, ...children) {
   const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs||{})) {
+  for (const [k, v] of Object.entries(attrs || {})) {
     if (k === 'class') e.className = v;
     else if (k === 'style') e.style.cssText = v;
     else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2).toLowerCase(), v);
@@ -410,7 +288,7 @@ function el(tag, attrs, ...children) {
 }
 
 function showToast(msg) {
-  const t = el('div', {class:'toast'}, msg);
+  const t = el('div', { class: 'toast' }, msg);
   document.getElementById('toasts').append(t);
   requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); }, 2800);
@@ -419,8 +297,6 @@ function showToast(msg) {
 // ── Auto-save ─────────────────────────────────────────────────────────────────
 
 let saveTimer = null, saveEl = null;
-let cmdRunning = false, confirmCmd = null;
-let outLogEl = null, outStatusEl = null, outWrapEl = null, actRowEl = null;
 
 function scheduleSave() {
   clearTimeout(saveTimer);
@@ -430,33 +306,833 @@ function scheduleSave() {
 
 async function doSave() {
   try {
-    const res = await fetch('/save', {method:'POST', body:generateYaml()});
+    const res = await fetch('/save', { method: 'POST', body: generateYaml() });
     if (!res.ok) throw new Error();
     setSaveStatus('ok');
-  } catch {
-    setSaveStatus('err');
-  }
+  } catch { setSaveStatus('err'); }
 }
 
 function setSaveStatus(s) {
   if (!saveEl) return;
-  const labels = {idle:'', saving:'Saving…', ok:'Saved ✓', err:'Save failed'};
+  const labels = { idle: '', saving: 'Saving…', ok: 'Saved ✓', err: 'Save failed' };
   saveEl.textContent = labels[s] || '';
   saveEl.className = 'hdr-save ' + s;
 }
 
+// ── YAML generation ───────────────────────────────────────────────────────────
+
+function generateYaml() {
+  const lines = [];
+
+  function writeRuleItems(items, indent) {
+    for (const item of items) {
+      if (isGroup(item)) {
+        lines.push(indent + '- group: ' + JSON.stringify(item.group));
+        lines.push(indent + '  rules:');
+        if (item.rules && item.rules.length) writeRuleItems(item.rules, indent + '    ');
+      } else {
+        lines.push(indent + '- type: ' + item.type);
+        lines.push(indent + '  name: '                              + JSON.stringify(item.name));
+        if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
+        if (item.target)      lines.push(indent + '  target: '      + JSON.stringify(item.target));
+        if (item.pattern !== undefined && item.pattern !== '')
+                              lines.push(indent + '  pattern: '     + JSON.stringify(item.pattern));
+        if (item.scope && item.scope !== 'root')
+                              lines.push(indent + '  scope: '       + JSON.stringify(item.scope));
+        if (item.exclude)     lines.push(indent + '  exclude: '     + JSON.stringify(item.exclude));
+        if (item.command)     lines.push(indent + '  command: '     + JSON.stringify(item.command));
+        if (item.severity && item.severity !== 'error')
+                              lines.push(indent + '  severity: '    + item.severity);
+        if (item.instruction) lines.push(indent + '  instruction: ' + JSON.stringify(item.instruction));
+      }
+    }
+  }
+
+  function writeEnumItems(items, indent) {
+    for (const item of items) {
+      if (isGroup(item)) {
+        lines.push(indent + '- group: ' + JSON.stringify(item.group));
+        lines.push(indent + '  enums:');
+        if (item.rules && item.rules.length) writeEnumItems(item.rules, indent + '    ');
+      } else {
+        lines.push(indent + '- name: ' + JSON.stringify(item.name));
+        if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
+        if (item.values.length) {
+          lines.push(indent + '  values:');
+          item.values.forEach(v => lines.push(indent + '    - ' + JSON.stringify(v)));
+        } else {
+          lines.push(indent + '  values: []');
+        }
+      }
+    }
+  }
+
+  if (state.rules.length) { lines.push('rules:'); writeRuleItems(state.rules, '  '); }
+  else lines.push('rules: []');
+
+  if (state.enums.length) { lines.push('enums:'); writeEnumItems(state.enums, '  '); }
+  else lines.push('enums: []');
+
+  return lines.join('\n') + '\n';
+}
+
+// ── Line number assignment ────────────────────────────────────────────────────
+
+function assignLineNumbers(items) {
+  let n = 0;
+  function walk(arr) {
+    (arr || []).forEach(item => {
+      item._ln = ++n;
+      if (isGroup(item)) walk(item.rules);
+    });
+  }
+  walk(items);
+}
+
+// ── Flatten tree ──────────────────────────────────────────────────────────────
+
+function flattenRules(items, ancestorCols, pathBase) {
+  const out = [];
+  (items || []).forEach((item, i) => {
+    const last = i === items.length - 1;
+    const path = [...pathBase, i];
+    const cols = [...ancestorCols, !last];
+    if (isGroup(item)) {
+      out.push({ kind: 'group', item, cols, path });
+      if (!item._col) out.push(...flattenRules(item.rules || [], cols, path));
+    } else {
+      out.push({ kind: 'rule', item, cols, path });
+      if (item._exp) out.push({ kind: 'panel', item, cols, path });
+    }
+  });
+  return out;
+}
+
+function flattenEnums(items, ancestorCols, pathBase) {
+  const out = [];
+  (items || []).forEach((item, i) => {
+    const last = i === items.length - 1;
+    const path = [...pathBase, i];
+    const cols = [...ancestorCols, !last];
+    if (isGroup(item)) {
+      out.push({ kind: 'enum-group', item, cols, path });
+      if (!item._col) out.push(...flattenEnums(item.rules || [], cols, path));
+    } else {
+      out.push({ kind: 'enum', item, cols, path });
+      if (item._exp) out.push({ kind: 'enum-panel', item, cols, path });
+    }
+  });
+  return out;
+}
+
+// ── Tree line prefix ──────────────────────────────────────────────────────────
+
+function countItems(group) {
+  return (group.rules || []).reduce((n, item) => n + 1 + (isGroup(item) ? countItems(item) : 0), 0);
+}
+
+function buildPrefix(cols, isPanel) {
+  const pfx = el('div', { class: 'rt-pfx' });
+  if (cols.length === 0) return pfx;
+  const isRoot = cols.length === 1;
+  if (isRoot) {
+    // root items: no visual connector, no segments
+    return pfx;
+  }
+  for (let d = 0; d < cols.length - 1; d++) {
+    pfx.append(el('span', { class: 'tl-seg' + (cols[d] ? ' tl-pipe' : '') }));
+  }
+  const hasSiblings = cols[cols.length - 1];
+  if (isPanel) {
+    pfx.append(el('span', { class: 'tl-seg' + (hasSiblings ? ' tl-pipe' : '') }));
+  } else {
+    pfx.append(el('span', { class: 'tl-seg ' + (hasSiblings ? 'tl-tee' : 'tl-end') }));
+  }
+  return pfx;
+}
+
+// ── Drag system ───────────────────────────────────────────────────────────────
+
+let rulesRowRegistry = [];
+let enumsRowRegistry = [];
+let drag = null;
+let lastDropItem = null, lastDropMode = null;
+let lastCursorY = null;
+
+function initDrag() {
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup',   onDragEnd);
+}
+
+function attachDrag(rowEl, item, rootArr) {
+  rowEl.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'TEXTAREA') return;
+    drag = { item, startX: e.clientX, startY: e.clientY, active: false, rootArr, dir: 'down' };
+  });
+}
+
+function computeDropTarget(e, dir) {
+  const allRows = [...rulesRowRegistry, ...enumsRowRegistry];
+  for (const { item, el: rowEl, rootArr } of allRows) {
+    if (item === drag.item || isAncestorOf(drag.item, item)) continue;
+    if (rootArr !== drag.rootArr) continue;
+    const rect = rowEl.getBoundingClientRect();
+    if (e.clientY < rect.top || e.clientY > rect.bottom) continue;
+    return { item, mode: dir === 'down' ? 'after' : 'before' };
+  }
+  return null;
+}
+
+function onDragMove(e) {
+  if (!drag) return;
+  if (!drag.active) {
+    if (Math.abs(e.clientX - drag.startX) + Math.abs(e.clientY - drag.startY) < 5) return;
+    drag.active = true;
+  }
+
+  if (lastCursorY !== null && e.clientY !== lastCursorY) {
+    drag.dir = e.clientY > lastCursorY ? 'down' : 'up';
+  }
+  lastCursorY = e.clientY;
+
+  const dropInfo = computeDropTarget(e, drag.dir);
+  if (!dropInfo || (dropInfo.item === lastDropItem && dropInfo.mode === lastDropMode)) return;
+
+  const rootArr = drag.rootArr;
+  const srcPath = findPath(drag.item, rootArr, []);
+  if (!srcPath) return;
+  removeByPath(srcPath, rootArr);
+
+  if (dropInfo.mode === 'into') {
+    dropInfo.item.rules = dropInfo.item.rules || [];
+    dropInfo.item.rules.unshift(drag.item);
+  } else {
+    const dstPath = findPath(dropInfo.item, rootArr, []);
+    if (!dstPath) { insertByPath(srcPath, drag.item, rootArr); return; }
+    if (dropInfo.mode === 'after') dstPath[dstPath.length - 1]++;
+    insertByPath(dstPath, drag.item, rootArr);
+  }
+
+  lastDropItem = dropInfo.item;
+  lastDropMode = dropInfo.mode;
+
+  if (rootArr === state.rules) reRenderRules();
+  else reRenderEnums();
+
+  const reg = [...rulesRowRegistry, ...enumsRowRegistry].find(r => r.item === drag.item);
+  if (reg) reg.el.classList.add('rt-dragging');
+}
+
+function onDragEnd() {
+  if (!drag) return;
+  const wasActive = drag.active;
+  const rootArr = drag.rootArr;
+  drag = null; lastDropItem = null; lastDropMode = null; lastCursorY = null;
+  if (wasActive) {
+    if (rootArr === state.rules) reRenderRules();
+    else reRenderEnums();
+    scheduleSave();
+    document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+  }
+}
+
+// ── Section factory ───────────────────────────────────────────────────────────
+
+function makeSection(key, title) {
+  const sec  = el('div', { class: 'sec' });
+  const hdr  = el('div', { class: 'sec-hdr' });
+  hdr.append(el('span', { class: 'sec-title' }, title));
+  sec.append(hdr);
+  const body = el('div', { class: 'sec-body' });
+  sec.append(body);
+  hdr.addEventListener('click', () => {
+    const open = !body.classList.contains('closed');
+    body.classList.toggle('closed', open);
+    state.sections[key] = !open;
+  });
+  return { sec, body };
+}
+
+// ── Rule snapshot helpers ─────────────────────────────────────────────────────
+
+const RULE_TYPES  = ['file_present','file_absent','content_present','content_absent','script_clean'];
+const SEV_LEVELS  = ['info','warn','error','hard-stop'];
+const SNAP_FIELDS = ['type','name','description','target','scope','pattern','exclude','command','severity','instruction'];
+
+function ruleSnapshot(rule) {
+  const s = {};
+  SNAP_FIELDS.forEach(f => { s[f] = rule[f] ?? ''; });
+  return JSON.stringify(s);
+}
+function isDirty(rule) {
+  return rule._saved === null || ruleSnapshot(rule) !== rule._saved;
+}
+function diffFields(rule) {
+  if (!rule._saved) return [];
+  const from = JSON.parse(rule._saved);
+  return SNAP_FIELDS
+    .filter(f => (from[f] ?? '') !== (rule[f] ?? ''))
+    .map(f => ({ f, from: from[f] ?? '', to: rule[f] ?? '' }));
+}
+
+// ── Rule field editor ─────────────────────────────────────────────────────────
+
+function buildRuleFields(rule) {
+  const panel = el('div', { class: 'rt-panel' });
+
+  const btnDiff   = el('button', { class: 'rf-btn' }, 'Diff');
+  const btnSave   = el('button', { class: 'rf-btn rf-btn-save' }, 'Save');
+  const btnEdit   = el('button', { class: 'rf-btn' }, 'Edit');
+  const btnCancel = el('button', { class: 'rf-btn rf-btn-cancel' }, 'Cancel');
+  panel.append(el('div', { class: 'rf-status-bar' },
+    el('div', { class: 'rf-actions-bar' }, btnDiff, btnEdit, btnSave, btnCancel),
+  ));
+
+  const formView = el('div', {});
+  function sec(lbl, content) {
+    const s = el('div', { class: 'rf-sec' });
+    s.append(el('span', { class: 'rf-lbl' }, lbl), content);
+    return s;
+  }
+
+  const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Short label for this rule' });
+  nInp.value = rule.name || '';
+  nInp.addEventListener('input', () => { rule.name = nInp.value; rule._updateRow?.(); scheduleSave(); updateStatus(); });
+
+  const tSeg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
+  const tBtns = {};
+  RULE_TYPES.forEach(t => {
+    const b = el('button', { class: 'seg-btn' + (rule.type === t ? ' on t-on' : '') }, t.replace(/_/g, ' '));
+    b.dataset.val = t;
+    b.addEventListener('click', () => {
+      rule.type = t;
+      Object.values(tBtns).forEach(x => x.className = 'seg-btn' + (x.dataset.val === t ? ' on t-on' : ''));
+      scheduleSave(); updateStatus();
+    });
+    tBtns[t] = b; tSeg.append(b);
+  });
+
+  const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'What does this rule check?' });
+  dInp.value = rule.description || '';
+  dInp.addEventListener('input', () => { rule.description = dInp.value; rule._updateRow?.(); scheduleSave(); updateStatus(); });
+
+  const tgtInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'Dockerfile, config/*.yml …' });
+  tgtInp.value = rule.target || '';
+  tgtInp.addEventListener('input', () => { rule.target = tgtInp.value.trim(); scheduleSave(); updateStatus(); });
+
+  const scSeg = el('div', { class: 'seg' });
+  const scBtns = {};
+  const scPathInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'src/components',
+    style: 'margin-top:7px' + (rule.scope !== 'root' ? '' : ';display:none') });
+  scPathInp.value = rule.scope !== 'root' ? rule.scope : '';
+  scPathInp.addEventListener('input', () => { rule.scope = scPathInp.value.trim() || ''; scheduleSave(); updateStatus(); });
+  ['root', 'custom'].forEach(s => {
+    const isOn = s === 'root' ? rule.scope === 'root' : rule.scope !== 'root';
+    const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, s);
+    b.dataset.val = s;
+    b.addEventListener('click', () => {
+      if (s === 'root') {
+        rule.scope = 'root';
+        scPathInp.style.display = 'none';
+      } else {
+        if (rule.scope === 'root') rule.scope = '';
+        scPathInp.style.display = '';
+        scPathInp.focus();
+      }
+      Object.values(scBtns).forEach(x => {
+        const on = x.dataset.val === 'root' ? rule.scope === 'root' : rule.scope !== 'root';
+        x.className = 'seg-btn' + (on ? ' on t-on' : '');
+      });
+      scheduleSave(); updateStatus();
+    });
+    scBtns[s] = b; scSeg.append(b);
+  });
+
+  const pInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'console\\.log, TODO …' });
+  pInp.value = rule.pattern || '';
+  pInp.addEventListener('input', () => { rule.pattern = pInp.value; scheduleSave(); updateStatus(); });
+
+  const exInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'config/local.yml' });
+  exInp.value = rule.exclude || '';
+  exInp.addEventListener('input', () => { rule.exclude = exInp.value.trim(); scheduleSave(); updateStatus(); });
+
+  const cInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'npx tsc --noEmit' });
+  cInp.value = rule.command || '';
+  cInp.addEventListener('input', () => { rule.command = cInp.value; scheduleSave(); updateStatus(); });
+
+  const sSeg = el('div', { class: 'seg' });
+  const sBtns = {};
+  SEV_LEVELS.forEach(s => {
+    const b = el('button', { class: 'seg-btn' + ((rule.severity || 'error') === s ? ' on t-' + s : '') }, s);
+    b.dataset.val = s;
+    b.addEventListener('click', () => {
+      rule.severity = s;
+      Object.values(sBtns).forEach(x => x.className = 'seg-btn' + (x.dataset.val === s ? ' on t-' + s : ''));
+      scheduleSave(); updateStatus();
+    });
+    sBtns[s] = b; sSeg.append(b);
+  });
+
+  const iTa = el('textarea', { class: 'instr-ta', placeholder: 'What should the developer do when this check fails?' });
+  iTa.value = rule.instruction || '';
+  iTa.addEventListener('input', () => { rule.instruction = iTa.value; scheduleSave(); updateStatus(); });
+
+  formView.append(
+    sec('Name', nInp),
+    sec('Type', tSeg),
+    sec('Description', dInp),
+    sec('Target — path or glob', tgtInp),
+    sec('Scope', el('div', {}, scSeg, scPathInp)),
+    sec('Pattern — grep regex', pInp),
+    sec('Exclude — glob to skip (optional)', exInp),
+    sec('Command', cInp),
+    sec('Severity on fail', sSeg),
+    sec('Instructions on fail', iTa),
+  );
+
+  const diffView = el('div', {});
+  function renderDiff() {
+    diffView.innerHTML = '';
+    const changes = diffFields(rule);
+    if (!changes.length) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No changes')); return; }
+    changes.forEach(({ f, from, to }) => {
+      diffView.append(el('div', { class: 'rf-diff-row' },
+        el('span', { class: 'rf-diff-field' }, f),
+        el('span', { class: 'rf-diff-from' }, from || '(empty)'),
+        el('span', { class: 'rf-diff-arrow' }, '→'),
+        el('span', { class: 'rf-diff-to' }, to || '(empty)'),
+      ));
+    });
+  }
+
+  panel.append(formView, diffView);
+
+  function updateStatus() {
+    const dirty = isDirty(rule);
+    const mode  = rule._mode;
+    nInp.style.borderColor = rule.name ? '' : 'var(--rd)';
+    btnDiff.style.display   = (mode === 'edit' && dirty && rule._saved !== null) ? '' : 'none';
+    btnSave.style.display   = (dirty && !!rule.name) ? '' : 'none';
+    btnEdit.style.display   = mode === 'diff' ? '' : 'none';
+    btnCancel.style.display = dirty ? '' : 'none';
+  }
+
+  function setMode(mode) {
+    rule._mode = mode;
+    formView.style.display = mode === 'edit' ? '' : 'none';
+    diffView.style.display = mode === 'diff' ? '' : 'none';
+    if (mode === 'diff') renderDiff();
+    updateStatus();
+  }
+
+  btnDiff.addEventListener('click', () => setMode('diff'));
+  btnEdit.addEventListener('click', () => setMode('edit'));
+
+  btnSave.addEventListener('click', () => {
+    rule._saved = ruleSnapshot(rule);
+    rule._updateRow?.();
+    scheduleSave();
+    setMode('edit');
+  });
+
+  btnCancel.addEventListener('click', () => {
+    if (rule._saved === null) {
+      const path = findPath(rule, state.rules, []);
+      if (path) { removeByPath(path, state.rules); reRenderRules(); scheduleSave(); }
+      return;
+    }
+    const saved = JSON.parse(rule._saved);
+    SNAP_FIELDS.forEach(f => { rule[f] = saved[f] ?? ''; });
+    nInp.value   = rule.name        || '';
+    dInp.value   = rule.description || '';
+    tgtInp.value = rule.target      || '';
+    pInp.value   = rule.pattern     || '';
+    exInp.value  = rule.exclude     || '';
+    cInp.value   = rule.command     || '';
+    iTa.value    = rule.instruction || '';
+    Object.values(tBtns).forEach(b => {
+      b.className = 'seg-btn' + (b.dataset.val === rule.type ? ' on t-on' : '');
+    });
+    Object.values(scBtns).forEach(b => {
+      const on = b.dataset.val === 'root' ? rule.scope === 'root' : rule.scope !== 'root';
+      b.className = 'seg-btn' + (on ? ' on t-on' : '');
+    });
+    scPathInp.style.display = rule.scope !== 'root' ? '' : 'none';
+    scPathInp.value = rule.scope !== 'root' ? rule.scope : '';
+    Object.values(sBtns).forEach(b => {
+      b.className = 'seg-btn' + (b.dataset.val === (rule.severity || 'error') ? ' on t-' + b.dataset.val : '');
+    });
+    rule._updateRow?.();
+    scheduleSave();
+    setMode('edit');
+  });
+
+  setMode(rule._mode || 'edit');
+  return panel;
+}
+
+// ── Enum field editor ─────────────────────────────────────────────────────────
+
+function buildEnumPanel(item) {
+  const panel = el('div', { class: 'rt-panel' });
+
+  function sec(lbl, content) {
+    const s = el('div', { class: 'rf-sec' });
+    s.append(el('span', { class: 'rf-lbl' }, lbl), content);
+    return s;
+  }
+
+  const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Enum name' });
+  nInp.value = item.name || '';
+  nInp.addEventListener('input', () => { item.name = nInp.value; item._updateRow?.(); scheduleSave(); });
+
+  const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'Description (optional)' });
+  dInp.value = item.description || '';
+  dInp.addEventListener('input', () => { item.description = dInp.value; item._updateRow?.(); scheduleSave(); });
+
+  const chipsEl = el('div', { class: 'chips' });
+  function refreshChips() {
+    chipsEl.innerHTML = '';
+    if (!item.values.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
+    item.values.forEach((v, i) => {
+      const x = el('button', { class: 'chip-x' }, '\xd7');
+      x.addEventListener('click', () => { item.values.splice(i, 1); refreshChips(); scheduleSave(); });
+      chipsEl.append(el('span', { class: 'chip' }, v, x));
+    });
+  }
+  refreshChips();
+
+  const valInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'value…' });
+  const valBtn = el('button', { class: 'add-btn' }, '+ add');
+  valBtn.addEventListener('click', () => {
+    const v = valInp.value.trim();
+    if (v && !item.values.includes(v)) { item.values.push(v); valInp.value = ''; refreshChips(); scheduleSave(); }
+  });
+  valInp.addEventListener('keydown', e => { if (e.key === 'Enter') valBtn.click(); });
+
+  panel.append(
+    sec('Name', nInp),
+    sec('Description', dInp),
+    sec('Values', el('div', {}, chipsEl, el('div', { class: 'add-row' }, valInp, valBtn))),
+  );
+
+  return panel;
+}
+
+// ── Row builders ──────────────────────────────────────────────────────────────
+
+function buildGroupRow(entry) {
+  const { item: grp, cols } = entry;
+  const row = el('div', { class: 'rt-row' });
+  let editing = false;
+
+  row.addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON' || editing) return;
+    const anchorY = row.getBoundingClientRect().top;
+    grp._col = !grp._col;
+    reRenderRules(grp, anchorY);
+  });
+
+  const nameSpan  = el('span', { class: 'rt-name grp' }, grp.group || 'Unnamed group');
+  const n = countItems(grp);
+  const countSpan = el('span', { class: 'rt-grp-count' }, n > 0 ? '(' + n + ' items)' : '');
+  const nameInp   = el('input', { class: 'rt-name-inp', type: 'text',
+    value: grp.group, placeholder: 'Group name', style: 'display:none' });
+
+  nameInp.addEventListener('input', () => { grp.group = nameInp.value; scheduleSave(); });
+  nameInp.addEventListener('blur', () => {
+    editing = false;
+    nameSpan.textContent = grp.group || 'Unnamed group';
+    nameInp.style.display = 'none';
+    nameSpan.style.display = '';
+    countSpan.style.display = '';
+  });
+  nameInp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') nameInp.blur(); });
+
+  const editBtn = el('button', { class: 'rt-rm rt-edit', title: 'Rename' }, '✎');
+  editBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (editing) return;
+    editing = true;
+    nameSpan.style.display = 'none';
+    countSpan.style.display = 'none';
+    nameInp.style.display = '';
+    nameInp.focus();
+    nameInp.select();
+  });
+
+  const rm = el('button', { class: 'rt-rm', title: 'Remove group' }, '\xd7');
+  rm.addEventListener('click', e => {
+    e.stopPropagation();
+    if ((grp.rules || []).length && !confirm('Remove "' + grp.group + '" and all its contents?')) return;
+    removeByPath(entry.path, state.rules); reRenderRules(); scheduleSave();
+  });
+
+  const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
+  nameLine.append(nameSpan, countSpan, nameInp);
+  row.append(buildPrefix(cols), el('div', { class: 'rt-content' }, nameLine), el('div', { class: 'rt-actions' }, editBtn, rm));
+
+  attachDrag(row, grp, state.rules);
+  rulesRowRegistry.push({ item: grp, el: row, rootArr: state.rules });
+  const outer = el('div', { class: 'rt-outer' });
+  outer.append(el('span', { class: 'rt-ln' }, String(grp._ln)), row);
+  return outer;
+}
+
+function buildRuleRow(entry) {
+  const { item: rule, cols } = entry;
+  const exp = !!rule._exp;
+  const row = el('div', { class: 'rt-row' });
+
+  row.addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    const anchorY = row.getBoundingClientRect().top;
+    rule._exp = !exp;
+    reRenderRules(rule, anchorY);
+  });
+
+  const nameSpan   = el('span', { class: 'rt-name' }, rule.name || rule.description || '—');
+  nameSpan.style.flex = '1'; nameSpan.style.minWidth = '0';
+  const statusSpan = el('span', { class: 'rt-status' }, '● unsaved');
+  statusSpan.style.display = isDirty(rule) ? '' : 'none';
+  const nameLine   = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
+  nameLine.append(nameSpan, statusSpan);
+  const subSpan    = el('span', { class: 'rt-subdesc' }, rule.description || '');
+  subSpan.style.display = (rule.name && rule.description) ? '' : 'none';
+  const content = el('div', { class: 'rt-content' }, nameLine, subSpan);
+  rule._updateRow = () => {
+    nameSpan.textContent = rule.name || rule.description || '—';
+    subSpan.textContent  = rule.description || '';
+    subSpan.style.display = (rule.name && rule.description) ? '' : 'none';
+    statusSpan.style.display = isDirty(rule) ? '' : 'none';
+  };
+
+  const rm = el('button', { class: 'rt-rm', title: 'Remove rule' }, '\xd7');
+  rm.addEventListener('click', e => {
+    e.stopPropagation();
+    removeByPath(entry.path, state.rules); reRenderRules(); scheduleSave();
+  });
+
+  row.append(buildPrefix(cols), content, el('div', { class: 'rt-actions' }, rm));
+
+  attachDrag(row, rule, state.rules);
+  rulesRowRegistry.push({ item: rule, el: row, rootArr: state.rules });
+  const outer = el('div', { class: 'rt-outer' });
+  outer.append(el('span', { class: 'rt-ln' }, String(rule._ln)), row);
+  return outer;
+}
+
+function buildPanelRow(entry) {
+  const { item: rule, cols } = entry;
+  const wrap = el('div', { class: 'rt-panel-wrap' });
+  wrap.append(buildPrefix(cols, true));
+  wrap.append(buildRuleFields(rule));
+  const outer = el('div', { class: 'rt-outer' });
+  outer.append(el('span', { class: 'rt-ln' }), wrap);
+  return outer;
+}
+
+function buildEnumGroupRow(entry) {
+  const { item: grp, cols } = entry;
+  const row = el('div', { class: 'rt-row' });
+  let editing = false;
+
+  row.addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON' || editing) return;
+    const anchorY = row.getBoundingClientRect().top;
+    grp._col = !grp._col;
+    reRenderEnums(grp, anchorY);
+  });
+
+  const nameSpan  = el('span', { class: 'rt-name grp' }, grp.group || 'Unnamed group');
+  const n = countItems(grp);
+  const countSpan = el('span', { class: 'rt-grp-count' }, n > 0 ? '(' + n + ' items)' : '');
+  const nameInp   = el('input', { class: 'rt-name-inp', type: 'text',
+    value: grp.group, placeholder: 'Group name', style: 'display:none' });
+
+  nameInp.addEventListener('input', () => { grp.group = nameInp.value; scheduleSave(); });
+  nameInp.addEventListener('blur', () => {
+    editing = false;
+    nameSpan.textContent = grp.group || 'Unnamed group';
+    nameInp.style.display = 'none';
+    nameSpan.style.display = '';
+    countSpan.style.display = '';
+  });
+  nameInp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') nameInp.blur(); });
+
+  const editBtn = el('button', { class: 'rt-rm rt-edit', title: 'Rename' }, '✎');
+  editBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (editing) return;
+    editing = true;
+    nameSpan.style.display = 'none';
+    countSpan.style.display = 'none';
+    nameInp.style.display = '';
+    nameInp.focus();
+    nameInp.select();
+  });
+
+  const rm = el('button', { class: 'rt-rm', title: 'Remove group' }, '\xd7');
+  rm.addEventListener('click', e => {
+    e.stopPropagation();
+    if ((grp.rules || []).length && !confirm('Remove "' + grp.group + '" and all its contents?')) return;
+    removeByPath(entry.path, state.enums); reRenderEnums(); scheduleSave();
+  });
+
+  const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
+  nameLine.append(nameSpan, countSpan, nameInp);
+  row.append(buildPrefix(cols), el('div', { class: 'rt-content' }, nameLine), el('div', { class: 'rt-actions' }, editBtn, rm));
+
+  attachDrag(row, grp, state.enums);
+  enumsRowRegistry.push({ item: grp, el: row, rootArr: state.enums });
+  const outer = el('div', { class: 'rt-outer' });
+  outer.append(el('span', { class: 'rt-ln' }, String(grp._ln)), row);
+  return outer;
+}
+
+function buildEnumRow(entry) {
+  const { item, cols } = entry;
+  const exp = !!item._exp;
+  const row = el('div', { class: 'rt-row' });
+
+  row.addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    const anchorY = row.getBoundingClientRect().top;
+    item._exp = !exp;
+    reRenderEnums(item, anchorY);
+  });
+
+  const nameSpan = el('span', { class: 'rt-name' }, item.name || '—');
+  const subSpan  = el('span', { class: 'rt-subdesc' }, item.description || '');
+  subSpan.style.display = (item.name && item.description) ? '' : 'none';
+  const content = el('div', { class: 'rt-content' }, nameSpan, subSpan);
+  item._updateRow = () => {
+    nameSpan.textContent = item.name || '—';
+    subSpan.textContent  = item.description || '';
+    subSpan.style.display = (item.name && item.description) ? '' : 'none';
+  };
+
+  const rm = el('button', { class: 'rt-rm', title: 'Remove enum' }, '\xd7');
+  rm.addEventListener('click', e => {
+    e.stopPropagation();
+    removeByPath(entry.path, state.enums); reRenderEnums(); scheduleSave();
+  });
+
+  row.append(buildPrefix(cols), content, el('div', { class: 'rt-actions' }, rm));
+
+  attachDrag(row, item, state.enums);
+  enumsRowRegistry.push({ item, el: row, rootArr: state.enums });
+  const outer = el('div', { class: 'rt-outer' });
+  outer.append(el('span', { class: 'rt-ln' }, String(item._ln)), row);
+  return outer;
+}
+
+function buildEnumPanelRow(entry) {
+  const { item, cols } = entry;
+  const wrap = el('div', { class: 'rt-panel-wrap' });
+  wrap.append(buildPrefix(cols, true));
+  wrap.append(buildEnumPanel(item));
+  const outer = el('div', { class: 'rt-outer' });
+  outer.append(el('span', { class: 'rt-ln' }), wrap);
+  return outer;
+}
+
+// ── Tree render ───────────────────────────────────────────────────────────────
+
+let rulesBodyEl = null;
+let enumsBodyEl = null;
+
+function buildRulesTree() {
+  rulesRowRegistry = [];
+  const wrap = el('div', { class: 'rtree' });
+
+  flattenRules(state.rules, [], []).forEach(entry => {
+    if      (entry.kind === 'group') wrap.append(buildGroupRow(entry));
+    else if (entry.kind === 'rule')  wrap.append(buildRuleRow(entry));
+    else if (entry.kind === 'panel') wrap.append(buildPanelRow(entry));
+  });
+
+  const addRow  = el('div', { class: 'add-root-row' });
+  const addRule = el('button', { class: 'add-root-btn' }, '+ Add Rule');
+  addRule.addEventListener('click', () => {
+    state.rules.push({ type: 'file_present', name: 'New Rule', description: '', target: '',
+      scope: 'recursive', severity: 'error', instruction: '', _exp: true, _saved: null, _mode: 'edit' });
+    reRenderRules(); scheduleSave();
+  });
+  const addGroup = el('button', { class: 'add-root-btn' }, '+ Add Group');
+  addGroup.addEventListener('click', () => {
+    state.rules.push({ group: 'New Group', rules: [], _col: false });
+    reRenderRules(); scheduleSave();
+  });
+  addRow.append(addRule, addGroup);
+  wrap.append(addRow);
+  return wrap;
+}
+
+function buildEnumsTree() {
+  enumsRowRegistry = [];
+  const wrap = el('div', { class: 'rtree' });
+
+  flattenEnums(state.enums, [], []).forEach(entry => {
+    if      (entry.kind === 'enum-group') wrap.append(buildEnumGroupRow(entry));
+    else if (entry.kind === 'enum')       wrap.append(buildEnumRow(entry));
+    else if (entry.kind === 'enum-panel') wrap.append(buildEnumPanelRow(entry));
+  });
+
+  const addRow  = el('div', { class: 'add-root-row' });
+  const addEnum = el('button', { class: 'add-root-btn' }, '+ Add Enum');
+  addEnum.addEventListener('click', () => {
+    state.enums.push({ name: '', description: '', values: [], _exp: true });
+    reRenderEnums(); scheduleSave();
+  });
+  const addGroup = el('button', { class: 'add-root-btn' }, '+ Add Group');
+  addGroup.addEventListener('click', () => {
+    state.enums.push({ group: 'New Group', rules: [], _col: false });
+    reRenderEnums(); scheduleSave();
+  });
+  addRow.append(addEnum, addGroup);
+  wrap.append(addRow);
+  return wrap;
+}
+
+function reRenderRules(anchorItem, anchorY) {
+  if (!rulesBodyEl) return;
+  assignLineNumbers(state.rules);
+  rulesBodyEl.innerHTML = '';
+  rulesBodyEl.append(buildRulesTree());
+  if (anchorItem !== undefined && anchorY !== undefined) {
+    const reg = rulesRowRegistry.find(r => r.item === anchorItem);
+    if (reg) window.scrollBy(0, reg.el.getBoundingClientRect().top - anchorY);
+  }
+}
+
+function reRenderEnums(anchorItem, anchorY) {
+  if (!enumsBodyEl) return;
+  assignLineNumbers(state.enums);
+  enumsBodyEl.innerHTML = '';
+  enumsBodyEl.append(buildEnumsTree());
+  if (anchorItem !== undefined && anchorY !== undefined) {
+    const reg = enumsRowRegistry.find(r => r.item === anchorItem);
+    if (reg) window.scrollBy(0, reg.el.getBoundingClientRect().top - anchorY);
+  }
+}
+
 // ── Command runner ────────────────────────────────────────────────────────────
+
+let cmdRunning = false, confirmCmd = null;
+let outLogEl = null, outStatusEl = null, outWrapEl = null, actRowEl = null;
 
 async function runCmd(cmd) {
   try {
-    const res = await fetch('/run/' + cmd, {method:'POST'});
+    const res = await fetch('/run/' + cmd, { method: 'POST' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = '';
     outer: while (true) {
-      const {value, done} = await reader.read();
+      const { value, done } = await reader.read();
       if (done) break;
-      buf += dec.decode(value, {stream:true});
+      buf += dec.decode(value, { stream: true });
       const evts = buf.split('\n\n');
       buf = evts.pop();
       for (const ev of evts) {
@@ -485,21 +1161,19 @@ function renderActBtns() {
   actRowEl.innerHTML = '';
   if (confirmCmd) {
     actRowEl.append(
-      el('button', {class:'btn cancel', onclick:() => { confirmCmd = null; renderActBtns(); }}, 'Cancel'),
-      el('button', {class:'btn pri', onclick:() => {
+      el('button', { class: 'btn cancel', onclick: () => { confirmCmd = null; renderActBtns(); } }, 'Cancel'),
+      el('button', { class: 'btn pri', onclick: () => {
         const cmd = confirmCmd; confirmCmd = null;
         cmdRunning = true;
-        outLogEl.textContent = '';
-        outStatusEl.textContent = '';
+        outLogEl.textContent = ''; outStatusEl.textContent = '';
         outStatusEl.className = 'out-status';
         outWrapEl.style.display = '';
-        renderActBtns();
-        runCmd(cmd);
-      }}, 'Run ' + confirmCmd)
+        renderActBtns(); runCmd(cmd);
+      }}, 'Run ' + confirmCmd),
     );
   } else {
     ['kickstart','preflight'].forEach((cmd, i) => {
-      const b = el('button', {class:'btn' + (i === 0 ? ' pri' : '')},
+      const b = el('button', { class: 'btn' + (i === 0 ? ' pri' : '') },
         cmd.charAt(0).toUpperCase() + cmd.slice(1));
       b.disabled = cmdRunning;
       b.addEventListener('click', () => { if (!cmdRunning) { confirmCmd = cmd; renderActBtns(); } });
@@ -508,964 +1182,45 @@ function renderActBtns() {
   }
 }
 
-// ── Section factory ───────────────────────────────────────────────────────────
-
-function makeSection(key, title) {
-  const sec  = el('div', {class:'sec'});
-  const hdr  = el('div', {class:'sec-hdr'});
-  const chev = el('span', {class:'sec-chev open'}, '▶');
-  hdr.append(el('span', {class:'sec-title'}, title), chev);
-  sec.append(hdr);
-  const body = el('div', {class:'sec-body'});
-  sec.append(body);
-  hdr.addEventListener('click', () => {
-    const open = !body.classList.contains('closed');
-    body.classList.toggle('closed', open);
-    chev.classList.toggle('open', !open);
-    state.sections[key] = !open;
-  });
-  return {sec, body};
-}
-
-// ── YAML generation ───────────────────────────────────────────────────────────
-
-function genToolYaml(defs, path, indent) {
-  const lines = [];
-  for (const [k, def] of Object.entries(defs)) {
-    const p  = path ? path + '.' + k : k;
-    const on = state.toolEnabled[p];
-    if (def.modules && Object.keys(def.modules).length) {
-      lines.push(indent + k + ':');
-      lines.push(indent + '  enabled: ' + on);
-      lines.push(indent + '  modules:');
-      lines.push(...genToolYaml(def.modules, p, indent + '    '));
-    } else {
-      lines.push(indent + k + ': ' + on);
-    }
-  }
-  return lines;
-}
-
-function generateYaml() {
-  const lines = [], locked = computeLockedKeys();
-
-  lines.push('project:');
-  lines.push('  name: ' + (state.name || META.projectDirName));
-
-  lines.push('environments:');
-  lines.push('  values: ' + (state.envs.length ? '' : '[]'));
-  state.envs.forEach(e => lines.push('    - ' + e));
-
-  lines.push('tools:');
-  lines.push(...genToolYaml(TOOL_DEFS, '', '  '));
-
-  const stepNodes   = allStaticNodes().filter(n => n.kind === 'step');
-  const deselSteps  = stepNodes.filter(n => state.checked[n.key] !== 'present' || locked.has(n.key));
-  const edFalse     = ['vscode','claude'].filter(k => !state.toolEnabled[k]);
-  if (deselSteps.length || edFalse.length) {
-    lines.push('scaffold:');
-    if (deselSteps.length) {
-      lines.push('  steps:');
-      deselSteps.forEach(n => lines.push('    ' + n.key + ': false'));
-    }
-    if (edFalse.length) {
-      lines.push('  editor:');
-      edFalse.forEach(k => lines.push('    ' + k + ': false'));
-    }
-  }
-
-  lines.push('artifacts:');
-  for (const [k, def] of Object.entries(S.artifacts||{})) {
-    if (def.foreach) {
-      const vals = resolveVals(def.foreach);
-      if (!vals.length) { lines.push('  ' + k + ': { enabled: false }'); continue; }
-      const anyPresent = vals.some(v => state.checked[k + ':' + v] === 'present');
-      lines.push('  ' + k + ':');
-      lines.push('    enabled: ' + (!locked.has(k) && anyPresent));
-    } else {
-      const chk = locked.has(k) ? null : state.checked[k];
-      lines.push('  ' + k + ': { enabled: ' + (chk === 'present') + ' }');
-    }
-  }
-
-  const exclFrags = [], xtraFrags = [], xtraPats = [...state.extraGiti];
-  for (const f of GITI_FRAGS) {
-    const pats   = FRAG_DEFS[f] || [];
-    const fragOn = state.giti[f];
-    const patSt  = state.gitiPatterns[f] || pats.map(() => true);
-    const anyOn  = patSt.some(v => v !== false);
-    if (!fragOn || !anyOn) {
-      if (GITI_DEFAULTS.has(f)) exclFrags.push(f);
-      continue;
-    }
-    if (!GITI_DEFAULTS.has(f)) xtraFrags.push(f);
-    const allOn = patSt.every(v => v !== false);
-    if (!allOn) {
-      if (GITI_DEFAULTS.has(f)) exclFrags.push(f);
-      const idx = xtraFrags.indexOf(f); if (idx >= 0) xtraFrags.splice(idx, 1);
-      pats.forEach((pat, pi) => {
-        if (patSt[pi] !== false) {
-          if (pat.includes('{{VALUE}}') || pat.includes('{{ENV}}')) {
-            state.envs.forEach(v => xtraPats.push(pat.replace(/\{\{VALUE\}\}|\{\{ENV\}\}/g, v)));
-          } else xtraPats.push(pat);
-        }
-      });
-    }
-  }
-  lines.push('gitignore:');
-  lines.push('  exclude_fragments: ' + (exclFrags.length ? '' : '[]'));
-  exclFrags.forEach(f => lines.push('    - ' + f));
-  lines.push('  extra_fragments: ' + (xtraFrags.length ? '' : '[]'));
-  xtraFrags.forEach(f => lines.push('    - ' + f));
-  lines.push('  extra_patterns: ' + (xtraPats.length ? '' : '[]'));
-  xtraPats.forEach(p => lines.push('    - ' + p));
-
-  lines.push('extra_dirs: ' + (state.extraDirs.length ? '' : '[]'));
-  state.extraDirs.forEach(d => lines.push('  - ' + d));
-
-  if (state.rules.length) {
-    lines.push('rules:');
-    for (const r of state.rules) {
-      lines.push('  - type: ' + r.type);
-      if (r.description) lines.push('    description: ' + JSON.stringify(r.description));
-      if (r.target)      lines.push('    target: '      + r.target);
-      if (r.pattern)     lines.push('    pattern: '     + JSON.stringify(r.pattern));
-      if (r.scope && r.scope !== 'recursive') lines.push('    scope: ' + r.scope);
-      if (r.exclude)     lines.push('    exclude: '     + r.exclude);
-      if (r.command)     lines.push('    command: '     + JSON.stringify(r.command));
-      if (r.severity && r.severity !== 'error') lines.push('    severity: ' + r.severity);
-      if (r.hints && r.hints.length) {
-        lines.push('    hints:');
-        r.hints.forEach(h => lines.push('      - ' + JSON.stringify(h)));
-      }
-    }
-  }
-
-  const valLines = [];
-  for (const [key, val] of Object.entries(state.validation)) {
-    const hintsSame = JSON.stringify([...val.selectedHints].sort()) === JSON.stringify([...val._dh].sort());
-    const hasItems  = val.items && val.items.length > 0;
-    const changed   = val.enabled !== val._de || val.severity !== val._ds || !hintsSame || hasItems;
-    if (!changed) continue;
-    valLines.push('  ' + key + ':');
-    valLines.push('    enabled: ' + val.enabled);
-    if (val.severity !== val._ds) valLines.push('    severity: ' + val.severity);
-    if (!hintsSame) valLines.push('    selected_hints: [' + val.selectedHints.join(', ') + ']');
-    if (hasItems) {
-      valLines.push('    items:');
-      for (const item of val.items) {
-        valLines.push('      - label: '   + JSON.stringify(item.label   || ''));
-        valLines.push('        command: ' + JSON.stringify(item.command || ''));
-        if (item.severity && item.severity !== 'error')
-          valLines.push('        severity: ' + item.severity);
-        if (item.hints && item.hints.length) {
-          valLines.push('        hints:');
-          item.hints.forEach(h => valLines.push('          - ' + JSON.stringify(h)));
-        }
-      }
-    }
-  }
-  if (valLines.length) {
-    lines.push('validation:');
-    lines.push(...valLines);
-  }
-
-  return lines.join('\n') + '\n';
-}
-
-// ── Re-render targets ─────────────────────────────────────────────────────────
-
-let toolsBodyEl = null, scaffoldBodyEl = null, gitBodyEl = null, rulesBodyEl = null, valBodyEl = null;
-
-function repl(bodyEl, buildFn) {
-  if (!bodyEl) return;
-  bodyEl.innerHTML = '';
-  bodyEl.append(buildFn());
-}
-
-function reRenderTools()      { repl(toolsBodyEl,    buildTools);      scheduleSave(); }
-function reRenderScaffold()   { repl(scaffoldBodyEl, buildScaffold);   scheduleSave(); }
-function reRenderGitignore()  { repl(gitBodyEl,      buildGitignore);  scheduleSave(); }
-function reRenderRules()      { repl(rulesBodyEl,    buildRules);      scheduleSave(); }
-function reRenderValidation() { repl(valBodyEl,      buildValidation); scheduleSave(); }
-
-// ── Tree: unified row renderer ────────────────────────────────────────────────
-
-function buildTreeRow(node) {
-  const {prefix, label, isDir, on, hasExpander, expanded, disabled, required, meta, onExpand, onToggle} = node;
-  let rowCls = 'trow';
-  if (on) rowCls += ' on';
-  if (required) rowCls += ' req';
-  if (disabled) rowCls += ' lck-row';
-  if (hasExpander && onExpand) rowCls += ' clickable';
-  const row = el('div', {class: rowCls});
-  if (hasExpander && onExpand) row.addEventListener('click', () => onExpand());
-
-  row.append(el('span', {class:'tpfx'}, prefix));
-  row.append(el('span', {class:'texp' + (hasExpander ? '' : ' blank')},
-    hasExpander ? (expanded ? '▾' : '▸') : ''));
-
-  let togCls = 'tog';
-  if (on && !required) togCls += ' on';
-  if (required) togCls += ' req';
-  if (disabled) togCls += ' dis';
-  const togEl = el('div', {class: togCls});
-  togEl.addEventListener('click', e => { e.stopPropagation(); onToggle(e); });
-  row.append(togEl);
-
-  row.append(el('span', {class:'tname' + (isDir ? ' dir' : '')}, label));
-  if (meta) row.append(el('span', {class:'tree-meta'}, meta));
-  return row;
-}
-
-function buildTree(rootLabel, nodes) {
-  const tree = el('div', {class:'tree'});
-  tree.append(el('div', {class:'tree-root'}, rootLabel));
-  nodes.forEach(n => tree.append(buildTreeRow(n)));
-  return tree;
-}
-
-// ── Build: Tools ─────────────────────────────────────────────────────────────
-
-function computeToolNodes() {
-  const nodes = [];
-  function walk(defs, path, prefix, parentOff) {
-    const entries = Object.entries(defs);
-    entries.forEach(([k, def], i) => {
-      const p      = path ? path + '.' + k : k;
-      const on     = !!state.toolEnabled[p];
-      const mods   = def.modules && Object.keys(def.modules).length ? def.modules : null;
-      const isLast = i === entries.length - 1;
-      const rowPfx = prefix + (isLast ? '└── ' : '├── ');
-      const kidPfx = prefix + (isLast ? '    ' : '│   ');
-      const exp    = !!state.toolExpanded[p];
-      nodes.push({
-        prefix: rowPfx, label: def.label || k, isDir: false, on,
-        hasExpander: !!mods, expanded: exp,
-        disabled: parentOff, required: false, meta: null,
-        onExpand: mods ? () => { state.toolExpanded[p] = !exp; reRenderTools(); } : null,
-        onToggle: () => {
-          if (parentOff) { showToast('Enable parent tool first'); return; }
-          const next = !on;
-          state.toolEnabled[p] = next;
-          if (!next && mods) walkDefs(mods, p, cp => { state.toolEnabled[cp] = false; });
-          reRenderTools();
-          reRenderScaffold();
-        },
-      });
-      if (mods && exp) walk(mods, p, kidPfx, parentOff || !on);
-    });
-  }
-  walk(TOOL_DEFS, '', '', false);
-  return nodes;
-}
-
-function buildTools() {
-  return buildTree('tools/', computeToolNodes());
-}
-
-// ── Build: Scaffold ───────────────────────────────────────────────────────────
-
-function computeScaffoldNodes() {
-  const nodes  = [];
-  const locked = computeLockedKeys();
-
-  flattenVisible(STATIC_TREE, '').forEach(({node, prefix}) => {
-    const isRequired  = node.required === true;
-    const baseKey     = node.key.includes(':') ? node.key.split(':')[0] : node.key;
-    const isLocked    = locked.has(baseKey);
-    const chk         = isLocked ? null : isRequired ? 'present'
-      : (state.checked[node.key] !== undefined ? state.checked[node.key]
-        : (node.bumfuzzle_default !== false ? 'present' : null));
-    const on          = chk === 'present' || isRequired;
-    const hasChildren = node.isDir && (node.children || []).length > 0;
-    nodes.push({
-      prefix, label: node.label, isDir: node.isDir, on,
-      hasExpander: hasChildren, expanded: !!state.expanded[node.key],
-      disabled: isLocked, required: isRequired,
-      meta: isRequired ? 'required' : isLocked ? '🔒 ' + lockingLabel(node.key) : null,
-      onExpand: hasChildren ? () => {
-        state.expanded[node.key] = !state.expanded[node.key];
-        reRenderScaffold();
-      } : null,
-      onToggle: () => {
-        if (isLocked)   { showToast('Enable ' + lockingLabel(node.key) + ' to use ' + node.label); return; }
-        if (isRequired) { showToast(node.label + ' is required'); return; }
-        const next = state.checked[node.key] === 'present' ? null : 'present';
-        if (!node.foreach && (node.children || []).length) propagate(node, next);
-        else state.checked[node.key] = next;
-        reRenderScaffold();
-      },
-    });
-  });
-
-  state.extraDirs.forEach((d, i) => {
-    const isLast = i === state.extraDirs.length - 1;
-    nodes.push({
-      prefix: isLast ? '└── ' : '├── ', label: d + '/', isDir: true, on: true,
-      hasExpander: false, expanded: false, disabled: false, required: false, meta: null,
-      onExpand: null,
-      onToggle: () => { state.extraDirs.splice(i, 1); reRenderScaffold(); },
-    });
-  });
-
-  return nodes;
-}
-
-function buildScaffold() {
-  const wrap = el('div');
-  wrap.append(buildTree(META.projectDirName + '/', computeScaffoldNodes()));
-  const addInp = el('input', {class:'add-inp', type:'text', placeholder:'custom dir…'});
-  const addBtn = el('button', {class:'add-btn'}, '+ dir');
-  addBtn.addEventListener('click', () => {
-    const v = addInp.value.trim().replace(/\/$/, '');
-    if (v && !state.extraDirs.includes(v)) { state.extraDirs.push(v); addInp.value = ''; reRenderScaffold(); }
-  });
-  addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
-  wrap.append(el('div', {class:'tree-add'}, addInp, addBtn));
-  return wrap;
-}
-
-function flattenVisible(nodes, prefix) {
-  const rows = [];
-  nodes.forEach((node, i) => {
-    const isLast = i === nodes.length - 1;
-    if (node.foreach) {
-      const vals = resolveVals(node.foreach);
-      vals.forEach((val, vi) => {
-        const isLastV  = vi === vals.length - 1 && isLast;
-        const instKey  = node.key + ':' + val;
-        const label    = node.label.replace(/\{\{VALUE\}\}/g, val);
-        if (!(instKey in state.checked)) state.checked[instKey] = defCheck({...node, key:instKey});
-        rows.push({node:{...node, key:instKey, label, foreach:null}, prefix: prefix + (isLastV ? '└── ' : '├── ')});
-      });
-      return;
-    }
-    rows.push({node, prefix: prefix + (isLast ? '└── ' : '├── ')});
-    if (node.isDir && node.children.length && state.expanded[node.key])
-      rows.push(...flattenVisible(node.children, prefix + (isLast ? '    ' : '│   ')));
-  });
-  return rows;
-}
-
-function propagate(node, val) {
-  state.checked[node.key] = val;
-  (node.children||[]).forEach(c => propagate(c, val));
-}
-
-// ── Build: Gitignore ──────────────────────────────────────────────────────────
-
-function computeGitignoreNodes() {
-  const nodes = [];
-  GITI_FRAGS.forEach((f, fi) => {
-    const isLastFrag = fi === GITI_FRAGS.length - 1;
-    const fragPfx    = isLastFrag ? '└── ' : '├── ';
-    const kidPfx     = isLastFrag ? '    ' : '│   ';
-    const on         = state.giti[f];
-    const pats       = FRAG_DEFS[f] || [];
-    const exp        = !!state.gitiExpanded[f];
-    nodes.push({
-      prefix: fragPfx, label: f, isDir: false, on,
-      hasExpander: pats.length > 0, expanded: exp,
-      disabled: false, required: false, meta: null,
-      onExpand: pats.length > 0 ? () => { state.gitiExpanded[f] = !exp; reRenderGitignore(); } : null,
-      onToggle: () => {
-        const next = !on;
-        state.giti[f] = next;
-        state.gitiPatterns[f] = pats.map(() => next);
-        reRenderGitignore();
-      },
-    });
-    if (exp) {
-      pats.forEach((pat, pi) => {
-        const isLastPat = pi === pats.length - 1;
-        const patPfx    = kidPfx + (isLastPat ? '└── ' : '├── ');
-        const patOn     = on && (state.gitiPatterns[f][pi] !== false);
-        nodes.push({
-          prefix: patPfx, label: pat, isDir: false, on: patOn,
-          hasExpander: false, expanded: false,
-          disabled: !on, required: false, meta: null,
-          onExpand: null,
-          onToggle: () => {
-            if (!on) { showToast('Enable ' + f + ' to toggle individual patterns'); return; }
-            state.gitiPatterns[f][pi] = !patOn;
-            reRenderGitignore();
-          },
-        });
-      });
-    }
-  });
-  return nodes;
-}
-
-function buildGitignore() {
-  const wrap = el('div');
-  wrap.append(buildTree('.gitignore/', computeGitignoreNodes()));
-
-  wrap.append(el('div', {class:'gi-sep'}, 'extra patterns'));
-
-  if (state.extraGiti.length) {
-    const list = el('div', {class:'chips', style:'margin-bottom:8px'});
-    state.extraGiti.forEach((p, i) => {
-      const x = el('button', {class:'chip-x'}, '×');
-      x.addEventListener('click', () => { state.extraGiti.splice(i, 1); reRenderGitignore(); });
-      list.append(el('span', {class:'chip'}, p, x));
-    });
-    wrap.append(list);
-  }
-
-  const addInp = el('input', {class:'add-inp', type:'text', placeholder:'pattern…'});
-  const addBtn = el('button', {class:'add-btn'}, '+ add');
-  addBtn.addEventListener('click', () => {
-    const v = addInp.value.trim();
-    if (v && !state.extraGiti.includes(v)) { state.extraGiti.push(v); addInp.value = ''; reRenderGitignore(); }
-  });
-  addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
-  wrap.append(el('div', {class:'add-row'}, addInp, addBtn));
-
-  return wrap;
-}
-
-// ── Build: Validation (accordion) ─────────────────────────────────────────────
-
-function hintTitle(k) {
-  return k.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
-}
-
-function buildValidation() {
-  const wrap = el('div', {class:'val-list'});
-  const sevs = (S.preflight && S.preflight.valid_severities) || ['skip','warn','error','hard-stop'];
-
-  for (const [key, val] of Object.entries(state.validation)) {
-    const on  = val.enabled;
-    const exp = !!state.valExpanded[key];
-
-    const card = el('div', {class:'val-card' + (on ? ' on' : ' off') + (exp ? ' exp' : '')});
-
-    // ── collapsed header ──
-    const hdr = el('div', {class:'val-hdr'});
-
-    const tog = el('div', {class:'tog' + (on ? ' on' : '')});
-    tog.addEventListener('click', e => {
-      e.stopPropagation();
-      state.validation[key].enabled = !on;
-      reRenderValidation();
-    });
-
-    const info = el('div', {class:'val-info'});
-    info.append(
-      el('span', {class:'vkey'}, key),
-      el('span', {class:'vdesc-short'}, val.description)
-    );
-
-    const chev  = el('span', {class:'val-chev'}, exp ? '▾' : '▸');
-
-    hdr.append(tog, info, chev);
-    hdr.addEventListener('click', () => {
-      state.valExpanded[key] = !exp;
-      reRenderValidation();
-    });
-
-    card.append(hdr);
-
-    // ── expanded body ──
-    if (exp) {
-      const body = el('div', {class:'val-body'});
-
-      body.append(el('p', {class:'val-desc'}, val.description));
-
-      // Severity segmented control
-      const sevSec = el('div', {class:'val-section'});
-      sevSec.append(el('span', {class:'val-sec-lbl'}, 'Severity'));
-      const seg = el('div', {class:'sev-seg'});
-      sevs.forEach(s => {
-        const active = val.severity === s;
-        const btn = el('button', {class:'sev-btn' + (active ? ' on sev-' + s : '')}, s);
-        if (!on) btn.setAttribute('disabled', '');
-        btn.addEventListener('click', () => {
-          if (!on) return;
-          state.validation[key].severity = s;
-          reRenderValidation();
-        });
-        seg.append(btn);
-      });
-      sevSec.append(seg);
-      body.append(sevSec);
-
-      // Hints section
-      const hintDefs   = val.hintsMap;
-      const hintKeys   = val.availHints;
-      const customHints = val.selectedHints.filter(h => !hintDefs[h]);
-
-      if (hintKeys.length || customHints.length) {
-        const hintSec = el('div', {class:'val-section'});
-        hintSec.append(el('span', {class:'val-sec-lbl'}, 'Hints'));
-
-        const hintRows = el('div', {class:'hint-rows'});
-
-        hintKeys.forEach(h => {
-          const isOn = val.selectedHints.includes(h);
-          const row  = el('div', {class:'hint-row'});
-
-          const tog = el('div', {class:'tog' + (isOn ? ' on' : '')});
-          tog.addEventListener('click', () => {
-            const arr = state.validation[key].selectedHints;
-            const idx = arr.indexOf(h);
-            if (idx >= 0) arr.splice(idx, 1); else arr.push(h);
-            reRenderValidation();
-          });
-          row.append(tog);
-
-          const txt = el('div', {class:'hint-row-text'});
-          txt.append(el('span', {class:'hint-row-title' + (isOn ? '' : ' dim')}, hintTitle(h)));
-          txt.append(el('span', {class:'hint-row-body'}, hintDefs[h]));
-          row.append(txt);
-          row.append(el('span'));
-          hintRows.append(row);
-        });
-
-        customHints.forEach(h => {
-          const row = el('div', {class:'hint-row'});
-          const tog = el('div', {class:'tog on', style:'cursor:default'});
-          row.append(tog);
-          const txt = el('div', {class:'hint-row-text'});
-          txt.append(el('span', {class:'hint-row-body'}, h));
-          row.append(txt);
-          const rm = el('button', {class:'chip-x'}, '×');
-          rm.addEventListener('click', () => {
-            const arr = state.validation[key].selectedHints;
-            arr.splice(arr.indexOf(h), 1);
-            reRenderValidation();
-          });
-          row.append(rm);
-          hintRows.append(row);
-        });
-
-        hintSec.append(hintRows);
-
-        if (state.valHintPending[key]) {
-          const formRow = el('div', {style:'display:flex;gap:6px'});
-          const inp = el('input', {class:'add-inp', type:'text', placeholder:'hint text…'});
-          const saveBtn   = el('button', {class:'add-btn'}, 'Save');
-          const cancelBtn = el('button', {class:'add-btn'}, 'Cancel');
-          saveBtn.addEventListener('click', () => {
-            const v = inp.value.trim();
-            if (v && !state.validation[key].selectedHints.includes(v))
-              state.validation[key].selectedHints.push(v);
-            state.valHintPending[key] = false;
-            reRenderValidation();
-          });
-          cancelBtn.addEventListener('click', () => {
-            state.valHintPending[key] = false;
-            reRenderValidation();
-          });
-          inp.addEventListener('keydown', e => {
-            if (e.key === 'Enter') saveBtn.click();
-            if (e.key === 'Escape') cancelBtn.click();
-          });
-          formRow.append(inp, saveBtn, cancelBtn);
-          hintSec.append(formRow);
-        } else {
-          const addHintBtn = el('button', {class:'add-btn'}, '+ Add Hint');
-          addHintBtn.addEventListener('click', () => {
-            state.valHintPending[key] = true;
-            reRenderValidation();
-          });
-          hintSec.append(addHintBtn);
-        }
-
-        body.append(hintSec);
-      }
-
-      // Items editor — command_checks only
-      if (key === 'command_checks') {
-        const itemsSec = el('div', {class:'val-section'});
-        itemsSec.append(el('span', {class:'val-sec-lbl'}, 'Checks'));
-
-        (val.items || []).forEach((item, ii) => {
-          const itemWrap = el('div', {style:'border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;margin-bottom:8px'});
-
-          const lblRow = el('div', {class:'field'});
-          lblRow.append(el('span', {class:'lbl'}, 'Label'));
-          const lblInp = el('input', {class:'inp', type:'text', placeholder:'ESLint'});
-          lblInp.value = item.label;
-          lblInp.addEventListener('input', () => { item.label = lblInp.value; scheduleSave(); });
-          lblRow.append(lblInp);
-          itemWrap.append(lblRow);
-
-          const cmdRow = el('div', {class:'field'});
-          cmdRow.append(el('span', {class:'lbl'}, 'Command'));
-          const cmdInp = el('input', {class:'inp', type:'text',
-            placeholder:'npx eslint src --max-warnings=0',
-            style:'font-family:var(--mono)'});
-          cmdInp.value = item.command;
-          cmdInp.addEventListener('input', () => { item.command = cmdInp.value; scheduleSave(); });
-          cmdRow.append(cmdInp);
-          itemWrap.append(cmdRow);
-
-          const sevRow = el('div', {class:'field'});
-          sevRow.append(el('span', {class:'lbl'}, 'Severity'));
-          const seg = el('div', {class:'sev-seg'});
-          ['skip','warn','error','hard-stop'].forEach(s => {
-            const btn = el('button', {class:'sev-btn' + (item.severity === s ? ' on sev-' + s : '')}, s);
-            btn.addEventListener('click', () => { item.severity = s; reRenderValidation(); });
-            seg.append(btn);
-          });
-          sevRow.append(seg);
-          itemWrap.append(sevRow);
-
-          const hintRow = el('div', {class:'field'});
-          hintRow.append(el('span', {class:'lbl'}, 'Hints'));
-          if (item.hints.length) {
-            const hintChips = el('div', {class:'hint-custom-chips', style:'margin-bottom:6px'});
-            item.hints.forEach((h, hi) => {
-              const x = el('button', {class:'chip-x'}, '×');
-              x.addEventListener('click', () => { item.hints.splice(hi, 1); reRenderValidation(); });
-              hintChips.append(el('span', {class:'chip'}, h, x));
-            });
-            hintRow.append(hintChips);
-          }
-          const hAddRow = el('div', {class:'add-row'});
-          const hInp = el('input', {class:'add-inp', type:'text', placeholder:'hint text…'});
-          const hBtn = el('button', {class:'add-btn'}, '+ hint');
-          hBtn.addEventListener('click', () => {
-            const v = hInp.value.trim();
-            if (v) { item.hints.push(v); hInp.value = ''; reRenderValidation(); }
-          });
-          hInp.addEventListener('keydown', e => { if (e.key === 'Enter') hBtn.click(); });
-          hAddRow.append(hInp, hBtn);
-          hintRow.append(hAddRow);
-          itemWrap.append(hintRow);
-
-          const rmBtn = el('button', {class:'add-btn',
-            style:'margin-top:4px;color:var(--rd);border-color:rgba(248,81,73,.35)'}, '× Remove');
-          rmBtn.addEventListener('click', () => { val.items.splice(ii, 1); reRenderValidation(); });
-          itemWrap.append(rmBtn);
-
-          itemsSec.append(itemWrap);
-        });
-
-        const addBtn = el('button', {class:'add-rule-btn'}, '+ Add Check');
-        addBtn.addEventListener('click', () => {
-          val.items.push({label:'', command:'', severity:'error', hints:[]});
-          reRenderValidation();
-        });
-        itemsSec.append(addBtn);
-        body.append(itemsSec);
-      }
-
-      card.append(body);
-    }
-
-    wrap.append(card);
-  }
-  return wrap;
-}
-
-// ── Build: Rules ──────────────────────────────────────────────────────────────
-
-function pendingRuleValid(r) {
-  if (r.type === 'script_clean') return r.command.trim().length > 0;
-  if (r.type === 'content_present' || r.type === 'content_absent')
-    return r.target.trim().length > 0 && r.pattern.trim().length > 0;
-  return r.target.trim().length > 0;
-}
-
-function buildRuleFields(rule, rerender) {
-  const frag = document.createDocumentFragment();
-  const sevs  = ['skip','warn','error','hard-stop'];
-  const TYPES = ['file_present','file_absent','content_present','content_absent','script_clean'];
-
-  const typeSec = el('div', {class:'val-section'});
-  typeSec.append(el('span', {class:'val-sec-lbl'}, 'Type'));
-  const typeSeg = el('div', {class:'rule-type-seg'});
-  TYPES.forEach(t => {
-    const btn = el('button', {class:'rule-type-btn' + (rule.type === t ? ' on' : '')},
-      t.replace(/_/g, ' '));
-    btn.addEventListener('click', () => { rule.type = t; rerender(); });
-    typeSeg.append(btn);
-  });
-  typeSec.append(typeSeg);
-  frag.append(typeSec);
-
-  const descSec = el('div', {class:'val-section'});
-  descSec.append(el('span', {class:'val-sec-lbl'}, 'Description'));
-  const descInp = el('input', {class:'inp', type:'text', placeholder:'What does this rule check?'});
-  descInp.value = rule.description;
-  descInp.addEventListener('input', () => { rule.description = descInp.value; });
-  descSec.append(descInp);
-  frag.append(descSec);
-
-  if (rule.type !== 'script_clean') {
-    const tgtSec = el('div', {class:'val-section'});
-    tgtSec.append(el('span', {class:'val-sec-lbl'}, 'Target  —  path or filename glob'));
-    const tgtInp = el('input', {class:'inp', type:'text', placeholder:'Dockerfile, config/*.yml, *.env …'});
-    tgtInp.value = rule.target;
-    tgtInp.addEventListener('input', () => { rule.target = tgtInp.value.trim(); });
-    tgtSec.append(tgtInp);
-    frag.append(tgtSec);
-
-    const scopeSec = el('div', {class:'val-section'});
-    scopeSec.append(el('span', {class:'val-sec-lbl'}, 'Scope'));
-    const scopeSeg = el('div', {class:'sev-seg'});
-    ['recursive','root'].forEach(s => {
-      const btn = el('button', {class:'sev-btn' + (rule.scope === s ? ' on sev-skip' : '')}, s);
-      btn.addEventListener('click', () => { rule.scope = s; rerender(); });
-      scopeSeg.append(btn);
-    });
-    scopeSec.append(scopeSeg);
-    frag.append(scopeSec);
-  }
-
-  if (rule.type === 'content_present' || rule.type === 'content_absent') {
-    const patSec = el('div', {class:'val-section'});
-    patSec.append(el('span', {class:'val-sec-lbl'}, 'Pattern  —  grep regex'));
-    const patInp = el('input', {class:'inp', type:'text', placeholder:'console\\.log, localhost, TODO …'});
-    patInp.value = rule.pattern;
-    patInp.addEventListener('input', () => { rule.pattern = patInp.value; });
-    patSec.append(patInp);
-    frag.append(patSec);
-
-    const exSec = el('div', {class:'val-section'});
-    exSec.append(el('span', {class:'val-sec-lbl'}, 'Exclude  —  glob to skip (optional)'));
-    const exInp = el('input', {class:'inp', type:'text', placeholder:'config/local.yml'});
-    exInp.value = rule.exclude;
-    exInp.addEventListener('input', () => { rule.exclude = exInp.value.trim(); });
-    exSec.append(exInp);
-    frag.append(exSec);
-  }
-
-  if (rule.type === 'script_clean') {
-    const cmdSec = el('div', {class:'val-section'});
-    cmdSec.append(el('span', {class:'val-sec-lbl'}, 'Command'));
-    const cmdInp = el('input', {class:'inp', type:'text', placeholder:'npx tsc --noEmit'});
-    cmdInp.value = rule.command;
-    cmdInp.addEventListener('input', () => { rule.command = cmdInp.value; });
-    cmdSec.append(cmdInp);
-    frag.append(cmdSec);
-  }
-
-  const sevSec = el('div', {class:'val-section'});
-  sevSec.append(el('span', {class:'val-sec-lbl'}, 'Severity'));
-  const seg = el('div', {class:'sev-seg'});
-  sevs.forEach(s => {
-    const btn = el('button', {class:'sev-btn' + (rule.severity === s ? ' on sev-' + s : '')}, s);
-    btn.addEventListener('click', () => { rule.severity = s; rerender(); });
-    seg.append(btn);
-  });
-  sevSec.append(seg);
-  frag.append(sevSec);
-
-  const hintSec = el('div', {class:'val-section'});
-  hintSec.append(el('span', {class:'val-sec-lbl'}, 'Hints  —  shown when this check fails'));
-  if (rule.hints.length) {
-    const hintList = el('div', {class:'hint-custom-chips', style:'margin-bottom:8px'});
-    rule.hints.forEach((h, hi) => {
-      const x = el('button', {class:'chip-x'}, '×');
-      x.addEventListener('click', () => { rule.hints.splice(hi, 1); rerender(); });
-      hintList.append(el('span', {class:'chip'}, h, x));
-    });
-    hintSec.append(hintList);
-  }
-  const addRow = el('div', {class:'add-row'});
-  const addInp = el('input', {class:'add-inp', type:'text', placeholder:'hint text…'});
-  const addBtn = el('button', {class:'add-btn'}, '+ hint');
-  addBtn.addEventListener('click', () => {
-    const v = addInp.value.trim();
-    if (v) { rule.hints.push(v); addInp.value = ''; rerender(); }
-  });
-  addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
-  addRow.append(addInp, addBtn);
-  hintSec.append(addRow);
-  frag.append(hintSec);
-
-  return frag;
-}
-
-function buildRules() {
-  const wrap = el('div');
-
-  if (!state.rules.length && !state.pendingRule) {
-    wrap.append(el('p', {class:'rules-empty'},
-      'No rules yet. Add a rule to enforce file presence, content patterns, or script exits.'));
-  }
-
-  state.rules.forEach((rule, ri) => {
-    const exp  = !!rule._exp;
-    const card = el('div', {class:'val-card' + (exp ? ' exp on' : '')});
-
-    const hdr = el('div', {class:'val-hdr'});
-    const typeCls   = 'rule-type-badge rule-type-' + rule.type.replace(/_/g, '-');
-    const typeLabel = rule.type.replace(/_/g, ' ');
-    const info = el('div', {class:'val-info'});
-    info.append(
-      el('span', {class: typeCls}, typeLabel),
-      el('span', {class:'vdesc-short'}, rule.description || '—')
-    );
-    const badge     = el('span', {class:'sev-badge sev-' + rule.severity}, rule.severity);
-    const removeBtn = el('button', {class:'rule-remove', title:'Remove rule'}, '×');
-    removeBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      state.rules.splice(ri, 1);
-      reRenderRules();
-    });
-    const chev = el('span', {class:'val-chev'}, exp ? '▾' : '▸');
-    hdr.append(info, badge, removeBtn, chev);
-    hdr.addEventListener('click', () => { rule._exp = !exp; reRenderRules(); });
-    card.append(hdr);
-
-    if (exp) {
-      const body = el('div', {class:'val-body'});
-      body.append(buildRuleFields(rule, () => { scheduleSave(); reRenderRules(); }));
-      card.append(body);
-    }
-
-    wrap.append(card);
-  });
-
-  // Pending new rule form — only one at a time
-  if (state.pendingRule) {
-    const pr = state.pendingRule;
-    const card = el('div', {class:'val-card exp on', style:'margin-top:8px'});
-    const hdr  = el('div', {class:'val-hdr', style:'cursor:default'});
-    hdr.append(el('span', {class:'vdesc-short', style:'color:var(--tm)'},'New Rule'));
-    card.append(hdr);
-
-    const body = el('div', {class:'val-body'});
-    body.append(buildRuleFields(pr, reRenderRules));
-
-    const footRow = el('div', {style:'display:flex;gap:8px;margin-top:14px'});
-    const cancelBtn = el('button', {class:'btn', style:'flex:0;padding:7px 18px;font-size:12px'}, 'Cancel');
-    cancelBtn.addEventListener('click', () => { state.pendingRule = null; reRenderRules(); });
-    const saveBtn = el('button', {class:'btn pri', style:'flex:0;padding:7px 18px;font-size:12px'}, 'Save Rule');
-    saveBtn.disabled = !pendingRuleValid(pr);
-    saveBtn.addEventListener('click', () => {
-      if (!pendingRuleValid(pr)) return;
-      state.rules.push({...pr, _exp: false});
-      state.pendingRule = null;
-      reRenderRules();
-      scheduleSave();
-    });
-    footRow.append(cancelBtn, saveBtn);
-    body.append(footRow);
-    card.append(body);
-    wrap.append(card);
-  } else {
-    const addRuleBtn = el('button', {class:'add-rule-btn'}, '+ Add Rule');
-    addRuleBtn.addEventListener('click', () => {
-      state.pendingRule = {type:'file_present', description:'', target:'', pattern:'',
-        scope:'recursive', exclude:'', command:'', severity:'error', hints:[]};
-      reRenderRules();
-    });
-    wrap.append(addRuleBtn);
-  }
-
-  return wrap;
-}
-
 // ── Page render ───────────────────────────────────────────────────────────────
 
 function renderPage() {
   const app = document.getElementById('app');
 
-  saveEl = el('span', {class:'hdr-save idle'});
-  app.append(el('div', {class:'hdr'},
-    el('span', {class:'hdr-logo'}, 'bumfuzzle'),
-    el('span', {class:'hdr-meta'}, 'v' + META.version),
-    el('span', {class:'hdr-path'}, META.projectDir),
-    saveEl
+  saveEl = el('span', { class: 'hdr-save idle' });
+  app.append(el('div', { class: 'hdr' },
+    el('span', { class: 'hdr-logo' }, 'bumfuzzle'),
+    el('span', { class: 'hdr-meta' }, 'v' + META.version),
+    el('span', { class: 'hdr-path' }, META.projectDir),
+    saveEl,
   ));
 
-  const wrap = el('div', {class:'wrap'});
+  const wrap = el('div', { class: 'wrap' });
 
-  // ── Project ────────────────────────────────────────────────────────────────
-  const {sec: projSec, body: projBody} = makeSection('project', 'Project');
-
-  const nameInp = el('input', {class:'inp', type:'text', placeholder:META.projectDirName});
-  nameInp.value = state.name;
-  nameInp.addEventListener('input', () => {
-    state.name = nameInp.value.trim() || META.projectDirName;
-    scheduleSave();
-  });
-  projBody.append(el('div', {class:'field'}, el('label', {class:'lbl'}, 'Name'), nameInp));
-
-  const envsEl = el('div', {class:'chips'});
-  function refreshEnvs() {
-    envsEl.innerHTML = '';
-    if (!state.envs.length) envsEl.append(el('span', {class:'chip-empty'}, 'none'));
-    state.envs.forEach((e, i) => {
-      const x = el('button', {class:'chip-x'}, '×');
-      x.addEventListener('click', () => {
-        state.envs.splice(i, 1);
-        refreshEnvs();
-        reRenderScaffold();
-        reRenderGitignore();
-        scheduleSave();
-      });
-      envsEl.append(el('span', {class:'chip'}, e, x));
-    });
-  }
-  refreshEnvs();
-
-  const envInp = el('input', {class:'add-inp', type:'text', placeholder:'env name…'});
-  const envBtn = el('button', {class:'add-btn'}, '+ add');
-  envBtn.addEventListener('click', () => {
-    const v = envInp.value.trim();
-    if (v && !state.envs.includes(v)) {
-      state.envs.push(v); envInp.value = '';
-      refreshEnvs(); reRenderScaffold(); reRenderGitignore(); scheduleSave();
-    }
-  });
-  envInp.addEventListener('keydown', e => { if (e.key === 'Enter') envBtn.click(); });
-
-  projBody.append(el('div', {class:'field'},
-    el('label', {class:'lbl'}, 'Environments'),
-    envsEl,
-    el('div', {class:'add-row'}, envInp, envBtn)
-  ));
-  wrap.append(projSec);
-
-  // ── Tools ──────────────────────────────────────────────────────────────────
-  const {sec: toolsSec, body: tb} = makeSection('tools', 'Tools');
-  toolsBodyEl = tb;
-  repl(toolsBodyEl, buildTools);
-  wrap.append(toolsSec);
-
-  // ── Scaffold ───────────────────────────────────────────────────────────────
-  const {sec: scaffSec, body: sb} = makeSection('scaffold', 'Scaffold');
-  scaffoldBodyEl = sb;
-  repl(scaffoldBodyEl, buildScaffold);
-  wrap.append(scaffSec);
-
-  // ── Gitignore ──────────────────────────────────────────────────────────────
-  const {sec: gitSec, body: gb} = makeSection('gitignore', 'Gitignore');
-  gitBodyEl = gb;
-  repl(gitBodyEl, buildGitignore);
-  wrap.append(gitSec);
-
-  // ── Rules ──────────────────────────────────────────────────────────────────
-  const {sec: rulesSec, body: rb} = makeSection('rules', 'Rules');
+  // Rules
+  const { sec: rulesSec, body: rb } = makeSection('rules', 'Rules');
   rulesBodyEl = rb;
-  repl(rulesBodyEl, buildRules);
+  reRenderRules();
   wrap.append(rulesSec);
 
-  // ── Validation Rules ───────────────────────────────────────────────────────
-  const {sec: valSec, body: vb} = makeSection('validation', 'Validation Rules');
-  valBodyEl = vb;
-  repl(valBodyEl, buildValidation);
-  wrap.append(valSec);
+  // Enums
+  const { sec: enumsSec, body: eb } = makeSection('enums', 'Enums');
+  enumsBodyEl = eb;
+  reRenderEnums();
+  wrap.append(enumsSec);
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-  const {sec: actSec, body: ab} = makeSection('actions', 'Actions');
-  actRowEl    = el('div', {class:'act-row'});
-  outLogEl    = el('pre',  {class:'out-log'});
-  outStatusEl = el('div',  {class:'out-status'});
-  outWrapEl   = el('div',  {class:'out-wrap'}, outLogEl, outStatusEl);
+  // Actions
+  const { sec: actSec, body: ab } = makeSection('actions', 'Actions');
+  actRowEl    = el('div', { class: 'act-row' });
+  outLogEl    = el('pre',  { class: 'out-log' });
+  outStatusEl = el('div',  { class: 'out-status' });
+  outWrapEl   = el('div',  { class: 'out-wrap' }, outLogEl, outStatusEl);
   renderActBtns();
   ab.append(actRowEl, outWrapEl);
   wrap.append(actSec);
 
   app.append(wrap);
+  initDrag();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

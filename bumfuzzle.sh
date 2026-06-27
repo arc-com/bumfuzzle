@@ -7,7 +7,7 @@ while [[ -L "$SOURCE" ]]; do SOURCE="$(readlink "$SOURCE")"; done
 KICKSTART_REPO="$(cd "$(dirname "$SOURCE")" && pwd)"
 KICKSTART_SH="$KICKSTART_REPO/kickstart.sh"
 PREFLIGHT_SH="$KICKSTART_REPO/preflight.sh"
-SETTINGS="$KICKSTART_REPO/settings.yml"
+SETTINGS="$KICKSTART_REPO/bumfuzzle-template.yml"
 BUMFUZZLE_HTML="$KICKSTART_REPO/index.html"
 BUMFUZZLE_VERSION="$(cat "$KICKSTART_REPO/VERSION" 2>/dev/null || printf 'unknown')"
 PORT=7373
@@ -31,8 +31,8 @@ PROJECT_DIR_NAME="$(basename "$PROJECT_DIR")"
 # ── Create bumfuzzle.yml with defaults if not present ─────────────────────────
 
 if [[ ! -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-  printf 'project:\n  name: %s\nenvironments:\n  values: [local, test, prod]\nstacks:\n  values: []\n' \
-    "$PROJECT_DIR_NAME" > "$PROJECT_DIR/bumfuzzle.yml"
+  cp "$SETTINGS" "$PROJECT_DIR/bumfuzzle.yml"
+  yq -i ".project.name = \"$PROJECT_DIR_NAME\"" "$PROJECT_DIR/bumfuzzle.yml"
   printf '  Created bumfuzzle.yml\n'
 fi
 

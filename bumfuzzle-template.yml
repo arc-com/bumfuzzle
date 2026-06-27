@@ -1,0 +1,276 @@
+project:
+  name: ""
+
+environments:
+  values: []
+
+preflight:
+  valid_severities: [skip, warn, error, hard-stop]
+
+rules:
+  - group: General
+    rules:
+      - type: file_present
+        name: "Readme present"
+        description: "README.md exists at the project root"
+        target: README.md
+        scope: root
+        severity: error
+        hints:
+          - "Create README.md in the project root"
+      - type: script_clean
+        name: "Single manifest file"
+        description: "At most one package manifest (package.json, Cargo.toml, go.mod, etc.) exists at the root — multiple manifests indicate a misconfigured or hybrid project"
+        command: "test $(find . -maxdepth 1 \\( -name 'package.json' -o -name 'Cargo.toml' -o -name 'pom.xml' -o -name 'go.mod' -o -name 'pyproject.toml' \\) | wc -l | tr -d ' ') -le 1"
+        severity: warn
+        hints:
+          - "Remove duplicate manifest files from the project root"
+
+  - group: Bumfuzzle
+    rules:
+      - type: script_clean
+        name: "Preflight wired into pre-commit"
+        description: "preflight.sh is called inside the pre-commit hook so checks run before every commit"
+        command: "grep -q 'preflight' .git/hooks/pre-commit 2>/dev/null || grep -q 'preflight' .githooks/pre-commit 2>/dev/null"
+        severity: error
+        hints:
+          - "Add a call to preflight.sh in .githooks/pre-commit"
+      - type: script_clean
+        name: "bumfuzzle.yml parses cleanly"
+        description: "bumfuzzle.yml is syntactically valid YAML — yq can parse it without errors"
+        command: "yq '.' bumfuzzle.yml > /dev/null"
+        severity: error
+        hints:
+          - "Fix YAML syntax errors in bumfuzzle.yml"
+
+  - group: Git
+    rules:
+      - type: script_clean
+        name: "No AI co-authors in history"
+        description: "No commit in the repository history lists Claude as a co-author"
+        command: "! git log --format='%b' | grep -qi 'co-authored-by: claude'"
+        severity: error
+        hints:
+          - "Review commits: git log --grep='Co-Authored-By: Claude' -i --oneline"
+      - type: content_absent
+        name: "No AI co-author in commit message"
+        description: "The staged commit message does not contain a Co-Authored-By: Claude line"
+        target: .git/COMMIT_EDITMSG
+        pattern: "Co-Authored-By: Claude"
+        scope: root
+        severity: hard-stop
+        hints:
+          - "Remove Co-Authored-By lines from commit message"
+      - group: Hooks
+        rules:
+          - type: script_clean
+            name: "Hooks installed and checksums match"
+            description: "Every file in .githooks/ is present in .git/hooks/ and their SHA-256 checksums match — no stale or tampered hooks"
+            command: "for f in .githooks/*; do [ -f \"$f\" ] || continue; name=$(basename \"$f\"); [ -f \".git/hooks/$name\" ] || { echo \"Missing: $name\"; exit 1; }; shasum -a 256 \"$f\" \".git/hooks/$name\" | awk '{print $1}' | sort -u | wc -l | grep -q 1 || { echo \"Mismatch: $name\"; exit 1; }; done"
+            severity: error
+            hints:
+              - "Run: scripts/hooks/hooks.sh --force to reinstall hooks"
+          - type: file_present
+            name: "Approval gate guards declared"
+            description: ".githooks/pre-commit references CONFIG_APPROVED, DOCS_APPROVED, and ENV_APPROVED environment variable guards"
+            target: .githooks/pre-commit
+            scope: root
+            severity: warn
+            hints:
+              - "Add CONFIG_APPROVED / DOCS_APPROVED / ENV_APPROVED guards in .githooks/pre-commit"
+      - group: Gitignore
+        rules:
+          - type: file_present
+            name: ".gitignore present"
+            description: ".gitignore exists at the project root"
+            target: .gitignore
+            scope: root
+            severity: error
+          - type: script_clean
+            name: "bumfuzzle patterns gitignored"
+            description: "Every glob pattern declared in bumfuzzle.yml is also listed in .gitignore"
+            command: "true"
+            severity: warn
+          - type: script_clean
+            name: "No contradicting gitignore patterns"
+            description: ".gitignore contains no negation rules that re-include previously ignored paths"
+            command: "true"
+            severity: warn
+          - type: script_clean
+            name: "No ignored files in git index"
+            description: "No file currently tracked by git would be matched by .gitignore — no stale cached files that should be ignored"
+            command: "! git ls-files --cached | while read f; do git check-ignore -q \"$f\" && echo \"$f\"; done | grep -q ."
+            severity: warn
+            hints:
+              - "Run: git rm -r --cached <file> for any ignored files still tracked"
+          - group: Ignore Pattern Groups
+            rules:
+              - type: content_present
+                name: ".DS_Store ignored"
+                description: ".gitignore contains a pattern covering .DS_Store macOS metadata files"
+                target: .gitignore
+                pattern: "DS_Store"
+                scope: root
+                severity: warn
+                hints:
+                  - "Add '.DS_Store' to .gitignore"
+              - type: content_present
+                name: "IntelliJ artifacts ignored"
+                description: ".gitignore contains patterns covering .idea/, *.iml, and *.iws IntelliJ project files"
+                target: .gitignore
+                pattern: "\\.idea/"
+                scope: root
+                severity: warn
+                hints:
+                  - "Add '.idea/', '*.iml', '*.iws' to .gitignore"
+
+  - group: Environment Variables
+    rules:
+      - type: file_present
+        name: ".env.template present"
+        description: ".env.template exists at the project root and declares all required environment variable keys"
+        target: .env.template
+        scope: root
+        severity: error
+        hints:
+          - "Create .env.template declaring all required environment variables"
+      - type: script_clean
+        name: "All template keys in every .env.* file"
+        description: "Every key declared in .env.template is present in each .env.* file — no environment is missing a declared variable"
+        command: "true"
+        severity: error
+        hints:
+          - "Add missing keys from .env.template to each .env.* file"
+      - type: script_clean
+        name: "No undeclared keys in .env.* files"
+        description: "Every key in each .env.* file is declared in .env.template — no undocumented variables exist in any environment"
+        command: "true"
+        severity: error
+        hints:
+          - "Add undeclared keys to .env.template or remove them from .env.* files"
+      - type: script_clean
+        name: ".env.template values are placeholders"
+        description: "All values in .env.template are mock placeholders (uppercase letters and underscores only) — no real secrets committed"
+        command: "true"
+        severity: warn
+        hints:
+          - "Replace real values in .env.template with placeholder values like MY_KEY=PLACEHOLDER"
+      - type: script_clean
+        name: "No empty values in .env.* files"
+        description: "Every key in each .env.* file has a non-empty value — blank values indicate missing or forgotten configuration"
+        command: "true"
+        severity: error
+        hints:
+          - "Set a non-empty placeholder for every blank key in .env.* files"
+      - type: script_clean
+        name: "No duplicate keys in .env.* files"
+        description: "Each .env.* file declares every key at most once — duplicate keys cause unpredictable precedence behavior"
+        command: "true"
+        severity: error
+        hints:
+          - "Remove duplicate key declarations from .env.* files"
+
+  - group: Docker
+    rules:
+      - type: file_present
+        name: "Dockerfile present"
+        description: "A Dockerfile exists at the project root"
+        target: Dockerfile
+        scope: root
+        severity: warn
+      - type: script_clean
+        name: "Compose files render without errors"
+        description: "All docker-compose*.yml files in the project pass docker compose config — no unresolved variables or syntax errors"
+        command: "find . -maxdepth 2 -name 'docker-compose*.yml' | while read f; do docker compose -f \"$f\" config --quiet || exit 1; done"
+        severity: error
+        hints:
+          - "Run: docker compose -f <file> config to see render errors"
+      - type: content_absent
+        name: "No :latest image tags"
+        description: "No Docker image reference in *.yml files uses :latest — all images must be pinned to a specific version for reproducible builds"
+        target: "*.yml"
+        pattern: "image:.*:latest"
+        severity: error
+        hints:
+          - "Pin image tags to a specific version instead of :latest"
+      - type: script_clean
+        name: "Docker env vars declared in .env.template"
+        description: "Every environment variable referenced in Docker files is declared in .env.template — no undocumented container configuration"
+        command: "true"
+        severity: error
+      - type: script_clean
+        name: "Compose name consistent with stack"
+        description: "The name field in docker-compose files matches the declared stack name used in deployment scripts"
+        command: "true"
+        severity: warn
+
+  - group: Config
+    rules:
+      - type: file_present
+        name: "Config file present"
+        description: "config.yml exists at the project root"
+        target: config.yml
+        scope: root
+        severity: warn
+        hints:
+          - "Create config.yml in the project root"
+      - type: script_clean
+        name: "Config file is valid YAML"
+        description: "config.yml can be parsed by yq without errors"
+        command: "[ ! -f config.yml ] || yq '.' config.yml > /dev/null"
+        severity: error
+      - type: script_clean
+        name: "Config extends targets exist"
+        description: "Every file path referenced by an extends field in config files exists on disk"
+        command: "true"
+        severity: error
+
+  - group: Scaffolding
+    rules:
+      - type: file_present
+        name: "tmp/ directory present"
+        description: "The tmp/ directory exists at the project root for ephemeral, non-tracked scratch files"
+        target: tmp
+        scope: root
+        severity: warn
+        hints:
+          - "Create the tmp/ directory"
+      - type: content_present
+        name: "tmp/ is gitignored"
+        description: ".gitignore contains 'tmp/' so its contents are never accidentally committed"
+        target: .gitignore
+        pattern: "^tmp/"
+        scope: root
+        severity: warn
+        hints:
+          - "Add 'tmp/' to .gitignore"
+
+  - group: Claude
+    rules:
+      - type: content_present
+        name: ".claude/ directory gitignored"
+        description: ".gitignore contains '.claude/' so local Claude Code settings and memory are never committed"
+        target: .gitignore
+        pattern: "\\.claude/"
+        scope: root
+        severity: warn
+        hints:
+          - "Add '.claude/' to .gitignore"
+      - type: content_present
+        name: "Shared Claude settings configured"
+        description: ".claude/settings.json exists and contains the expected output style configuration for the project"
+        target: .claude/settings.json
+        pattern: ""
+        scope: root
+        severity: warn
+        hints:
+          - "Set the desired output style in .claude/settings.json"
+      - type: content_present
+        name: "Local Claude settings configured"
+        description: ".claude/settings.local.json exists and contains the expected output style configuration for this machine"
+        target: .claude/settings.local.json
+        pattern: ""
+        scope: root
+        severity: warn
+        hints:
+          - "Set the desired output style in .claude/settings.local.json"
