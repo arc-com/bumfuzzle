@@ -74,7 +74,7 @@ usage() {
   printf 'kickstart v%s — scaffold a project in the current directory\n\n' "$KICKSTART_VERSION" >&2
   printf 'Usage: kickstart [options]\n\n' >&2
   printf 'Options:\n' >&2
-  printf '  --config <file>                       Config override (default: settings.yml)\n' >&2
+  printf '  --config <file>                       Config override (default: bumfuzzle-template.yml)\n' >&2
   printf '  --dry-run                             Print steps without executing\n' >&2
   printf '  --only <step[,step,...]>              Run only these steps\n' >&2
   printf '  --skip <step[,step,...]>              Skip these steps\n' >&2
@@ -106,18 +106,9 @@ done
 PROJECT_DIR="$(pwd)"
 PROJECT_NAME="$(basename "$PROJECT_DIR")"
 
-# If bumfuzzle.yml exists, read project name from it
-if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-  if command -v yq &>/dev/null; then
-    _existing_name=$(yq '.project.name // ""' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || true)
-    [[ -n "$_existing_name" && "$_existing_name" != "null" ]] && PROJECT_NAME="$_existing_name"
-    log "read existing bumfuzzle.yml (name: $PROJECT_NAME)"
-  fi
-fi
-
 # ── Config ────────────────────────────────────────────────────────────────────
 
-[[ -z "$CONFIG_FILE" ]] && CONFIG_FILE="$KICKSTART_REPO/settings.yml"
+[[ -z "$CONFIG_FILE" ]] && CONFIG_FILE="$KICKSTART_REPO/bumfuzzle-template.yml"
 
 if ! command -v yq &>/dev/null; then
   printf 'Error: yq is required\n' >&2; exit 1
@@ -131,9 +122,9 @@ _scaffold_merged=$(mktemp)
 
 _build_scaffold_merged() {
   if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-    yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKSTART_REPO/settings.yml" "$PROJECT_DIR/bumfuzzle.yml" > "$_scaffold_merged"
+    yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKSTART_REPO/bumfuzzle-template.yml" "$PROJECT_DIR/bumfuzzle.yml" > "$_scaffold_merged"
   else
-    cp "$KICKSTART_REPO/settings.yml" "$_scaffold_merged"
+    cp "$KICKSTART_REPO/bumfuzzle-template.yml" "$_scaffold_merged"
   fi
 }
 
@@ -174,28 +165,29 @@ printf '\n-- kickstart v%s (%s) %s\n' \
   "$(printf '%0.s-' {1..40})"
 [[ "$DRY_RUN" == true ]] && log "dry-run mode — no changes will be made"
 
-# ── Source domains and run setup in sequence ──────────────────────────────────
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# domain setup disabled — pending reimplementation
+# . "$KICKSTART_REPO/domains/git.sh"
+# . "$KICKSTART_REPO/domains/hooks.sh"
+# . "$KICKSTART_REPO/domains/rules.sh"
+# . "$KICKSTART_REPO/domains/structure.sh"
+# . "$KICKSTART_REPO/domains/env.sh"
+# . "$KICKSTART_REPO/domains/editor.sh"
+# . "$KICKSTART_REPO/domains/dependencies.sh"
+# . "$KICKSTART_REPO/domains/docker.sh"
+# . "$KICKSTART_REPO/domains/config.sh"
 
-. "$KICKSTART_REPO/domains/git.sh"
-. "$KICKSTART_REPO/domains/hooks.sh"
-. "$KICKSTART_REPO/domains/rules.sh"
-. "$KICKSTART_REPO/domains/structure.sh"
-. "$KICKSTART_REPO/domains/env.sh"
-. "$KICKSTART_REPO/domains/preflight-config.sh"
-. "$KICKSTART_REPO/domains/editor.sh"
-. "$KICKSTART_REPO/domains/dependencies.sh"
-. "$KICKSTART_REPO/domains/docker.sh"
-. "$KICKSTART_REPO/domains/config.sh"
-
-preflight_config_setup
-git_setup
-hooks_setup
-rules_setup
-structure_setup
-env_setup
-editor_setup
-dependencies_setup
-docker_setup
+if step_enabled bumfuzzle_yml; then
+  maybe_copy "$KICKSTART_REPO/bumfuzzle-template.yml" "$PROJECT_DIR/bumfuzzle.yml"
+fi
+# git_setup
+# hooks_setup
+# rules_setup
+# structure_setup
+# env_setup
+# editor_setup
+# dependencies_setup
+# docker_setup
 
 printf '%s\n' '-----------------------------------------------------------------------'
 log "done — $PROJECT_NAME scaffolded at $PROJECT_DIR"

@@ -54,6 +54,15 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .add-btn{background:transparent;border:1px dashed var(--b1);border-radius:var(--r);color:var(--tm);font-size:12px;padding:4px 10px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .add-btn:hover{border-color:var(--ac);color:var(--tx)}
 
+/* ── Enum value list ── */
+.enum-vals{display:flex;flex-direction:column;gap:4px}
+.enum-val{display:flex;align-items:center;gap:6px;padding:5px 6px;border:1px solid var(--b1);border-radius:var(--r);background:var(--surf2)}
+.enum-val .inp{width:auto}
+.enum-val-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--tm);font-family:var(--mono);white-space:nowrap;flex-shrink:0}
+.enum-val-rm{background:none;border:none;color:var(--td);cursor:pointer;width:20px;height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;transition:color .1s,background .1s;flex-shrink:0;margin-left:2px}
+.enum-val-rm:hover{color:var(--rd);background:rgba(248,81,73,.1)}
+.enum-val-empty{font-size:12px;color:var(--td);font-style:italic;padding:4px 0}
+
 /* ── Rule tree ── */
 .rtree{padding:2px 0}
 
@@ -274,14 +283,15 @@ function isAncestorOf(ancestor, item) {
 // ── Data init ─────────────────────────────────────────────────────────────────
 
 function defaultEnums() {
+  const mv = n => ({ name: n, value: n });
   return [
     { name: 'environments', description: 'Deployment environments — preflight validates each .env.<name> file.', values: [] },
     {
       group: 'Claude Model Configuration',
       rules: [
-        { name: 'model', description: 'Selects the default model.', values: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-haiku'] },
-        { name: 'availableModels', description: 'Restricts the models available to users or subagents.', values: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-haiku'] },
-        { name: 'effortLevel', description: 'Controls the depth of extended thinking.', values: ['low', 'medium', 'high'] },
+        { name: 'model', description: 'Selects the default model.', values: ['claude-3-5-sonnet','claude-3-opus','claude-3-haiku','claude-3-5-haiku'].map(mv) },
+        { name: 'availableModels', description: 'Restricts the models available to users or subagents.', values: ['claude-3-5-sonnet','claude-3-opus','claude-3-haiku','claude-3-5-haiku'].map(mv) },
+        { name: 'effortLevel', description: 'Controls the depth of extended thinking.', values: ['low','medium','high'].map(mv) },
       ],
     },
   ];
@@ -345,6 +355,8 @@ function annotateEnums(items) {
       if (!item.name) item.name = '';
       if (!item.description) item.description = '';
       if (!Array.isArray(item.values)) item.values = [];
+      item.values = item.values.map(v => typeof v === 'string' ? { name: v, value: v } : v);
+      item.values.forEach(v => { if (!v.name) v.name = ''; if (!v.value) v.value = ''; });
       if (item._saved === undefined) item._saved = enumSnapshot(item);
       if (item._mode === undefined) item._mode = 'edit';
     }
@@ -569,7 +581,10 @@ function generateYaml() {
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
         if (item.values.length) {
           lines.push(indent + '  values:');
-          item.values.forEach(v => lines.push(indent + '    - ' + JSON.stringify(v)));
+          item.values.forEach(v => {
+            lines.push(indent + '    - name: ' + JSON.stringify(v.name || ''));
+            lines.push(indent + '      value: ' + JSON.stringify(v.value || ''));
+          });
         } else {
           lines.push(indent + '  values: []');
         }
@@ -913,7 +928,9 @@ function buildArgWidget(argDef, rule, onChange) {
     });
     wrap.append(seg);
   } else if (type === 'enum') {
-    const options = Array.isArray(argDef.options) && argDef.options.length ? argDef.options : getEnumValues(argDef.enum_ref || '');
+    const rawOpts = Array.isArray(argDef.options) && argDef.options.length ? argDef.options : getEnumValues(argDef.enum_ref || '');
+    const options = rawOpts.map(o => typeof o === 'object' ? o : { name: String(o), description: '', value: String(o) });
+    const valToName = Object.fromEntries(options.map(o => [String(o.value), o.name]));
     if (argDef.multi_select) {
       const selected = Array.isArray(cur) ? [...cur] : (cur ? [String(cur)] : []);
       set([...selected]);
@@ -924,14 +941,14 @@ function buildArgWidget(argDef, rule, onChange) {
         selected.forEach((v, i) => {
           const x = el('button', { class: 'chip-x' }, '\xd7');
           x.addEventListener('click', () => { selected.splice(i, 1); set([...selected]); refreshMulti(); });
-          chipsEl.append(el('span', { class: 'chip' }, v, x));
+          chipsEl.append(el('span', { class: 'chip' }, valToName[v] || v, x));
         });
         if (argDef.required) chipsEl.style.borderColor = selected.length ? '' : 'var(--rd)';
       }
       refreshMulti();
       const addSel = el('select', { class: 'add-inp', style: 'flex:1' });
       addSel.append(el('option', { value: '' }, '— pick to add —'));
-      options.forEach(o => { if (!selected.includes(String(o))) addSel.append(el('option', { value: o }, String(o))); });
+      options.forEach(o => { if (!selected.includes(String(o.value))) addSel.append(el('option', { value: o.value }, o.name)); });
       const addBtn = el('button', { class: 'add-btn' }, '+ add');
       addBtn.addEventListener('click', () => {
         const v = addSel.value;
@@ -944,10 +961,10 @@ function buildArgWidget(argDef, rule, onChange) {
         const seg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
         if (argDef.required) seg.style.outline = curStr === '' ? '1px solid var(--rd)' : '';
         options.forEach(o => {
-          const b = el('button', { class: 'seg-btn' + (curStr === String(o) ? ' on t-on' : '') }, String(o));
+          const b = el('button', { class: 'seg-btn' + (curStr === String(o.value) ? ' on t-on' : ''), 'data-val': String(o.value) }, o.name);
           b.addEventListener('click', () => {
-            set(o);
-            seg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.textContent === String(rule.args[argDef.key]) ? ' on t-on' : ''));
+            set(o.value);
+            seg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.dataset.val === String(rule.args[argDef.key]) ? ' on t-on' : ''));
             if (argDef.required) seg.style.outline = '';
             onChange();
           });
@@ -957,7 +974,7 @@ function buildArgWidget(argDef, rule, onChange) {
       } else {
         const sel = el('select', { class: 'inp' });
         sel.append(el('option', { value: '' }, '—'));
-        options.forEach(o => { const opt = el('option', { value: o }, String(o)); if (curStr === String(o)) opt.selected = true; sel.append(opt); });
+        options.forEach(o => { const opt = el('option', { value: o.value }, o.name); if (curStr === String(o.value)) opt.selected = true; sel.append(opt); });
         if (argDef.required) sel.style.borderColor = curStr === '' ? 'var(--rd)' : '';
         sel.addEventListener('change', () => {
           set(sel.value);
@@ -1295,30 +1312,40 @@ function buildEnumPanel(item, reRender, inModal = false) {
   dInp.value = item.description || '';
   dInp.addEventListener('input', () => { item.description = dInp.value; item._updateRow?.(); scheduleSave(); updateStatus(); });
 
-  const chipsEl = el('div', { class: 'chips' });
-  function refreshChips() {
-    chipsEl.innerHTML = '';
-    if (!item.values.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
+  const valsEl = el('div', { class: 'enum-vals' });
+  function refreshVals() {
+    valsEl.innerHTML = '';
+    if (!item.values.length) { valsEl.append(el('div', { class: 'enum-val-empty' }, 'No values')); return; }
     item.values.forEach((v, i) => {
-      const x = el('button', { class: 'chip-x' }, '\xd7');
-      x.addEventListener('click', () => { item.values.splice(i, 1); refreshChips(); scheduleSave(); updateStatus(); });
-      chipsEl.append(el('span', { class: 'chip' }, v, x));
+      const nv = el('input', { class: 'inp', type: 'text', placeholder: 'name', style: 'flex:0 0 130px' });
+      nv.value = v.name || '';
+      nv.addEventListener('input', () => { v.name = nv.value; scheduleSave(); updateStatus(); });
+      const vv = el('input', { class: 'inp mono', type: 'text', placeholder: 'value', style: 'flex:1;min-width:60px' });
+      vv.value = v.value || '';
+      vv.addEventListener('input', () => { v.value = vv.value; scheduleSave(); updateStatus(); });
+      const rm = el('button', { class: 'enum-val-rm' }, '\xd7');
+      rm.addEventListener('click', () => { item.values.splice(i, 1); refreshVals(); scheduleSave(); updateStatus(); });
+      valsEl.append(el('div', { class: 'enum-val' },
+        el('span', { class: 'enum-val-lbl' }, 'Name'), nv,
+        el('span', { class: 'enum-val-lbl' }, 'Value'), vv,
+        rm,
+      ));
     });
   }
-  refreshChips();
+  refreshVals();
 
-  const valInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'value…' });
-  const valBtn = el('button', { class: 'add-btn' }, '+ add');
-  valBtn.addEventListener('click', () => {
-    const v = valInp.value.trim();
-    if (v && !item.values.includes(v)) { item.values.push(v); valInp.value = ''; refreshChips(); scheduleSave(); updateStatus(); }
+  const addValBtn = el('button', { class: 'add-btn', style: 'margin-top:8px' }, '+ Add value');
+  addValBtn.addEventListener('click', () => {
+    item.values.push({ name: '', value: '' });
+    refreshVals();
+    scheduleSave();
+    updateStatus();
   });
-  valInp.addEventListener('keydown', e => { if (e.key === 'Enter') valBtn.click(); });
 
   const formView = el('div', { class: 'rf-body' },
     panelSec('Name', nInp),
     panelSec('Description', dInp),
-    panelSec('Values', el('div', {}, chipsEl, el('div', { class: 'add-row' }, valInp, valBtn))),
+    panelSec('Values', el('div', {}, valsEl, addValBtn)),
   );
 
   const diffView = el('div', { class: 'rf-body' });
@@ -1329,7 +1356,7 @@ function buildEnumPanel(item, reRender, inModal = false) {
     const changes = [];
     if ((from.name || '') !== (item.name || ''))               changes.push({ f: 'name',        from: from.name        || '(empty)', to: item.name        || '(empty)' });
     if ((from.description || '') !== (item.description || '')) changes.push({ f: 'description', from: from.description || '(empty)', to: item.description || '(empty)' });
-    const fv = (from.values || []).join(', '), tv = (item.values || []).join(', ');
+    const fv = (from.values || []).map(v => v.name || v.value || '').join(', '), tv = (item.values || []).map(v => v.name || v.value || '').join(', ');
     if (fv !== tv) changes.push({ f: 'values', from: fv || '(empty)', to: tv || '(empty)' });
     if (!changes.length) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No changes')); return; }
     changes.forEach(({ f, from, to }) => {
@@ -1399,7 +1426,7 @@ function buildEnumPanel(item, reRender, inModal = false) {
     item.values      = JSON.parse(JSON.stringify(saved.values || []));
     nInp.value = item.name;
     dInp.value = item.description;
-    refreshChips();
+    refreshVals();
     item._updateRow?.();
     scheduleSave();
     setMode('edit');

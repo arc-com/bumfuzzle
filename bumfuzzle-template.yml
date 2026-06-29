@@ -1,11 +1,78 @@
-project:
-  name: ""
+scripts:
+  - id: pattern_in_file
+    name: "Pattern in file"
+    description: "Checks that a given pattern (grep regex) is present in a file"
+    command: 'grep -q "$PATTERN" "$FILE"'
+    args:
+      - key: PATTERN
+        label: "Pattern (regex)"
+        type: regex
+        required: true
+        placeholder: '\\.DS_Store'
+      - key: FILE
+        label: "File path"
+        type: path
+        required: true
+        placeholder: '.gitignore'
 
-environments:
-  values: []
+  - id: set_permission_mode
+    name: "Set Claude permission mode"
+    description: "Sets permissions.defaultMode in .claude/settings.json, replacing any existing value"
+    command: |
+      mkdir -p .claude
+      [ ! -f .claude/settings.json ] && echo '{}' > .claude/settings.json
+      _tmp=$(mktemp)
+      jq --arg m "$MODE" '.permissions.defaultMode = $m' .claude/settings.json > "$_tmp" && mv "$_tmp" .claude/settings.json
+    args:
+      - key: MODE
+        label: "Permission mode"
+        type: enum
+        required: true
+        options:
+          - default
+          - acceptEdits
+          - plan
+          - auto
+          - dontAsk
+          - bypassPermissions
 
-preflight:
-  valid_severities: [skip, warn, error, hard-stop]
+  - id: set_permission_access
+    name: "Set Claude permission access"
+    description: "Adds a deny/allow/ask entry to .claude/settings.json for a given tool and optional pattern"
+    command: |
+      mkdir -p .claude
+      [ ! -f .claude/settings.json ] && echo '{}' > .claude/settings.json
+      _entry="$TOOL"
+      [ -n "${PATTERN:-}" ] && _entry="${TOOL}(${PATTERN})"
+      _tmp=$(mktemp)
+      jq --arg r "$RULE" --arg e "$_entry" \
+        '.permissions[$r] = ((.permissions[$r] // []) + [$e] | unique)' \
+        .claude/settings.json > "$_tmp" && mv "$_tmp" .claude/settings.json
+    args:
+      - key: RULE
+        label: "Rule type"
+        type: enum
+        required: true
+        options:
+          - deny
+          - allow
+          - ask
+      - key: TOOL
+        label: "Claude tool"
+        type: enum
+        required: true
+        options:
+          - Bash
+          - Read
+          - Edit
+          - Write
+          - WebFetch
+          - Agent
+      - key: PATTERN
+        label: "Pattern (optional)"
+        type: string
+        required: false
+        placeholder: "curl *"
 
 rules:
   - group: General
@@ -16,15 +83,13 @@ rules:
         target: README.md
         scope: root
         severity: error
-        hints:
-          - "Create README.md in the project root"
+        instruction: "Create README.md in the project root"
       - type: script_clean
         name: "Single manifest file"
         description: "At most one package manifest (package.json, Cargo.toml, go.mod, etc.) exists at the root — multiple manifests indicate a misconfigured or hybrid project"
         command: "test $(find . -maxdepth 1 \\( -name 'package.json' -o -name 'Cargo.toml' -o -name 'pom.xml' -o -name 'go.mod' -o -name 'pyproject.toml' \\) | wc -l | tr -d ' ') -le 1"
         severity: warn
-        hints:
-          - "Remove duplicate manifest files from the project root"
+        instruction: "Remove duplicate manifest files from the project root"
 
   - group: Bumfuzzle
     rules:
@@ -33,15 +98,58 @@ rules:
         description: "preflight.sh is called inside the pre-commit hook so checks run before every commit"
         command: "grep -q 'preflight' .git/hooks/pre-commit 2>/dev/null || grep -q 'preflight' .githooks/pre-commit 2>/dev/null"
         severity: error
-        hints:
-          - "Add a call to preflight.sh in .githooks/pre-commit"
+        instruction: "Add a call to preflight.sh in .githooks/pre-commit"
       - type: script_clean
         name: "bumfuzzle.yml parses cleanly"
         description: "bumfuzzle.yml is syntactically valid YAML — yq can parse it without errors"
         command: "yq '.' bumfuzzle.yml > /dev/null"
         severity: error
-        hints:
-          - "Fix YAML syntax errors in bumfuzzle.yml"
+        instruction: "Fix YAML syntax errors in bumfuzzle.yml"
+      - type: script_clean
+        name: "bumfuzzle.yml validation rules are well-formed"
+        description: "Every rule under .validation.* has a boolean enabled (if set), a valid severity (if set), only lists for sequence fields, and selected_hints that reference existing hint keys"
+        command: |
+          ok=true
+          while IFS= read -r rule; do
+            [[ -z "${rule// }" || "$rule" == "null" ]] && continue
+            enabled_type=$(yq ".validation.\"${rule}\".enabled | type" bumfuzzle.yml 2>/dev/null)
+            if [[ "$enabled_type" != "null" && "$enabled_type" != "!!null" && "$enabled_type" != "!!bool" ]]; then
+              echo "validation.$rule.enabled must be a boolean, got $enabled_type"
+              ok=false
+            fi
+            sev=$(yq ".validation.\"${rule}\".severity // \"\"" bumfuzzle.yml 2>/dev/null || true)
+            if [[ -n "$sev" && "$sev" != "null" ]]; then
+              case "$sev" in skip|warn|error|hard-stop) ;;
+                *) echo "validation.$rule.severity '$sev' is invalid (valid: skip, warn, error, hard-stop)"; ok=false ;;
+              esac
+            fi
+            for field in selected_hints files dirs patterns checks; do
+              field_type=$(yq ".validation.\"${rule}\".\"${field}\" | type" bumfuzzle.yml 2>/dev/null)
+              if [[ "$field_type" != "null" && "$field_type" != "!!null" && "$field_type" != "!!seq" ]]; then
+                echo "validation.$rule.$field must be a list, got $field_type"
+                ok=false
+              fi
+            done
+            while IFS= read -r hint_key; do
+              [[ -z "${hint_key// }" || "$hint_key" == "null" ]] && continue
+              hint_val=$(yq ".validation.\"${rule}\".hints.\"${hint_key}\"" "$RULES_FILE" 2>/dev/null)
+              if [[ -z "${hint_val// }" || "$hint_val" == "null" ]]; then
+                echo "selected_hints key '$hint_key' for rule '$rule' is not a valid hint"
+                ok=false
+              fi
+            done < <(yq ".validation.\"${rule}\".selected_hints[]" bumfuzzle.yml 2>/dev/null || true)
+          done < <(yq '.validation | keys | .[]' bumfuzzle.yml 2>/dev/null || true)
+          [[ "$ok" == true ]]
+        severity: error
+        instruction: "Fix the reported validation rule fields in bumfuzzle.yml"
+      - type: script_clean
+        name: "bumfuzzle.yml env.vars is a list"
+        description: "If env.vars is defined in bumfuzzle.yml it must be a YAML sequence, not a scalar or map"
+        command: |
+          t=$(yq '.env.vars | type' bumfuzzle.yml 2>/dev/null)
+          [[ "$t" == "null" || "$t" == "!!null" || "$t" == "!!seq" ]]
+        severity: error
+        instruction: "Change env.vars in bumfuzzle.yml to a list (or remove it)"
 
   - group: Git
     rules:
@@ -50,17 +158,15 @@ rules:
         description: "No commit in the repository history lists Claude as a co-author"
         command: "! git log --format='%b' | grep -qi 'co-authored-by: claude'"
         severity: error
-        hints:
-          - "Review commits: git log --grep='Co-Authored-By: Claude' -i --oneline"
+        instruction: "Review and amend commits: git log --grep='Co-Authored-By: Claude' -i --oneline"
       - type: content_absent
         name: "No AI co-author in commit message"
         description: "The staged commit message does not contain a Co-Authored-By: Claude line"
         target: .git/COMMIT_EDITMSG
-        pattern: "Co-Authored-By: Claude"
+        pattern: 'Co-Authored-By: Claude'
         scope: root
         severity: hard-stop
-        hints:
-          - "Remove Co-Authored-By lines from commit message"
+        instruction: "Remove Co-Authored-By lines from the commit message"
       - group: Hooks
         rules:
           - type: script_clean
@@ -68,16 +174,13 @@ rules:
             description: "Every file in .githooks/ is present in .git/hooks/ and their SHA-256 checksums match — no stale or tampered hooks"
             command: "for f in .githooks/*; do [ -f \"$f\" ] || continue; name=$(basename \"$f\"); [ -f \".git/hooks/$name\" ] || { echo \"Missing: $name\"; exit 1; }; shasum -a 256 \"$f\" \".git/hooks/$name\" | awk '{print $1}' | sort -u | wc -l | grep -q 1 || { echo \"Mismatch: $name\"; exit 1; }; done"
             severity: error
-            hints:
-              - "Run: scripts/hooks/hooks.sh --force to reinstall hooks"
-          - type: file_present
+            instruction: "Run: scripts/hooks.sh --force to reinstall hooks"
+          - type: script_clean
             name: "Approval gate guards declared"
             description: ".githooks/pre-commit references CONFIG_APPROVED, DOCS_APPROVED, and ENV_APPROVED environment variable guards"
-            target: .githooks/pre-commit
-            scope: root
+            command: "grep -q 'CONFIG_APPROVED' .githooks/pre-commit 2>/dev/null && grep -q 'DOCS_APPROVED' .githooks/pre-commit 2>/dev/null && grep -q 'ENV_APPROVED' .githooks/pre-commit 2>/dev/null"
             severity: warn
-            hints:
-              - "Add CONFIG_APPROVED / DOCS_APPROVED / ENV_APPROVED guards in .githooks/pre-commit"
+            instruction: "Add CONFIG_APPROVED / DOCS_APPROVED / ENV_APPROVED guards in .githooks/pre-commit"
       - group: Gitignore
         rules:
           - type: file_present
@@ -86,43 +189,89 @@ rules:
             target: .gitignore
             scope: root
             severity: error
+            instruction: "Create .gitignore at the project root"
           - type: script_clean
-            name: "bumfuzzle patterns gitignored"
-            description: "Every glob pattern declared in bumfuzzle.yml is also listed in .gitignore"
-            command: "true"
+            name: "bumfuzzle extra patterns gitignored"
+            description: "Every extra pattern declared in bumfuzzle.yml under gitignore.extra_patterns is also listed in .gitignore"
+            command: |
+              count=$(yq '.gitignore.extra_patterns | length' bumfuzzle.yml 2>/dev/null || echo 0)
+              [[ "${count}" =~ ^[0-9]+$ ]] || count=0
+              [ "$count" -eq 0 ] && exit 0
+              rc=0
+              while IFS= read -r pat; do
+                grep -qF "$pat" .gitignore 2>/dev/null || { echo "Missing from .gitignore: $pat"; rc=1; }
+              done < <(yq '.gitignore.extra_patterns[]' bumfuzzle.yml 2>/dev/null)
+              exit $rc
             severity: warn
+            instruction: "Add the missing pattern to .gitignore, or remove it from gitignore.extra_patterns in bumfuzzle.yml"
           - type: script_clean
             name: "No contradicting gitignore patterns"
             description: ".gitignore contains no negation rules that re-include previously ignored paths"
-            command: "true"
+            command: "! grep -qE '^!' .gitignore 2>/dev/null"
             severity: warn
+            instruction: "Remove negation patterns (lines starting with '!') from .gitignore"
           - type: script_clean
             name: "No ignored files in git index"
             description: "No file currently tracked by git would be matched by .gitignore — no stale cached files that should be ignored"
             command: "! git ls-files --cached | while read f; do git check-ignore -q \"$f\" && echo \"$f\"; done | grep -q ."
             severity: warn
-            hints:
-              - "Run: git rm -r --cached <file> for any ignored files still tracked"
+            instruction: "Run: git rm -r --cached <file> for any ignored files still tracked"
+          - type: script_clean
+            name: "No committed .env.* files"
+            description: "No .env.* file (except .env.template) is tracked in the git index — secrets must not be committed"
+            command: "! git ls-files | grep -E '^\\.env\\.' | grep -v '^\\.env\\.template$' | grep -q ."
+            severity: error
+            instruction: "Run: git rm --cached <file> for each tracked .env.* file, then ensure .env.* is in .gitignore"
           - group: Ignore Pattern Groups
             rules:
               - type: content_present
                 name: ".DS_Store ignored"
                 description: ".gitignore contains a pattern covering .DS_Store macOS metadata files"
                 target: .gitignore
-                pattern: "DS_Store"
+                pattern: 'DS_Store'
                 scope: root
                 severity: warn
-                hints:
-                  - "Add '.DS_Store' to .gitignore"
+                instruction: "Add '.DS_Store' to .gitignore"
               - type: content_present
-                name: "IntelliJ artifacts ignored"
-                description: ".gitignore contains patterns covering .idea/, *.iml, and *.iws IntelliJ project files"
+                name: ".idea/ ignored"
+                description: ".gitignore contains a pattern covering the .idea/ IntelliJ project directory"
                 target: .gitignore
-                pattern: "\\.idea/"
+                pattern: '\.idea/'
                 scope: root
                 severity: warn
-                hints:
-                  - "Add '.idea/', '*.iml', '*.iws' to .gitignore"
+                instruction: "Add '.idea/' to .gitignore"
+              - type: content_present
+                name: "*.iml ignored"
+                description: ".gitignore contains a pattern covering *.iml IntelliJ module files"
+                target: .gitignore
+                pattern: '\*\.iml'
+                scope: root
+                severity: warn
+                instruction: "Add '*.iml' to .gitignore"
+              - type: content_present
+                name: "*.iws ignored"
+                description: ".gitignore contains a pattern covering *.iws IntelliJ workspace files"
+                target: .gitignore
+                pattern: '\*\.iws'
+                scope: root
+                severity: warn
+                instruction: "Add '*.iws' to .gitignore"
+              - type: content_present
+                name: ".vscode/ ignored"
+                description: ".gitignore contains a pattern covering .vscode/ VS Code editor settings"
+                target: .gitignore
+                pattern: '\.vscode/'
+                scope: root
+                severity: warn
+                instruction: "Add '.vscode/' to .gitignore"
+              - type: content_present
+                name: ".env.* files gitignored"
+                description: ".gitignore contains a pattern excluding .env.* environment files — real secrets must not be committed"
+                target: .gitignore
+                pattern: '^\.env\.'
+                scope: root
+                severity: error
+                instruction: "Add '.env.*' to .gitignore (optionally add '!.env.template' to re-include the template)"
 
   - group: Environment Variables
     rules:
@@ -132,43 +281,72 @@ rules:
         target: .env.template
         scope: root
         severity: error
-        hints:
-          - "Create .env.template declaring all required environment variables"
+        instruction: "Create .env.template declaring all required environment variables"
       - type: script_clean
         name: "All template keys in every .env.* file"
         description: "Every key declared in .env.template is present in each .env.* file — no environment is missing a declared variable"
-        command: "true"
+        command: |
+          [ ! -f .env.template ] && exit 0
+          tmpl=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env.template | cut -d= -f1 | sort -u)
+          [ -z "$tmpl" ] && exit 0
+          rc=0
+          for ef in .env.*; do
+            [ -f "$ef" ] && [ "$ef" != ".env.template" ] || continue
+            missing=$(comm -23 <(printf '%s\n' "$tmpl") <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ef" | cut -d= -f1 | sort -u))
+            [ -n "$missing" ] && printf 'Missing in %s: %s\n' "$ef" "$missing" && rc=1
+          done
+          exit $rc
         severity: error
-        hints:
-          - "Add missing keys from .env.template to each .env.* file"
+        instruction: "Add missing keys from .env.template to each .env.* file"
       - type: script_clean
         name: "No undeclared keys in .env.* files"
         description: "Every key in each .env.* file is declared in .env.template — no undocumented variables exist in any environment"
-        command: "true"
+        command: |
+          [ ! -f .env.template ] && exit 0
+          tmpl=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env.template | cut -d= -f1 | sort -u)
+          [ -z "$tmpl" ] && exit 0
+          rc=0
+          for ef in .env.*; do
+            [ -f "$ef" ] && [ "$ef" != ".env.template" ] || continue
+            extra=$(comm -13 <(printf '%s\n' "$tmpl") <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ef" | cut -d= -f1 | sort -u))
+            [ -n "$extra" ] && printf 'Undeclared in %s: %s\n' "$ef" "$extra" && rc=1
+          done
+          exit $rc
         severity: error
-        hints:
-          - "Add undeclared keys to .env.template or remove them from .env.* files"
+        instruction: "Add undeclared keys to .env.template or remove them from .env.* files"
       - type: script_clean
         name: ".env.template values are placeholders"
-        description: "All values in .env.template are mock placeholders (uppercase letters and underscores only) — no real secrets committed"
-        command: "true"
+        description: "All values in .env.template are uppercase placeholder strings — no real secrets committed"
+        command: "[ ! -f .env.template ] && exit 0; ! grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env.template | grep -vE '=([A-Z_][A-Z0-9_]*)?$' | grep -q ."
         severity: warn
-        hints:
-          - "Replace real values in .env.template with placeholder values like MY_KEY=PLACEHOLDER"
+        instruction: "Replace real values in .env.template with uppercase placeholders like MY_KEY=PLACEHOLDER"
       - type: script_clean
         name: "No empty values in .env.* files"
         description: "Every key in each .env.* file has a non-empty value — blank values indicate missing or forgotten configuration"
-        command: "true"
+        command: |
+          rc=0
+          while IFS= read -r ef; do
+            while IFS= read -r line; do
+              case "$line" in ''|\#*) continue ;; esac
+              val="${line#*=}"
+              [ -z "${val// }" ] && printf 'Blank value in %s: %s\n' "$ef" "${line%%=*}" && rc=1
+            done < "$ef"
+          done < <(find . -maxdepth 1 -name '.env.*' -not -name '.env.template' -type f | sort)
+          exit $rc
         severity: error
-        hints:
-          - "Set a non-empty placeholder for every blank key in .env.* files"
+        instruction: "Set a non-empty value for every blank key in .env.* files"
       - type: script_clean
         name: "No duplicate keys in .env.* files"
         description: "Each .env.* file declares every key at most once — duplicate keys cause unpredictable precedence behavior"
-        command: "true"
+        command: |
+          rc=0
+          while IFS= read -r ef; do
+            dups=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ef" | cut -d= -f1 | sort | uniq -d)
+            [ -n "$dups" ] && printf 'Duplicate keys in %s: %s\n' "$ef" "$dups" && rc=1
+          done < <(find . -maxdepth 1 -name '.env.*' -type f | sort)
+          exit $rc
         severity: error
-        hints:
-          - "Remove duplicate key declarations from .env.* files"
+        instruction: "Remove duplicate key declarations from .env.* files"
 
   - group: Docker
     rules:
@@ -178,31 +356,52 @@ rules:
         target: Dockerfile
         scope: root
         severity: warn
+        instruction: "Create a Dockerfile at the project root"
       - type: script_clean
         name: "Compose files render without errors"
         description: "All docker-compose*.yml files in the project pass docker compose config — no unresolved variables or syntax errors"
         command: "find . -maxdepth 2 -name 'docker-compose*.yml' | while read f; do docker compose -f \"$f\" config --quiet || exit 1; done"
         severity: error
-        hints:
-          - "Run: docker compose -f <file> config to see render errors"
+        instruction: "Run: docker compose -f <file> config to see render errors"
       - type: content_absent
         name: "No :latest image tags"
         description: "No Docker image reference in *.yml files uses :latest — all images must be pinned to a specific version for reproducible builds"
         target: "*.yml"
-        pattern: "image:.*:latest"
+        pattern: 'image:.*:latest'
         severity: error
-        hints:
-          - "Pin image tags to a specific version instead of :latest"
+        instruction: "Pin image tags to a specific version instead of :latest"
       - type: script_clean
         name: "Docker env vars declared in .env.template"
-        description: "Every environment variable referenced in Docker files is declared in .env.template — no undocumented container configuration"
-        command: "true"
+        description: "Every environment variable referenced in Docker compose files is declared in .env.template — no undocumented container configuration"
+        command: |
+          [ ! -f .env.template ] && exit 0
+          tmpl=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env.template | cut -d= -f1 | sort -u)
+          rc=0
+          for cf in docker-compose*.yml; do
+            [ -f "$cf" ] || continue
+            vars=$(grep -oE '\$\{[A-Za-z_][A-Za-z0-9_]*' "$cf" | cut -c3- | sort -u)
+            while IFS= read -r var; do
+              [ -z "$var" ] && continue
+              printf '%s\n' "$tmpl" | grep -qx "$var" || { printf 'Undeclared in .env.template: %s (found in %s)\n' "$var" "$cf"; rc=1; }
+            done <<< "$vars"
+          done
+          exit $rc
         severity: error
+        instruction: "Declare every environment variable used in Docker files in .env.template"
       - type: script_clean
         name: "Compose name consistent with stack"
-        description: "The name field in docker-compose files matches the declared stack name used in deployment scripts"
-        command: "true"
+        description: "The name field in each docker-compose.<stack>.yml matches the stack name derived from the filename"
+        command: |
+          rc=0
+          for cf in docker-compose.*.yml; do
+            [ -f "$cf" ] || continue
+            stack="${cf#docker-compose.}"; stack="${stack%.yml}"
+            name=$(yq '.name // ""' "$cf" 2>/dev/null || true)
+            [ -z "$name" ] || [ "$name" = "$stack" ] || { printf "Compose name '%s' in %s should match stack '%s'\n" "$name" "$cf" "$stack"; rc=1; }
+          done
+          exit $rc
         severity: warn
+        instruction: "Set the 'name:' field in docker-compose.<stack>.yml to match the stack name"
 
   - group: Config
     rules:
@@ -212,18 +411,28 @@ rules:
         target: config.yml
         scope: root
         severity: warn
-        hints:
-          - "Create config.yml in the project root"
+        instruction: "Create config.yml in the project root"
       - type: script_clean
         name: "Config file is valid YAML"
         description: "config.yml can be parsed by yq without errors"
         command: "[ ! -f config.yml ] || yq '.' config.yml > /dev/null"
         severity: error
+        instruction: "Fix YAML syntax errors in config.yml"
       - type: script_clean
         name: "Config extends targets exist"
         description: "Every file path referenced by an extends field in config files exists on disk"
-        command: "true"
+        command: |
+          rc=0
+          for cf in config*.yml; do
+            [ -f "$cf" ] || continue
+            ext=$(yq '.extends // ""' "$cf" 2>/dev/null || true)
+            [ -z "$ext" ] && continue
+            dir=$(dirname "$cf")
+            [ -f "$dir/$ext" ] || { printf 'Extends target not found: %s/%s (referenced in %s)\n' "$dir" "$ext" "$cf"; rc=1; }
+          done
+          exit $rc
         severity: error
+        instruction: "Ensure the extends target file exists at the path specified relative to the config file"
 
   - group: Scaffolding
     rules:
@@ -233,17 +442,15 @@ rules:
         target: tmp
         scope: root
         severity: warn
-        hints:
-          - "Create the tmp/ directory"
+        instruction: "Create the tmp/ directory"
       - type: content_present
         name: "tmp/ is gitignored"
         description: ".gitignore contains 'tmp/' so its contents are never accidentally committed"
         target: .gitignore
-        pattern: "^tmp/"
+        pattern: '^tmp/'
         scope: root
         severity: warn
-        hints:
-          - "Add 'tmp/' to .gitignore"
+        instruction: "Add 'tmp/' to .gitignore"
 
   - group: Claude
     rules:
@@ -251,26 +458,53 @@ rules:
         name: ".claude/ directory gitignored"
         description: ".gitignore contains '.claude/' so local Claude Code settings and memory are never committed"
         target: .gitignore
-        pattern: "\\.claude/"
+        pattern: '\.claude/'
         scope: root
-        severity: warn
-        hints:
-          - "Add '.claude/' to .gitignore"
-      - type: content_present
-        name: "Shared Claude settings configured"
-        description: ".claude/settings.json exists and contains the expected output style configuration for the project"
+        severity: error
+        instruction: "Add '.claude/' to .gitignore"
+      - type: file_present
+        name: "Shared Claude settings present"
+        description: ".claude/settings.json exists — project-level Claude Code settings are configured"
         target: .claude/settings.json
-        pattern: ""
         scope: root
         severity: warn
-        hints:
-          - "Set the desired output style in .claude/settings.json"
-      - type: content_present
-        name: "Local Claude settings configured"
-        description: ".claude/settings.local.json exists and contains the expected output style configuration for this machine"
+        instruction: "Create .claude/settings.json with the desired Claude Code configuration"
+      - type: file_present
+        name: "Local Claude settings present"
+        description: ".claude/settings.local.json exists — machine-local Claude Code settings are configured"
         target: .claude/settings.local.json
-        pattern: ""
         scope: root
         severity: warn
-        hints:
-          - "Set the desired output style in .claude/settings.local.json"
+        instruction: "Create .claude/settings.local.json with machine-specific Claude Code configuration"
+
+enums:
+  - name: environments
+    description: "Deployment environments — preflight validates each .env.<name> file"
+    values: []
+
+  - group: Claude Code
+    enums:
+      - name: claudePermissionMode
+        description: "Valid values for permissions.defaultMode in .claude/settings.json"
+        values:
+          - default
+          - acceptEdits
+          - plan
+          - auto
+          - dontAsk
+          - bypassPermissions
+      - name: claudeRule
+        description: "Permission rule types: deny blocks, allow auto-approves, ask always prompts"
+        values:
+          - deny
+          - allow
+          - ask
+      - name: claudeTool
+        description: "Claude Code tool names used in permission patterns"
+        values:
+          - Bash
+          - Read
+          - Edit
+          - Write
+          - WebFetch
+          - Agent

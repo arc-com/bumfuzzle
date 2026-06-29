@@ -1,6 +1,6 @@
-# user-rules — process the rules: tree (groups + leaf rules) from bumfuzzle.yml
+# eval-rules — walk the rules: tree from bumfuzzle.yml and run each check
 
-_URULE_VALID_TYPES="file_present file_absent content_present content_absent script_clean"
+_URULE_VALID_TYPES="file_present file_absent content_present content_absent script_clean script_reusable"
 
 _urule_pass() {
   [[ "$VERBOSE" == true ]] && { _flush_header; printf '[PASS] %s\n' "$1"; }
@@ -126,6 +126,49 @@ _urule_process_rule() {
       is_blank "$_command" && { fail "$_label: 'command' is required" error; return; }
       local _out _ec=0
       _out=$(eval "$_command" 2>&1) || _ec=$?
+      if [[ "$_ec" -eq 0 ]]; then
+        _urule_pass "$_label"
+      else
+        fail "$_label: command exited $_ec" "$_sev"
+        _urule_instruction "$_path"
+        if [[ "$VERBOSE" == true && -n "$_out" ]]; then
+          printf '%s\n' "$_out" | sed 's/^/    /' >&2
+        fi
+      fi
+      ;;
+
+    script_reusable)
+      local _script_id _script_cmd
+      _script_id=$(yq "${_path}.script // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+      is_blank "$_script_id" && { fail "$_label: 'script' id is required" error; return; }
+      _script_cmd=$(yq ".scripts[] | select(.id == \"$_script_id\") | .command // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+      is_blank "$_script_cmd" && { fail "$_label: reusable script '$_script_id' not found or has no command" error; return; }
+
+      # unset all vars declared by this script so optional args not provided by the
+      # rule don't inherit stale values from a previous rule execution
+      local _all_skeys _sk
+      _all_skeys=$(yq ".scripts[] | select(.id == \"$_script_id\") | .args[].key" "$PREFLIGHT_FILE" 2>/dev/null || true)
+      while IFS= read -r _sk; do
+        is_blank "$_sk" && continue
+        unset "$_sk" 2>/dev/null || true
+      done <<< "$_all_skeys"
+
+      # export each arg provided by the rule as an env var; arrays are joined space-separated
+      local _arg_keys _ak _av _av_type
+      _arg_keys=$(yq "${_path}.args | keys | .[]" "$PREFLIGHT_FILE" 2>/dev/null || true)
+      while IFS= read -r _ak; do
+        is_blank "$_ak" && continue
+        _av_type=$(yq "${_path}.args.${_ak} | tag" "$PREFLIGHT_FILE" 2>/dev/null || true)
+        if [[ "$_av_type" == "!!seq" ]]; then
+          _av=$(yq "${_path}.args.${_ak}[]" "$PREFLIGHT_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+        else
+          _av=$(yq "${_path}.args.${_ak} // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+        fi
+        export "${_ak}=${_av}"
+      done <<< "$_arg_keys"
+
+      local _out _ec=0
+      _out=$(eval "$_script_cmd" 2>&1) || _ec=$?
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else

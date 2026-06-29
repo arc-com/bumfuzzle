@@ -2,11 +2,12 @@
 
 # 🌀 Bumfuzzle
 
-**Constitutional linter for your codebase and AI agents.**  
-Structure as law, not vibes.
+### YAML-Based Rules Engine & Structural Linter for AI Coding Agents
+_Keep your AI agents (Cursor, Claude Code, Devin) bounded, predictable, and aligned with your codebase rules._
 
 [![Version](https://img.shields.io/badge/version-1.0-blue)](https://github.com/arc-com/bumfuzzle/releases)
 [![License](https://img.shields.io/github/license/arc-com/bumfuzzle)](LICENSE)
+[![CI Build](https://img.shields.io/github/actions/workflow/status/arc-com/bumfuzzle/ci.yml)](https://github.com/arc-com/bumfuzzle/actions)
 [![Stars](https://img.shields.io/github/stars/arc-com/bumfuzzle?style=flat)](https://github.com/arc-com/bumfuzzle/stargazers)
 
 <!-- DEMO: replace with asciinema cast or GIF -->
@@ -25,6 +26,8 @@ Structure as law, not vibes.
 ---
 
 ## Working with AI coding agents
+
+Works with **Cursor**, **Claude Code**, **Devin**, **Copilot Workspace**, and any agent that reads a context file.
 
 Add one line to your `AGENTS.md`:
 

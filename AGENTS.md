@@ -1,1 +1,0 @@
-/Users/johndoe/Projects/archicode/instruct/MASTER_RULESET.md
