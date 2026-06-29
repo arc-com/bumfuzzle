@@ -32,7 +32,6 @@ PROJECT_DIR_NAME="$(basename "$PROJECT_DIR")"
 
 if [[ ! -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
   cp "$SETTINGS" "$PROJECT_DIR/bumfuzzle.yml"
-  yq -i ".project.name = \"$PROJECT_DIR_NAME\"" "$PROJECT_DIR/bumfuzzle.yml"
   printf '  Created bumfuzzle.yml\n'
 fi
 
@@ -41,24 +40,28 @@ fi
 SETTINGS_JSON=$(yq -o=json '.' "$SETTINGS")
 CURRENT_JSON=$(yq -o=json '.' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || printf '{}')
 
-CONFIG_JSON=$(printf '{"settings":%s,"current":%s,"meta":{"projectDir":"%s","projectDirName":"%s","version":"%s"}}' \
-  "$SETTINGS_JSON" "$CURRENT_JSON" \
+META_JSON=$(printf '{"projectDir":"%s","projectDirName":"%s","version":"%s"}' \
   "$PROJECT_DIR" "$PROJECT_DIR_NAME" "$BUMFUZZLE_VERSION")
+
+CONFIG_JSON=$(printf '{"settings":%s,"current":%s,"meta":%s}' \
+  "$SETTINGS_JSON" "$CURRENT_JSON" "$META_JSON")
 
 # ── Write Python HTTP server to temp file ─────────────────────────────────────
 
 PYTHON_SRV="/tmp/bumfuzzle_server_$$.py"
 
 cat > "$PYTHON_SRV" << 'PYEOF'
-import http.server, json, os, socketserver, subprocess
+import http.server, json, os, shutil, socketserver, subprocess
 
 PORT      = int(os.environ['BUMFUZZLE_PORT'])
 PROJ_DIR  = os.environ['BUMFUZZLE_PROJECT_DIR']
 KS_SH     = os.environ['BUMFUZZLE_KICKSTART_SH']
 PF_SH     = os.environ['BUMFUZZLE_PREFLIGHT_SH']
 HTML_PATH = os.environ['BUMFUZZLE_HTML']
-CFG_BYTES = os.environ['BUMFUZZLE_CONFIG_JSON'].encode()
-YAML_PATH = os.path.join(PROJ_DIR, 'bumfuzzle.yml')
+YAML_PATH     = os.path.join(PROJ_DIR, 'bumfuzzle.yml')
+SETTINGS_PATH = os.environ['BUMFUZZLE_SETTINGS']
+
+current_cfg = [os.environ['BUMFUZZLE_CONFIG_JSON'].encode()]
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args): pass
@@ -73,11 +76,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
         elif self.path == '/config':
+            data = current_cfg[0]
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(CFG_BYTES)))
+            self.send_header('Content-Length', str(len(data)))
             self.end_headers()
-            self.wfile.write(CFG_BYTES)
+            self.wfile.write(data)
         else:
             self.send_response(404)
             self.end_headers()
@@ -88,6 +92,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == '/save':
             with open(YAML_PATH, 'wb') as f:
                 f.write(body)
+            try:
+                new_current = subprocess.check_output(['yq', '-o=json', '.', YAML_PATH], text=True)
+                old_cfg = json.loads(current_cfg[0].decode())
+                old_cfg['current'] = json.loads(new_current)
+                current_cfg[0] = json.dumps(old_cfg).encode()
+            except Exception:
+                pass
+            self.send_response(200)
+            self.end_headers()
+        elif self.path == '/reset':
+            shutil.copy(SETTINGS_PATH, YAML_PATH)
             self.send_response(200)
             self.end_headers()
         elif self.path in ('/run/kickstart', '/run/preflight'):
@@ -134,6 +149,7 @@ export BUMFUZZLE_KICKSTART_SH="$KICKSTART_SH"
 export BUMFUZZLE_PREFLIGHT_SH="$PREFLIGHT_SH"
 export BUMFUZZLE_HTML
 export BUMFUZZLE_CONFIG_JSON="$CONFIG_JSON"
+export BUMFUZZLE_SETTINGS="$SETTINGS"
 
 # ── Start server ──────────────────────────────────────────────────────────────
 

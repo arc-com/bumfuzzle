@@ -60,17 +60,26 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 /* ── Tree line segments ── */
 .rt-pfx{display:flex;flex-shrink:0;align-self:stretch}
 .tl-seg{width:16px;flex-shrink:0;position:relative;align-self:stretch}
-.tl-pipe::before{content:'';position:absolute;left:7px;top:0;bottom:0;border-left:1px solid var(--b1)}
-.tl-tee::before{content:'';position:absolute;left:7px;top:0;bottom:0;border-left:1px solid var(--b1)}
-.tl-tee::after{content:'';position:absolute;left:7px;right:0;top:50%;border-top:1px solid var(--b1)}
-.tl-end::before{content:'';position:absolute;left:7px;top:0;height:50%;border-left:1px solid var(--b1)}
-.tl-end::after{content:'';position:absolute;left:7px;right:0;top:50%;border-top:1px solid var(--b1)}
+.feat-tree-lines .tl-pipe::before{content:'';position:absolute;left:7px;top:0;bottom:0;border-left:1px solid var(--b1)}
+.feat-tree-lines .tl-tee::before{content:'';position:absolute;left:7px;top:0;bottom:0;border-left:1px solid var(--b1)}
+.feat-tree-lines .tl-tee::after{content:'';position:absolute;left:7px;right:0;top:50%;border-top:1px solid var(--b1)}
+.feat-tree-lines .tl-end::before{content:'';position:absolute;left:7px;top:0;height:50%;border-left:1px solid var(--b1)}
+.feat-tree-lines .tl-end::after{content:'';position:absolute;left:7px;right:0;top:50%;border-top:1px solid var(--b1)}
 
 /* ── Line numbers / row outer ── */
-.rt-outer{display:flex;margin-left:-16px}
-.rt-ln{display:flex;align-items:center;justify-content:flex-end;width:20px;flex-shrink:0;font-size:10px;font-family:var(--mono);color:var(--td);padding-right:5px;user-select:none}
-.rt-status{font-size:10px;color:var(--yl);margin-left:5px;flex-shrink:0;white-space:nowrap}
+.rt-outer{display:flex}
+.feat-line-numbers .rt-outer{margin-left:-16px}
+.rt-ln{display:none;align-items:center;justify-content:flex-end;width:20px;flex-shrink:0;font-size:10px;font-family:var(--mono);color:var(--td);padding-right:5px;user-select:none}
+.feat-line-numbers .rt-ln{display:flex}
+.rt-status{font-size:10px;color:var(--yl);margin-left:5px;margin-right:6px;flex-shrink:0;white-space:nowrap}
 .rt-grp-count{font-size:11px;color:var(--td);font-family:var(--mono);margin-left:6px;font-weight:400;white-space:nowrap}
+.rt-tog{background:none;border:1px solid rgba(63,185,80,.35);border-radius:3px;font-size:10px;font-family:var(--mono);padding:1px 5px;cursor:pointer;color:var(--gr);flex-shrink:0;transition:border-color .1s,color .1s,opacity .1s;line-height:1.4}
+.rt-tog.off{border-color:rgba(248,81,73,.3);color:var(--rd);opacity:.6}
+.rt-row.rt-item-disabled .rt-content{opacity:.35}
+.sec-filter{display:flex;gap:2px;margin-left:auto;flex-shrink:0}
+.sec-filter-btn{background:none;border:1px solid transparent;border-radius:3px;color:var(--td);font-size:10px;font-family:var(--mono);padding:2px 6px;cursor:pointer;transition:border-color .1s,color .1s}
+.sec-filter-btn:hover{border-color:var(--b1);color:var(--tm)}
+.sec-filter-btn.on{border-color:var(--b1);color:var(--tx);background:var(--surf2)}
 
 /* ── Row ── */
 .rt-row{flex:1;display:flex;align-items:center;min-height:36px;padding:0 4px 0 0;border-radius:4px;cursor:pointer;user-select:none;position:relative;min-width:0}
@@ -79,7 +88,7 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .rt-row.rt-dragging{background:rgba(88,166,255,.08);outline:1px solid rgba(88,166,255,.25);outline-offset:-1px}
 
 /* ── Content ── */
-.rt-content{flex:1;min-width:0;padding:5px 4px 5px 0}
+.rt-content{flex:1;min-width:0;padding:5px 4px 5px 8px}
 .rt-name{display:block;font-size:13px;font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
 .rt-name.grp{font-weight:600}
 .rt-subdesc{display:block;font-size:11px;color:var(--td);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;line-height:1.3}
@@ -94,14 +103,15 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .rt-edit:hover{color:var(--pu);background:rgba(163,113,247,.1)}
 
 /* ── Expanded panel ── */
-.rt-panel-wrap{display:flex;align-items:flex-start}
-.rt-panel{flex:1;border:1px solid var(--b1);border-radius:var(--r);padding:14px 14px 16px;margin:2px 6px 6px;background:var(--surf)}
-.rf-sec{margin-bottom:14px}.rf-sec:last-child{margin-bottom:0}
-.rf-lbl{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--td);font-family:var(--mono);margin-bottom:7px}
+.rt-panel-wrap{display:flex;align-items:flex-start;flex:1;min-width:0}
+.rt-panel{flex:1;border:1px solid var(--b1);border-radius:var(--r);margin:4px 8px 8px;background:var(--surf);overflow:hidden}
+.rf-body{padding:16px 16px 0}
+.rf-sec{margin-bottom:16px}
+.rf-lbl{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--tm);font-family:var(--mono);margin-bottom:6px}
 
 /* ── Segmented control ── */
-.seg{display:inline-flex;border:1px solid var(--b1);border-radius:var(--r);overflow:hidden;flex-wrap:wrap}
-.seg-btn{background:transparent;border:none;border-right:1px solid var(--b1);color:var(--tm);font-size:11px;font-family:var(--mono);padding:5px 12px;cursor:pointer;white-space:nowrap;transition:background .1s,color .1s}
+.seg{display:flex;width:100%;border:1px solid var(--b1);border-radius:var(--r);overflow:hidden;flex-wrap:wrap}
+.seg-btn{flex:1;background:transparent;border:none;border-right:1px solid var(--b1);color:var(--tm);font-size:11px;font-family:var(--mono);padding:6px 12px;cursor:pointer;white-space:nowrap;transition:background .1s,color .1s;text-align:center}
 .seg-btn:last-child{border-right:none}
 .seg-btn:hover{background:rgba(255,255,255,.05);color:var(--tx)}
 .seg-btn.on{font-weight:600}
@@ -112,16 +122,19 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .seg-btn.on.t-on       {background:rgba(88,166,255,.1);color:var(--ac)}
 
 /* ── Instruction textarea ── */
-.instr-ta{width:100%;min-height:72px;resize:vertical;background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);color:var(--tx);font-size:13px;font-family:inherit;padding:8px 10px;outline:none;line-height:1.5}
+.instr-ta{width:100%;min-height:64px;resize:none;overflow:hidden;background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);color:var(--tx);font-size:13px;font-family:inherit;padding:8px 10px;outline:none;line-height:1.5}
 .instr-ta:focus{border-color:var(--ac)}
 
-/* ── Panel status bar ── */
-.rf-status-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--b1)}
-.rf-actions-bar{display:flex;gap:5px}
+/* ── Panel footer (action bar) ── */
+.rf-status-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--b1);background:var(--surf2)}
+.rf-actions-bar{display:flex;gap:5px;margin-left:auto}
+.rf-dirty-badge{font-size:10px;font-family:var(--mono);color:var(--yl);display:none;align-items:center;gap:5px;flex-shrink:0}
+.rf-dirty-badge.visible{display:flex}
+.rf-dirty-badge::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;display:inline-block}
 .rf-btn{background:none;border:1px solid var(--b1);border-radius:4px;color:var(--tm);font-size:11px;font-family:inherit;padding:3px 10px;cursor:pointer;transition:border-color .1s,color .1s,background .1s}
 .rf-btn:hover{border-color:var(--tm);color:var(--tx)}
-.rf-btn-save{border-color:rgba(63,185,80,.4);color:var(--gr)}
-.rf-btn-save:hover{border-color:var(--gr);background:rgba(63,185,80,.07)}
+.rf-btn-save{border-color:rgba(63,185,80,.5);color:var(--gr);font-weight:600}
+.rf-btn-save:hover{border-color:var(--gr);background:rgba(63,185,80,.1)}
 .rf-btn-cancel{border-color:rgba(248,81,73,.3);color:var(--rd)}
 .rf-btn-cancel:hover{border-color:var(--rd);background:rgba(248,81,73,.06)}
 
@@ -153,10 +166,45 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .out-status{margin-top:5px;font-size:12px;font-weight:600}
 .out-status.ok{color:var(--gr)}.out-status.err{color:var(--rd)}
 
+/* ── Script / arg panel ── */
+.hint-text{font-size:11px;color:var(--td);margin-top:4px;font-style:italic}
+.badge-warn{font-size:11px;color:var(--yl);margin-top:5px;font-family:var(--mono)}
+.arg-block{border:1px solid var(--b1);border-radius:var(--r);margin-bottom:6px;overflow:hidden}
+.arg-hdr{display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--surf2);cursor:pointer;user-select:none;min-width:0}
+.arg-hdr:hover{background:var(--surf3)}
+.arg-drag-handle{color:var(--td);cursor:grab;font-size:13px;line-height:1;flex-shrink:0;padding:2px 2px;border-radius:3px}
+.arg-drag-handle:hover{color:var(--tm);background:rgba(255,255,255,.06)}
+.arg-drag-handle:active{cursor:grabbing}
+.arg-hdr-preview{flex:1;font-size:11px;font-family:var(--mono);color:var(--tm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.arg-hdr-preview strong{color:var(--tx);font-weight:600}
+.arg-hdr-type{font-size:10px;font-family:var(--mono);color:var(--td);flex-shrink:0;border:1px solid var(--b1);border-radius:3px;padding:1px 5px}
+.arg-hdr-rm{background:none;border:none;color:var(--td);cursor:pointer;width:20px;height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;flex-shrink:0;transition:color .1s,background .1s}
+.arg-hdr-rm:hover{color:var(--rd);background:rgba(248,81,73,.1)}
+.arg-collapse-arrow{font-size:9px;color:var(--td);flex-shrink:0;transition:transform .12s}
+.arg-collapse-arrow.open{transform:rotate(90deg)}
+.arg-detail{padding:10px;border-top:1px solid var(--b1)}
+.arg-controls{display:flex;gap:4px;align-items:center;margin-bottom:8px}
+.arg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.instr-ta.mono{font-family:var(--mono);font-size:12px}
+.inp[readonly]{opacity:.55;cursor:default}
+select.inp{cursor:pointer}
+
 /* ── Toast ── */
 #toasts{position:fixed;top:14px;right:14px;z-index:200;display:flex;flex-direction:column;gap:5px;align-items:flex-end;pointer-events:none}
 .toast{background:var(--surf2);border:1px solid var(--b1);border-radius:var(--r);padding:6px 12px;font-size:12px;color:var(--tm);max-width:280px;opacity:0;transform:translateX(6px);transition:opacity .15s,transform .15s}
 .toast.show{opacity:1;transform:translateX(0)}
+
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;z-index:300;background:rgba(1,4,9,.65);display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--surf);border:1px solid var(--b1);border-radius:var(--r);width:100%;max-width:600px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-header{padding:14px 16px 12px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--tm);border-bottom:1px solid var(--b1);flex-shrink:0}
+.modal-body{padding:16px;overflow-y:auto;flex:1}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--b1);flex-shrink:0}
+#app.app-blurred{filter:blur(3px);pointer-events:none;user-select:none}
+.btn.danger{flex:0;padding:10px 16px;border-color:rgba(248,81,73,.4);color:var(--rd)}
+.btn.danger:hover:not(:disabled){border-color:var(--rd);background:rgba(248,81,73,.07)}
+.btn-hdr-reset{background:none;border:1px solid rgba(248,81,73,.3);border-radius:4px;color:var(--rd);font-size:11px;font-family:inherit;padding:3px 10px;cursor:pointer;opacity:.65;transition:opacity .1s,border-color .1s}
+.btn-hdr-reset:hover{opacity:1;border-color:var(--rd)}
 </style>
 </head>
 <body>
@@ -165,14 +213,30 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 <script>
 'use strict';
 
+// ── Feature flags ─────────────────────────────────────────────────────────────
+const CONFIG = {
+  lineNumbers: false,
+  treeLines:   false,
+};
+
 let S, C, META;
 let state;
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
-function isGroup(item) { return 'group' in item; }
+function isGroup(item)  { return 'group' in item; }
 function isRule(item)  { return 'type'  in item; }
 function isEnum(item)  { return 'values' in item; }
+function isScript(item){ return !('group' in item) && !('type' in item) && !('values' in item); }
+
+function flattenItems(items) {
+  const out = [];
+  (items || []).forEach(item => {
+    if (isGroup(item)) out.push(...flattenItems(item.rules || []));
+    else out.push(item);
+  });
+  return out;
+}
 
 function getParentArr(path, rootArr) {
   let arr = rootArr;
@@ -210,28 +274,35 @@ function isAncestorOf(ancestor, item) {
 // ── Data init ─────────────────────────────────────────────────────────────────
 
 function defaultEnums() {
-  return [{
-    group: 'Claude Model Configuration',
-    rules: [
-      { name: 'model', description: 'Selects the default model.', values: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-haiku'] },
-      { name: 'availableModels', description: 'Restricts the models available to users or subagents.', values: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-haiku'] },
-      { name: 'effortLevel', description: 'Controls the depth of extended thinking.', values: ['low', 'medium', 'high'] },
-    ],
-  }];
+  return [
+    { name: 'environments', description: 'Deployment environments — preflight validates each .env.<name> file.', values: [] },
+    {
+      group: 'Claude Model Configuration',
+      rules: [
+        { name: 'model', description: 'Selects the default model.', values: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-haiku'] },
+        { name: 'availableModels', description: 'Restricts the models available to users or subagents.', values: ['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-haiku'] },
+        { name: 'effortLevel', description: 'Controls the depth of extended thinking.', values: ['low', 'medium', 'high'] },
+      ],
+    },
+  ];
 }
 
 function initData() {
-  const cRules = C && C.rules;
-  const sRules = S && S.rules;
-  const cEnums = C && C.enums;
-  const sEnums = S && S.enums;
+  const cRules   = C && C.rules;
+  const sRules   = S && S.rules;
+  const cEnums   = C && C.enums;
+  const sEnums   = S && S.enums;
+  const cScripts = C && C.scripts;
   state = {
-    rules: JSON.parse(JSON.stringify(cRules || sRules || [])),
-    enums: JSON.parse(JSON.stringify(cEnums || sEnums || defaultEnums())),
-    sections: { rules: true, enums: true, actions: true },
+    rules:   JSON.parse(JSON.stringify(cRules   || sRules   || [])),
+    enums:   JSON.parse(JSON.stringify(cEnums   || sEnums   || defaultEnums())),
+    scripts: JSON.parse(JSON.stringify(cScripts || [])),
+    sections: { rules: true, enums: true, scripts: true, actions: true },
+    filters:  { rules: 'all' },
   };
   annotate(state.rules);
   annotateEnums(state.enums);
+  annotateScripts(state.scripts);
 }
 
 function annotate(items) {
@@ -250,6 +321,11 @@ function annotate(items) {
       } else if (item.instruction === undefined) {
         item.instruction = '';
       }
+      if (item.type === 'script_reusable') {
+        if (!item.script) item.script = '';
+        if (!item.args || typeof item.args !== 'object' || Array.isArray(item.args)) item.args = {};
+      }
+      if (item.enabled === undefined) item.enabled = true;
       if (item._saved === undefined) item._saved = ruleSnapshot(item);
       if (item._mode === undefined) item._mode = 'edit';
     }
@@ -269,6 +345,28 @@ function annotateEnums(items) {
       if (!item.name) item.name = '';
       if (!item.description) item.description = '';
       if (!Array.isArray(item.values)) item.values = [];
+      if (item._saved === undefined) item._saved = enumSnapshot(item);
+      if (item._mode === undefined) item._mode = 'edit';
+    }
+  });
+}
+
+function annotateScripts(items) {
+  (items || []).forEach(item => {
+    if (isGroup(item)) {
+      if (item._col === undefined) item._col = false;
+      if (item.scripts && !item.rules) { item.rules = item.scripts; delete item.scripts; }
+      if (!item.rules) item.rules = [];
+      annotateScripts(item.rules);
+    } else {
+      if (item._exp === undefined) item._exp = false;
+      if (!item.id)          item.id          = '';
+      if (!item.name)        item.name        = '';
+      if (!item.description) item.description = '';
+      if (!item.command)     item.command     = '';
+      if (!Array.isArray(item.args)) item.args = [];
+      if (item._saved === undefined) item._saved = scriptSnapshot(item);
+      if (item._mode === undefined)  item._mode  = 'edit';
     }
   });
 }
@@ -292,6 +390,12 @@ function showToast(msg) {
   document.getElementById('toasts').append(t);
   requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 200); }, 2800);
+}
+
+function panelSec(lbl, content) {
+  const s = el('div', { class: 'rf-sec' });
+  s.append(el('span', { class: 'rf-lbl' }, lbl), content);
+  return s;
 }
 
 // ── Auto-save ─────────────────────────────────────────────────────────────────
@@ -319,10 +423,94 @@ function setSaveStatus(s) {
   saveEl.className = 'hdr-save ' + s;
 }
 
+// ── Reset ─────────────────────────────────────────────────────────────────────
+
+async function doReset() {
+  try {
+    const res = await fetch('/reset', { method: 'POST' });
+    if (!res.ok) throw new Error();
+    location.reload();
+  } catch { showToast('Reset failed'); }
+}
+
+function showResetModal() {
+  if (modalEl) return;
+  const overlay = el('div', { class: 'modal-overlay' });
+  const box     = el('div', { class: 'modal-box', style: 'max-width:400px' });
+  const bodyEl  = el('div', { class: 'modal-body' });
+  bodyEl.append(
+    el('p', { style: 'font-size:13px;color:var(--tm);line-height:1.6' },
+      'This will replace ',
+      el('code', { style: 'font-family:var(--mono);font-size:12px;color:var(--tx)' }, 'bumfuzzle.yml'),
+      ' with the default template. All current settings will be lost.'
+    )
+  );
+  const footerEl = el('div', { class: 'modal-footer' });
+  footerEl.append(
+    el('button', { class: 'btn cancel', onclick: closeModal }, 'Cancel'),
+    el('button', { class: 'btn danger', onclick: () => { closeModal(); doReset(); } }, 'Reset to template'),
+  );
+  box.append(
+    el('div', { class: 'modal-header' }, 'Reset Configuration'),
+    bodyEl,
+    footerEl,
+  );
+  overlay.append(box);
+  document.body.append(overlay);
+  document.getElementById('app').classList.add('app-blurred');
+  modalEl = overlay;
+}
+
 // ── YAML generation ───────────────────────────────────────────────────────────
 
 function generateYaml() {
   const lines = [];
+
+  function writeScriptArgConstraints(a, indent) {
+    if (a.required)                   lines.push(indent + 'required: true');
+    if (a.placeholder)                lines.push(indent + 'placeholder: ' + JSON.stringify(a.placeholder));
+    if (a.default !== undefined && a.default !== '') lines.push(indent + 'default: ' + JSON.stringify(a.default));
+    if (a.min !== undefined)          lines.push(indent + 'min: ' + a.min);
+    if (a.max !== undefined)          lines.push(indent + 'max: ' + a.max);
+    if (a.type === 'enum') {
+      if (a.multi_select)             lines.push(indent + 'multi_select: true');
+      if (a.separator && a.separator !== 'space') lines.push(indent + 'separator: ' + a.separator);
+      if (Array.isArray(a.options) && a.options.length) {
+        lines.push(indent + 'options:');
+        a.options.forEach(o => lines.push(indent + '  - ' + JSON.stringify(o)));
+      }
+      if (a.enum_ref)                 lines.push(indent + 'enum_ref: ' + JSON.stringify(a.enum_ref));
+    }
+    if (a.visible_when && a.visible_when.key && a.visible_when.eq !== undefined) {
+      lines.push(indent + 'visible_when:');
+      lines.push(indent + '  key: ' + JSON.stringify(a.visible_when.key));
+      lines.push(indent + '  eq: '  + JSON.stringify(String(a.visible_when.eq)));
+    }
+  }
+
+  function writeScriptItems(items, indent) {
+    for (const item of items) {
+      if (isGroup(item)) {
+        lines.push(indent + '- group: ' + JSON.stringify(item.group));
+        lines.push(indent + '  scripts:');
+        if (item.rules && item.rules.length) writeScriptItems(item.rules, indent + '    ');
+      } else {
+        lines.push(indent + '- id: '   + JSON.stringify(item.id));
+        lines.push(indent + '  name: ' + JSON.stringify(item.name));
+        if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
+        if (item.command)     lines.push(indent + '  command: '     + JSON.stringify(item.command));
+        if (Array.isArray(item.args) && item.args.length) {
+          lines.push(indent + '  args:');
+          item.args.forEach(a => {
+            lines.push(indent + '    - key: '   + JSON.stringify(a.key || ''));
+            lines.push(indent + '      label: ' + JSON.stringify(a.label || ''));
+            lines.push(indent + '      type: '  + (a.type || 'string'));
+            writeScriptArgConstraints(a, indent + '      ');
+          });
+        }
+      }
+    }
+  }
 
   function writeRuleItems(items, indent) {
     for (const item of items) {
@@ -330,9 +518,31 @@ function generateYaml() {
         lines.push(indent + '- group: ' + JSON.stringify(item.group));
         lines.push(indent + '  rules:');
         if (item.rules && item.rules.length) writeRuleItems(item.rules, indent + '    ');
+      } else if (item.type === 'script_reusable') {
+        lines.push(indent + '- type: script_reusable');
+        lines.push(indent + '  name: '                              + JSON.stringify(item.name));
+        if (item.enabled === false) lines.push(indent + '  enabled: false');
+        if (item.script)      lines.push(indent + '  script: '      + JSON.stringify(item.script));
+        if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
+        if (item.severity && item.severity !== 'error')
+                              lines.push(indent + '  severity: '    + item.severity);
+        if (item.instruction) lines.push(indent + '  instruction: ' + JSON.stringify(item.instruction));
+        if (item.args && Object.keys(item.args).length) {
+          lines.push(indent + '  args:');
+          Object.entries(item.args).forEach(([k, v]) => {
+            const val = Array.isArray(v) ? v : v;
+            if (Array.isArray(val) && val.length) {
+              lines.push(indent + '    ' + k + ':');
+              val.forEach(entry => lines.push(indent + '      - ' + JSON.stringify(entry)));
+            } else {
+              lines.push(indent + '    ' + k + ': ' + JSON.stringify(String(val ?? '')));
+            }
+          });
+        }
       } else {
         lines.push(indent + '- type: ' + item.type);
         lines.push(indent + '  name: '                              + JSON.stringify(item.name));
+        if (item.enabled === false) lines.push(indent + '  enabled: false');
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
         if (item.target)      lines.push(indent + '  target: '      + JSON.stringify(item.target));
         if (item.pattern !== undefined && item.pattern !== '')
@@ -367,6 +577,8 @@ function generateYaml() {
     }
   }
 
+  if (state.scripts && state.scripts.length) { lines.push('scripts:'); writeScriptItems(state.scripts, '  '); }
+
   if (state.rules.length) { lines.push('rules:'); writeRuleItems(state.rules, '  '); }
   else lines.push('rules: []');
 
@@ -389,9 +601,9 @@ function assignLineNumbers(items) {
   walk(items);
 }
 
-// ── Flatten tree ──────────────────────────────────────────────────────────────
+// ── Flatten tree (shared) ─────────────────────────────────────────────────────
 
-function flattenRules(items, ancestorCols, pathBase) {
+function flattenTree(items, ancestorCols, pathBase) {
   const out = [];
   (items || []).forEach((item, i) => {
     const last = i === items.length - 1;
@@ -399,27 +611,10 @@ function flattenRules(items, ancestorCols, pathBase) {
     const cols = [...ancestorCols, !last];
     if (isGroup(item)) {
       out.push({ kind: 'group', item, cols, path });
-      if (!item._col) out.push(...flattenRules(item.rules || [], cols, path));
+      if (!item._col) out.push(...flattenTree(item.rules || [], cols, path));
     } else {
-      out.push({ kind: 'rule', item, cols, path });
+      out.push({ kind: 'item', item, cols, path });
       if (item._exp) out.push({ kind: 'panel', item, cols, path });
-    }
-  });
-  return out;
-}
-
-function flattenEnums(items, ancestorCols, pathBase) {
-  const out = [];
-  (items || []).forEach((item, i) => {
-    const last = i === items.length - 1;
-    const path = [...pathBase, i];
-    const cols = [...ancestorCols, !last];
-    if (isGroup(item)) {
-      out.push({ kind: 'enum-group', item, cols, path });
-      if (!item._col) out.push(...flattenEnums(item.rules || [], cols, path));
-    } else {
-      out.push({ kind: 'enum', item, cols, path });
-      if (item._exp) out.push({ kind: 'enum-panel', item, cols, path });
     }
   });
   return out;
@@ -428,7 +623,29 @@ function flattenEnums(items, ancestorCols, pathBase) {
 // ── Tree line prefix ──────────────────────────────────────────────────────────
 
 function countItems(group) {
-  return (group.rules || []).reduce((n, item) => n + 1 + (isGroup(item) ? countItems(item) : 0), 0);
+  return (group.rules || []).reduce((n, item) => isGroup(item) ? n + countItems(item) : n + 1, 0);
+}
+
+function countSectionItems(items, skipUnsaved) {
+  return (items || []).reduce((n, item) => {
+    if (isGroup(item)) return n + countSectionItems(item.rules, skipUnsaved);
+    if (skipUnsaved && item._saved === null) return n;
+    return n + 1;
+  }, 0);
+}
+
+function countRuleStats(items) {
+  let total = 0, enabled = 0, disabled = 0;
+  function walk(arr) {
+    (arr || []).forEach(item => {
+      if (isGroup(item)) { walk(item.rules); return; }
+      if (item._saved === null) return;
+      total++;
+      if (item.enabled !== false) enabled++; else disabled++;
+    });
+  }
+  walk(items);
+  return { total, enabled, disabled };
 }
 
 function buildPrefix(cols, isPanel) {
@@ -453,8 +670,7 @@ function buildPrefix(cols, isPanel) {
 
 // ── Drag system ───────────────────────────────────────────────────────────────
 
-let rulesRowRegistry = [];
-let enumsRowRegistry = [];
+let sections = [];
 let drag = null;
 let lastDropItem = null, lastDropMode = null;
 let lastCursorY = null;
@@ -464,19 +680,19 @@ function initDrag() {
   document.addEventListener('mouseup',   onDragEnd);
 }
 
-function attachDrag(rowEl, item, rootArr) {
+function attachDrag(rowEl, item, section) {
+  if (!isGroup(item) && item._saved === null) return;
   rowEl.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'TEXTAREA') return;
-    drag = { item, startX: e.clientX, startY: e.clientY, active: false, rootArr, dir: 'down' };
+    drag = { item, startX: e.clientX, startY: e.clientY, active: false, section, dir: 'down' };
   });
 }
 
 function computeDropTarget(e, dir) {
-  const allRows = [...rulesRowRegistry, ...enumsRowRegistry];
-  for (const { item, el: rowEl, rootArr } of allRows) {
+  for (const { item, el: rowEl, section } of sections.flatMap(s => s.registry)) {
     if (item === drag.item || isAncestorOf(drag.item, item)) continue;
-    if (rootArr !== drag.rootArr) continue;
+    if (section !== drag.section) continue;
     const rect = rowEl.getBoundingClientRect();
     if (e.clientY < rect.top || e.clientY > rect.bottom) continue;
     return { item, mode: dir === 'down' ? 'after' : 'before' };
@@ -499,167 +715,439 @@ function onDragMove(e) {
   const dropInfo = computeDropTarget(e, drag.dir);
   if (!dropInfo || (dropInfo.item === lastDropItem && dropInfo.mode === lastDropMode)) return;
 
-  const rootArr = drag.rootArr;
-  const srcPath = findPath(drag.item, rootArr, []);
+  const sec  = drag.section;
+  const data = sec.getData();
+  const srcPath = findPath(drag.item, data, []);
   if (!srcPath) return;
-  removeByPath(srcPath, rootArr);
+  removeByPath(srcPath, data);
 
-  if (dropInfo.mode === 'into') {
-    dropInfo.item.rules = dropInfo.item.rules || [];
-    dropInfo.item.rules.unshift(drag.item);
-  } else {
-    const dstPath = findPath(dropInfo.item, rootArr, []);
-    if (!dstPath) { insertByPath(srcPath, drag.item, rootArr); return; }
-    if (dropInfo.mode === 'after') dstPath[dstPath.length - 1]++;
-    insertByPath(dstPath, drag.item, rootArr);
-  }
+  const dstPath = findPath(dropInfo.item, data, []);
+  if (!dstPath) { insertByPath(srcPath, drag.item, data); return; }
+  if (dropInfo.mode === 'after') dstPath[dstPath.length - 1]++;
+  insertByPath(dstPath, drag.item, data);
 
   lastDropItem = dropInfo.item;
   lastDropMode = dropInfo.mode;
 
-  if (rootArr === state.rules) reRenderRules();
-  else reRenderEnums();
+  sec.reRender();
 
-  const reg = [...rulesRowRegistry, ...enumsRowRegistry].find(r => r.item === drag.item);
+  const reg = sections.flatMap(s => s.registry).find(r => r.item === drag.item);
   if (reg) reg.el.classList.add('rt-dragging');
 }
 
 function onDragEnd() {
   if (!drag) return;
   const wasActive = drag.active;
-  const rootArr = drag.rootArr;
+  const sec = drag.section;
   drag = null; lastDropItem = null; lastDropMode = null; lastCursorY = null;
   if (wasActive) {
-    if (rootArr === state.rules) reRenderRules();
-    else reRenderEnums();
+    sec.reRender();
     scheduleSave();
     document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
   }
 }
 
+// ── Modal system ──────────────────────────────────────────────────────────────
+
+let modalEl = null;
+
+function closeModal() {
+  modalEl?.remove();
+  modalEl = null;
+  document.getElementById('app').classList.remove('app-blurred');
+}
+
+function openModal(buildBodyFn, { title, onConfirm, onCancel, validateFn, noConfirm = false } = {}) {
+  if (modalEl) return;
+
+  const overlay  = el('div', { class: 'modal-overlay' });
+  const box      = el('div', { class: 'modal-box' });
+  const hdrEl    = el('div', { class: 'modal-header' }, title || '');
+  const bodyEl   = el('div', { class: 'modal-body' });
+  const footerEl = el('div', { class: 'modal-footer' });
+
+  bodyEl.append(buildBodyFn());
+
+  const cancelBtn  = el('button', { class: 'btn cancel' }, 'Cancel');
+  const confirmBtn = el('button', { class: 'btn pri' },    'Add');
+
+  function doCancel() {
+    if (!noConfirm && !confirm('Discard unsaved changes?')) return;
+    closeModal();
+    onCancel?.();
+  }
+  function doConfirm() {
+    if (validateFn && !validateFn()) { showToast('Fill in all required fields first'); return; }
+    closeModal();
+    onConfirm?.();
+  }
+
+  cancelBtn.addEventListener('click',  doCancel);
+  confirmBtn.addEventListener('click', doConfirm);
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') doCancel(); });
+
+  if (validateFn) {
+    const revalidate = () => { confirmBtn.disabled = !validateFn(); };
+    revalidate();
+    bodyEl.addEventListener('input',  revalidate);
+    bodyEl.addEventListener('change', revalidate);
+    bodyEl.addEventListener('click',  revalidate);
+  }
+
+  footerEl.append(cancelBtn, confirmBtn);
+  box.append(hdrEl, bodyEl, footerEl);
+  overlay.append(box);
+
+  document.body.append(overlay);
+  document.getElementById('app').classList.add('app-blurred');
+  modalEl = overlay;
+
+  const first = box.querySelector('input,select,textarea');
+  first?.focus();
+}
+
 // ── Section factory ───────────────────────────────────────────────────────────
 
 function makeSection(key, title) {
-  const sec  = el('div', { class: 'sec' });
-  const hdr  = el('div', { class: 'sec-hdr' });
-  hdr.append(el('span', { class: 'sec-title' }, title));
+  const sec     = el('div', { class: 'sec' });
+  const hdr     = el('div', { class: 'sec-hdr' });
+  const titleEl = el('span', { class: 'sec-title' }, title);
+  hdr.append(titleEl);
   sec.append(hdr);
   const body = el('div', { class: 'sec-body' });
   sec.append(body);
-  hdr.addEventListener('click', () => {
+  hdr.addEventListener('click', e => {
+    if (e.target.closest('.sec-filter')) return;
     const open = !body.classList.contains('closed');
     body.classList.toggle('closed', open);
     state.sections[key] = !open;
   });
-  return { sec, body };
+  return { sec, body, hdr, titleEl };
 }
 
-// ── Rule snapshot helpers ─────────────────────────────────────────────────────
+// ── Snapshot helpers ──────────────────────────────────────────────────────────
 
-const RULE_TYPES  = ['file_present','file_absent','content_present','content_absent','script_clean'];
 const SEV_LEVELS  = ['info','warn','error','hard-stop'];
-const SNAP_FIELDS = ['type','name','description','target','scope','pattern','exclude','command','severity','instruction'];
+const SNAP_FIELDS = ['type','name','description','target','scope','pattern','exclude','command','severity','instruction','script'];
 
 function ruleSnapshot(rule) {
   const s = {};
   SNAP_FIELDS.forEach(f => { s[f] = rule[f] ?? ''; });
+  s.args = JSON.stringify(rule.args || {});
   return JSON.stringify(s);
 }
 function isDirty(rule) {
   return rule._saved === null || ruleSnapshot(rule) !== rule._saved;
 }
+
+function enumSnapshot(item) {
+  return JSON.stringify({
+    name:        item.name        || '',
+    description: item.description || '',
+    values:      JSON.parse(JSON.stringify(item.values || [])),
+  });
+}
+function isEnumDirty(item) {
+  return item._saved === null || enumSnapshot(item) !== item._saved;
+}
+
+function scriptSnapshot(s) {
+  return JSON.stringify({
+    id:          s.id          || '',
+    name:        s.name        || '',
+    description: s.description || '',
+    command:     s.command     || '',
+    args:        JSON.parse(JSON.stringify(s.args || [])),
+  });
+}
+function isScriptDirty(s) {
+  return s._saved === null || scriptSnapshot(s) !== s._saved;
+}
+
 function diffFields(rule) {
   if (!rule._saved) return [];
   const from = JSON.parse(rule._saved);
-  return SNAP_FIELDS
+  const diffs = SNAP_FIELDS
     .filter(f => (from[f] ?? '') !== (rule[f] ?? ''))
     .map(f => ({ f, from: from[f] ?? '', to: rule[f] ?? '' }));
+  const fa = from.args || '{}', ta = JSON.stringify(rule.args || {});
+  if (fa !== ta) diffs.push({ f: 'args', from: fa === '{}' ? '(none)' : fa, to: ta === '{}' ? '(none)' : ta });
+  return diffs;
 }
+
+// ── Shared arg helpers ────────────────────────────────────────────────────────
+
+function getEnumValues(enumRef) {
+  function search(items) {
+    for (const item of (items || [])) {
+      if (isGroup(item)) { const r = search(item.rules || []); if (r) return r; }
+      else if (item.name === enumRef) return item.values || [];
+    }
+    return null;
+  }
+  return search(state.enums) || [];
+}
+
+function buildArgWidget(argDef, rule, onChange) {
+  const wrap = el('div', { class: 'rf-sec' });
+  const req  = argDef.required ? ' *' : '';
+  wrap.append(el('span', { class: 'rf-lbl' }, (argDef.label || argDef.key || '?') + req));
+  if (!rule.args) rule.args = {};
+  const stored = rule.args[argDef.key];
+  const def    = argDef.default !== undefined ? argDef.default : '';
+  const cur    = stored !== undefined ? stored : def;
+  const type   = argDef.type || 'string';
+
+  function set(val) { rule.args[argDef.key] = val; onChange(); }
+
+  if (type === 'bool') {
+    const seg = el('div', { class: 'seg' });
+    const cur2 = cur === true || cur === 'true';
+    ['true','false'].forEach(v => {
+      const b = el('button', { class: 'seg-btn' + (cur2 === (v === 'true') ? ' on t-on' : '') }, v);
+      b.addEventListener('click', () => {
+        set(v === 'true');
+        seg.querySelectorAll('.seg-btn').forEach(x => { const on = (rule.args[argDef.key] === true) === (x.textContent === 'true'); x.className = 'seg-btn' + (on ? ' on t-on' : ''); });
+      });
+      seg.append(b);
+    });
+    wrap.append(seg);
+  } else if (type === 'enum') {
+    const options = Array.isArray(argDef.options) && argDef.options.length ? argDef.options : getEnumValues(argDef.enum_ref || '');
+    if (argDef.multi_select) {
+      const selected = Array.isArray(cur) ? [...cur] : (cur ? [String(cur)] : []);
+      set([...selected]);
+      const chipsEl = el('div', { class: 'chips' });
+      function refreshMulti() {
+        chipsEl.innerHTML = '';
+        if (!selected.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
+        selected.forEach((v, i) => {
+          const x = el('button', { class: 'chip-x' }, '\xd7');
+          x.addEventListener('click', () => { selected.splice(i, 1); set([...selected]); refreshMulti(); });
+          chipsEl.append(el('span', { class: 'chip' }, v, x));
+        });
+        if (argDef.required) chipsEl.style.borderColor = selected.length ? '' : 'var(--rd)';
+      }
+      refreshMulti();
+      const addSel = el('select', { class: 'add-inp', style: 'flex:1' });
+      addSel.append(el('option', { value: '' }, '— pick to add —'));
+      options.forEach(o => { if (!selected.includes(String(o))) addSel.append(el('option', { value: o }, String(o))); });
+      const addBtn = el('button', { class: 'add-btn' }, '+ add');
+      addBtn.addEventListener('click', () => {
+        const v = addSel.value;
+        if (v && !selected.includes(v)) { selected.push(v); set([...selected]); refreshMulti(); }
+      });
+      wrap.append(chipsEl, el('div', { class: 'add-row' }, addSel, addBtn));
+    } else {
+      const curStr = cur !== undefined && cur !== '' ? String(cur) : '';
+      if (options.length <= 5) {
+        const seg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
+        if (argDef.required) seg.style.outline = curStr === '' ? '1px solid var(--rd)' : '';
+        options.forEach(o => {
+          const b = el('button', { class: 'seg-btn' + (curStr === String(o) ? ' on t-on' : '') }, String(o));
+          b.addEventListener('click', () => {
+            set(o);
+            seg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.textContent === String(rule.args[argDef.key]) ? ' on t-on' : ''));
+            if (argDef.required) seg.style.outline = '';
+            onChange();
+          });
+          seg.append(b);
+        });
+        wrap.append(seg);
+      } else {
+        const sel = el('select', { class: 'inp' });
+        sel.append(el('option', { value: '' }, '—'));
+        options.forEach(o => { const opt = el('option', { value: o }, String(o)); if (curStr === String(o)) opt.selected = true; sel.append(opt); });
+        if (argDef.required) sel.style.borderColor = curStr === '' ? 'var(--rd)' : '';
+        sel.addEventListener('change', () => {
+          set(sel.value);
+          if (argDef.required) sel.style.borderColor = sel.value === '' ? 'var(--rd)' : '';
+          onChange();
+        });
+        wrap.append(sel);
+      }
+    }
+  } else if (type === 'int' || type === 'double') {
+    const inp = el('input', { class: 'inp mono', type: 'number' });
+    if (type === 'int') inp.step = '1';
+    if (argDef.min !== undefined) inp.min = argDef.min;
+    if (argDef.max !== undefined) inp.max = argDef.max;
+    inp.placeholder = argDef.placeholder ?? (def !== '' ? String(def) : '');
+    inp.value = cur !== '' && cur !== undefined ? cur : (def !== '' ? def : '');
+    if (argDef.required) inp.style.borderColor = (inp.value === '' || inp.value === undefined) ? 'var(--rd)' : '';
+    inp.addEventListener('input', () => {
+      set(inp.value !== '' ? (type === 'int' ? parseInt(inp.value, 10) : parseFloat(inp.value)) : '');
+      if (argDef.required) inp.style.borderColor = inp.value === '' ? 'var(--rd)' : '';
+    });
+    wrap.append(inp);
+  } else {
+    // string, regex, path
+    const inp = el('input', { class: 'inp mono', type: 'text' });
+    inp.placeholder = argDef.placeholder ?? (def !== '' ? String(def) : '');
+    inp.value = cur !== '' && cur !== undefined ? String(cur) : (def !== '' ? String(def) : '');
+    if (argDef.required) inp.style.borderColor = inp.value === '' ? 'var(--rd)' : '';
+    if (type === 'regex') {
+      const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, 'Invalid regex');
+      function validateRx() {
+        try { if (inp.value) new RegExp(inp.value); errEl.style.display = 'none'; inp.style.borderColor = argDef.required && !inp.value ? 'var(--rd)' : ''; }
+        catch { errEl.style.display = ''; inp.style.borderColor = 'var(--rd)'; }
+      }
+      inp.addEventListener('input', () => { set(inp.value); validateRx(); });
+      validateRx();
+      wrap.append(inp, errEl);
+      return wrap;
+    }
+    inp.addEventListener('input', () => {
+      set(inp.value);
+      if (argDef.required) inp.style.borderColor = inp.value === '' ? 'var(--rd)' : '';
+    });
+    wrap.append(inp);
+  }
+  return wrap;
+}
+
+// ── Shared UI helpers ─────────────────────────────────────────────────────────
+
+function autoResize(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
 
 // ── Rule field editor ─────────────────────────────────────────────────────────
 
-function buildRuleFields(rule) {
+function ruleRequiredArgsFilled(item) {
+  if (item.type !== 'script_reusable') return true;
+  if (!item.script) return false;
+  const s = flattenItems(state.scripts || []).find(x => isScript(x) && x.id === item.script);
+  if (!s || !Array.isArray(s.args)) return true;
+  return s.args.filter(a => a.required).every(a => {
+    const v = item.args?.[a.key];
+    return v !== undefined && v !== '' && !(Array.isArray(v) && !v.length);
+  });
+}
+
+function buildRuleFields(rule, reRender, inModal = false) {
   const panel = el('div', { class: 'rt-panel' });
 
   const btnDiff   = el('button', { class: 'rf-btn' }, 'Diff');
   const btnSave   = el('button', { class: 'rf-btn rf-btn-save' }, 'Save');
   const btnEdit   = el('button', { class: 'rf-btn' }, 'Edit');
   const btnCancel = el('button', { class: 'rf-btn rf-btn-cancel' }, 'Cancel');
-  panel.append(el('div', { class: 'rf-status-bar' },
-    el('div', { class: 'rf-actions-bar' }, btnDiff, btnEdit, btnSave, btnCancel),
-  ));
 
-  const formView = el('div', {});
-  function sec(lbl, content) {
-    const s = el('div', { class: 'rf-sec' });
-    s.append(el('span', { class: 'rf-lbl' }, lbl), content);
-    return s;
-  }
+  const formView = el('div', { class: 'rf-body' });
 
   const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Short label for this rule' });
   nInp.value = rule.name || '';
   nInp.addEventListener('input', () => { rule.name = nInp.value; rule._updateRow?.(); scheduleSave(); updateStatus(); });
+  nInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); dInp.focus(); } });
 
-  const tSeg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
-  const tBtns = {};
-  RULE_TYPES.forEach(t => {
-    const b = el('button', { class: 'seg-btn' + (rule.type === t ? ' on t-on' : '') }, t.replace(/_/g, ' '));
-    b.dataset.val = t;
-    b.addEventListener('click', () => {
-      rule.type = t;
-      Object.values(tBtns).forEach(x => x.className = 'seg-btn' + (x.dataset.val === t ? ' on t-on' : ''));
-      scheduleSave(); updateStatus();
-    });
-    tBtns[t] = b; tSeg.append(b);
+  const typeSeg       = el('div', { class: 'seg' });
+  const typeCustomBtn  = el('button', { class: 'seg-btn' + (rule.type !== 'script_reusable' ? ' on t-on' : '') }, 'Custom Script');
+  const typeReusBtn    = el('button', { class: 'seg-btn' + (rule.type === 'script_reusable' ? ' on t-on' : '') }, 'Reusable Script');
+  typeCustomBtn.addEventListener('click', () => {
+    if (rule.type !== 'script_reusable') return;
+    rule.type = 'script_clean';
+    typeCustomBtn.className = 'seg-btn on t-on';
+    typeReusBtn.className   = 'seg-btn';
+    rebuildTypeView(); scheduleSave(); updateStatus();
   });
+  typeReusBtn.addEventListener('click', () => {
+    if (rule.type === 'script_reusable') return;
+    rule.type = 'script_reusable';
+    if (!rule.args || typeof rule.args !== 'object' || Array.isArray(rule.args)) rule.args = {};
+    if (!rule.script) rule.script = '';
+    typeCustomBtn.className = 'seg-btn';
+    typeReusBtn.className   = 'seg-btn on t-on';
+    rebuildTypeView(); scheduleSave(); updateStatus();
+  });
+  typeSeg.append(typeCustomBtn, typeReusBtn);
 
+  let iTaRef = null;
   const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'What does this rule check?' });
   dInp.value = rule.description || '';
   dInp.addEventListener('input', () => { rule.description = dInp.value; rule._updateRow?.(); scheduleSave(); updateStatus(); });
+  dInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); iTaRef?.focus(); } });
 
-  const tgtInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'Dockerfile, config/*.yml …' });
-  tgtInp.value = rule.target || '';
-  tgtInp.addEventListener('input', () => { rule.target = tgtInp.value.trim(); scheduleSave(); updateStatus(); });
+  // ── Custom script command field ──
+  const cInp = el('textarea', { class: 'instr-ta mono', placeholder: 'npx tsc --noEmit', rows: '3' });
+  cInp.value = rule.command || '';
+  cInp.addEventListener('input', () => { rule.command = cInp.value; autoResize(cInp); scheduleSave(); updateStatus(); });
+  const customViewEl = panelSec('Command', cInp);
 
-  const scSeg = el('div', { class: 'seg' });
-  const scBtns = {};
-  const scPathInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'src/components',
-    style: 'margin-top:7px' + (rule.scope !== 'root' ? '' : ';display:none') });
-  scPathInp.value = rule.scope !== 'root' ? rule.scope : '';
-  scPathInp.addEventListener('input', () => { rule.scope = scPathInp.value.trim() || ''; scheduleSave(); updateStatus(); });
-  ['root', 'custom'].forEach(s => {
-    const isOn = s === 'root' ? rule.scope === 'root' : rule.scope !== 'root';
-    const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, s);
-    b.dataset.val = s;
-    b.addEventListener('click', () => {
-      if (s === 'root') {
-        rule.scope = 'root';
-        scPathInp.style.display = 'none';
-      } else {
-        if (rule.scope === 'root') rule.scope = '';
-        scPathInp.style.display = '';
-        scPathInp.focus();
+  // ── Reusable script picker ──
+  function buildReusableSection() {
+    if (!rule.args || typeof rule.args !== 'object' || Array.isArray(rule.args)) rule.args = {};
+    const wrap = el('div', {});
+
+    const picker = el('select', { class: 'inp' });
+    picker.append(el('option', { value: '' }, '— select a script —'));
+    flattenItems(state.scripts || []).filter(isScript).forEach(s => {
+      const opt = el('option', { value: s.id }, s.name || s.id);
+      if (s.id === rule.script) opt.selected = true;
+      picker.append(opt);
+    });
+    const hintEl = el('div', { class: 'hint-text', style: 'display:none' });
+    const warnEl = el('div', { class: 'badge-warn', style: 'display:none' }, '⚠ Script not found');
+    const argsEl = el('div', {});
+
+    function getScriptDef() { return flattenItems(state.scripts || []).find(s => isScript(s) && s.id === rule.script); }
+
+    function refreshHint() {
+      const s = getScriptDef();
+      hintEl.textContent = s ? (s.description || '') : '';
+      hintEl.style.display = (s && s.description) ? '' : 'none';
+      warnEl.style.display = (rule.script && !s) ? '' : 'none';
+    }
+
+    function rebuildArgs() {
+      argsEl.innerHTML = '';
+      const s = getScriptDef();
+      if (!s || !Array.isArray(s.args) || !s.args.length) return;
+      const fieldEls = {};
+
+      function refreshVisibility() {
+        (s.args || []).forEach(a => {
+          if (!a.visible_when || !fieldEls[a.key]) return;
+          const condVal = String(rule.args[a.visible_when.key] ?? (s.args.find(x => x.key === a.visible_when.key)?.default ?? ''));
+          fieldEls[a.key].style.display = condVal === String(a.visible_when.eq) ? '' : 'none';
+        });
       }
-      Object.values(scBtns).forEach(x => {
-        const on = x.dataset.val === 'root' ? rule.scope === 'root' : rule.scope !== 'root';
-        x.className = 'seg-btn' + (on ? ' on t-on' : '');
+
+      s.args.forEach(a => {
+        const w = buildArgWidget(a, rule, () => { refreshVisibility(); updateStatus(); });
+        fieldEls[a.key] = w;
+        argsEl.append(w);
       });
+      refreshVisibility();
+    }
+
+    picker.addEventListener('change', () => {
+      rule.script = picker.value || '';
+      rule.args = {};
+      refreshHint();
+      rebuildArgs();
       scheduleSave(); updateStatus();
     });
-    scBtns[s] = b; scSeg.append(b);
-  });
 
-  const pInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'console\\.log, TODO …' });
-  pInp.value = rule.pattern || '';
-  pInp.addEventListener('input', () => { rule.pattern = pInp.value; scheduleSave(); updateStatus(); });
+    refreshHint();
+    rebuildArgs();
 
-  const exInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'config/local.yml' });
-  exInp.value = rule.exclude || '';
-  exInp.addEventListener('input', () => { rule.exclude = exInp.value.trim(); scheduleSave(); updateStatus(); });
+    wrap.append(panelSec('Script', el('div', {}, picker, hintEl, warnEl)), argsEl);
+    return wrap;
+  }
 
-  const cInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'npx tsc --noEmit' });
-  cInp.value = rule.command || '';
-  cInp.addEventListener('input', () => { rule.command = cInp.value; scheduleSave(); updateStatus(); });
+  // ── Type view switcher ──
+  const typeViewEl = el('div', {});
+  let reusableEl = null;
+
+  function rebuildTypeView() {
+    typeViewEl.innerHTML = '';
+    reusableEl = null;
+    if (rule.type === 'script_reusable') {
+      reusableEl = buildReusableSection();
+      typeViewEl.append(reusableEl);
+    } else {
+      typeViewEl.append(customViewEl);
+    }
+  }
+  rebuildTypeView();
 
   const sSeg = el('div', { class: 'seg' });
   const sBtns = {};
@@ -675,20 +1163,17 @@ function buildRuleFields(rule) {
   });
 
   const iTa = el('textarea', { class: 'instr-ta', placeholder: 'What should the developer do when this check fails?' });
+  iTaRef = iTa;
   iTa.value = rule.instruction || '';
-  iTa.addEventListener('input', () => { rule.instruction = iTa.value; scheduleSave(); updateStatus(); });
+  iTa.addEventListener('input', () => { rule.instruction = iTa.value; autoResize(iTa); scheduleSave(); updateStatus(); });
 
   formView.append(
-    sec('Name', nInp),
-    sec('Type', tSeg),
-    sec('Description', dInp),
-    sec('Target — path or glob', tgtInp),
-    sec('Scope', el('div', {}, scSeg, scPathInp)),
-    sec('Pattern — grep regex', pInp),
-    sec('Exclude — glob to skip (optional)', exInp),
-    sec('Command', cInp),
-    sec('Severity on fail', sSeg),
-    sec('Instructions on fail', iTa),
+    panelSec('Name', nInp),
+    panelSec('Description', dInp),
+    panelSec('Severity on fail', sSeg),
+    panelSec('Instructions on fail', iTa),
+    panelSec('Type', typeSeg),
+    typeViewEl,
   );
 
   const diffView = el('div', {});
@@ -706,16 +1191,36 @@ function buildRuleFields(rule) {
     });
   }
 
-  panel.append(formView, diffView);
+  let dirtyBadge = null;
+  if (!inModal) {
+    dirtyBadge = el('div', { class: 'rf-dirty-badge' }, 'Unsaved changes');
+    panel.append(formView, diffView, el('div', { class: 'rf-status-bar' },
+      dirtyBadge,
+      el('div', { class: 'rf-actions-bar' }, btnDiff, btnEdit, btnCancel, btnSave),
+    ));
+  } else {
+    panel.append(formView, diffView);
+  }
+
+  function hasRequiredArgsFilled() {
+    return ruleRequiredArgsFilled(rule);
+  }
 
   function updateStatus() {
-    const dirty = isDirty(rule);
-    const mode  = rule._mode;
+    const dirty      = isDirty(rule);
+    const mode       = rule._mode;
+    const isReusable = rule.type === 'script_reusable';
+    const cmdOk      = isReusable || !!rule.command;
+    const canSave    = dirty && !!rule.name && cmdOk && hasRequiredArgsFilled();
     nInp.style.borderColor = rule.name ? '' : 'var(--rd)';
+    cInp.style.borderColor = (!isReusable && !rule.command) ? 'var(--rd)' : '';
+    const pickerEl = reusableEl?.querySelector('select.inp');
+    if (pickerEl) pickerEl.style.borderColor = (isReusable && !rule.script) ? 'var(--rd)' : '';
+    if (dirtyBadge) dirtyBadge.classList.toggle('visible', dirty);
     btnDiff.style.display   = (mode === 'edit' && dirty && rule._saved !== null) ? '' : 'none';
-    btnSave.style.display   = (dirty && !!rule.name) ? '' : 'none';
+    btnSave.style.display   = canSave ? '' : 'none';
     btnEdit.style.display   = mode === 'diff' ? '' : 'none';
-    btnCancel.style.display = dirty ? '' : 'none';
+    btnCancel.style.display = '';
   }
 
   function setMode(mode) {
@@ -730,6 +1235,8 @@ function buildRuleFields(rule) {
   btnEdit.addEventListener('click', () => setMode('edit'));
 
   btnSave.addEventListener('click', () => {
+    const isReusable = rule.type === 'script_reusable';
+    if (!rule.name || !hasRequiredArgsFilled() || (!isReusable && !rule.command)) return;
     rule._saved = ruleSnapshot(rule);
     rule._updateRow?.();
     scheduleSave();
@@ -737,59 +1244,56 @@ function buildRuleFields(rule) {
   });
 
   btnCancel.addEventListener('click', () => {
+    if (!isDirty(rule)) {
+      rule._exp = false;
+      reRender();
+      return;
+    }
     if (rule._saved === null) {
       const path = findPath(rule, state.rules, []);
-      if (path) { removeByPath(path, state.rules); reRenderRules(); scheduleSave(); }
+      if (path) { removeByPath(path, state.rules); reRender(); scheduleSave(); }
       return;
     }
     const saved = JSON.parse(rule._saved);
     SNAP_FIELDS.forEach(f => { rule[f] = saved[f] ?? ''; });
-    nInp.value   = rule.name        || '';
-    dInp.value   = rule.description || '';
-    tgtInp.value = rule.target      || '';
-    pInp.value   = rule.pattern     || '';
-    exInp.value  = rule.exclude     || '';
-    cInp.value   = rule.command     || '';
-    iTa.value    = rule.instruction || '';
-    Object.values(tBtns).forEach(b => {
-      b.className = 'seg-btn' + (b.dataset.val === rule.type ? ' on t-on' : '');
-    });
-    Object.values(scBtns).forEach(b => {
-      const on = b.dataset.val === 'root' ? rule.scope === 'root' : rule.scope !== 'root';
-      b.className = 'seg-btn' + (on ? ' on t-on' : '');
-    });
-    scPathInp.style.display = rule.scope !== 'root' ? '' : 'none';
-    scPathInp.value = rule.scope !== 'root' ? rule.scope : '';
+    rule.args = JSON.parse(saved.args || '{}');
+    nInp.value = rule.name        || '';
+    dInp.value = rule.description || '';
+    cInp.value = rule.command     || '';
+    iTa.value  = rule.instruction || '';
+    const nowCustom = rule.type !== 'script_reusable';
+    typeCustomBtn.className = 'seg-btn' + ( nowCustom ? ' on t-on' : '');
+    typeReusBtn.className   = 'seg-btn' + (!nowCustom ? ' on t-on' : '');
     Object.values(sBtns).forEach(b => {
       b.className = 'seg-btn' + (b.dataset.val === (rule.severity || 'error') ? ' on t-' + b.dataset.val : '');
     });
+    rebuildTypeView();
     rule._updateRow?.();
     scheduleSave();
     setMode('edit');
   });
 
   setMode(rule._mode || 'edit');
+  requestAnimationFrame(() => { autoResize(iTa); autoResize(cInp); });
   return panel;
 }
 
 // ── Enum field editor ─────────────────────────────────────────────────────────
 
-function buildEnumPanel(item) {
+function buildEnumPanel(item, reRender, inModal = false) {
   const panel = el('div', { class: 'rt-panel' });
 
-  function sec(lbl, content) {
-    const s = el('div', { class: 'rf-sec' });
-    s.append(el('span', { class: 'rf-lbl' }, lbl), content);
-    return s;
-  }
-
+  const btnDiff   = el('button', { class: 'rf-btn' }, 'Diff');
+  const btnSave   = el('button', { class: 'rf-btn rf-btn-save' }, 'Save');
+  const btnEdit   = el('button', { class: 'rf-btn' }, 'Edit');
+  const btnCancel = el('button', { class: 'rf-btn rf-btn-cancel' }, 'Cancel');
   const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Enum name' });
   nInp.value = item.name || '';
-  nInp.addEventListener('input', () => { item.name = nInp.value; item._updateRow?.(); scheduleSave(); });
+  nInp.addEventListener('input', () => { item.name = nInp.value; item._updateRow?.(); scheduleSave(); updateStatus(); });
 
   const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'Description (optional)' });
   dInp.value = item.description || '';
-  dInp.addEventListener('input', () => { item.description = dInp.value; item._updateRow?.(); scheduleSave(); });
+  dInp.addEventListener('input', () => { item.description = dInp.value; item._updateRow?.(); scheduleSave(); updateStatus(); });
 
   const chipsEl = el('div', { class: 'chips' });
   function refreshChips() {
@@ -797,7 +1301,7 @@ function buildEnumPanel(item) {
     if (!item.values.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
     item.values.forEach((v, i) => {
       const x = el('button', { class: 'chip-x' }, '\xd7');
-      x.addEventListener('click', () => { item.values.splice(i, 1); refreshChips(); scheduleSave(); });
+      x.addEventListener('click', () => { item.values.splice(i, 1); refreshChips(); scheduleSave(); updateStatus(); });
       chipsEl.append(el('span', { class: 'chip' }, v, x));
     });
   }
@@ -807,315 +1311,728 @@ function buildEnumPanel(item) {
   const valBtn = el('button', { class: 'add-btn' }, '+ add');
   valBtn.addEventListener('click', () => {
     const v = valInp.value.trim();
-    if (v && !item.values.includes(v)) { item.values.push(v); valInp.value = ''; refreshChips(); scheduleSave(); }
+    if (v && !item.values.includes(v)) { item.values.push(v); valInp.value = ''; refreshChips(); scheduleSave(); updateStatus(); }
   });
   valInp.addEventListener('keydown', e => { if (e.key === 'Enter') valBtn.click(); });
 
-  panel.append(
-    sec('Name', nInp),
-    sec('Description', dInp),
-    sec('Values', el('div', {}, chipsEl, el('div', { class: 'add-row' }, valInp, valBtn))),
+  const formView = el('div', { class: 'rf-body' },
+    panelSec('Name', nInp),
+    panelSec('Description', dInp),
+    panelSec('Values', el('div', {}, chipsEl, el('div', { class: 'add-row' }, valInp, valBtn))),
   );
 
+  const diffView = el('div', { class: 'rf-body' });
+  function renderDiff() {
+    diffView.innerHTML = '';
+    if (!item._saved) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No saved state')); return; }
+    const from = JSON.parse(item._saved);
+    const changes = [];
+    if ((from.name || '') !== (item.name || ''))               changes.push({ f: 'name',        from: from.name        || '(empty)', to: item.name        || '(empty)' });
+    if ((from.description || '') !== (item.description || '')) changes.push({ f: 'description', from: from.description || '(empty)', to: item.description || '(empty)' });
+    const fv = (from.values || []).join(', '), tv = (item.values || []).join(', ');
+    if (fv !== tv) changes.push({ f: 'values', from: fv || '(empty)', to: tv || '(empty)' });
+    if (!changes.length) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No changes')); return; }
+    changes.forEach(({ f, from, to }) => {
+      diffView.append(el('div', { class: 'rf-diff-row' },
+        el('span', { class: 'rf-diff-field' }, f),
+        el('span', { class: 'rf-diff-from' }, from),
+        el('span', { class: 'rf-diff-arrow' }, '→'),
+        el('span', { class: 'rf-diff-to' }, to),
+      ));
+    });
+  }
+
+  let dirtyBadgeEnum = null;
+  if (!inModal) {
+    dirtyBadgeEnum = el('div', { class: 'rf-dirty-badge' }, 'Unsaved changes');
+    panel.append(formView, diffView, el('div', { class: 'rf-status-bar' },
+      dirtyBadgeEnum,
+      el('div', { class: 'rf-actions-bar' }, btnDiff, btnEdit, btnCancel, btnSave),
+    ));
+  } else {
+    panel.append(formView, diffView);
+  }
+
+  function updateStatus() {
+    const dirty = isEnumDirty(item);
+    const mode  = item._mode;
+    nInp.style.borderColor = item.name ? '' : 'var(--rd)';
+    if (dirtyBadgeEnum) dirtyBadgeEnum.classList.toggle('visible', dirty);
+    btnDiff.style.display   = (mode === 'edit' && dirty && item._saved !== null) ? '' : 'none';
+    btnSave.style.display   = (dirty && !!item.name) ? '' : 'none';
+    btnEdit.style.display   = mode === 'diff' ? '' : 'none';
+    btnCancel.style.display = '';
+  }
+
+  function setMode(mode) {
+    item._mode = mode;
+    formView.style.display = mode === 'edit' ? '' : 'none';
+    diffView.style.display = mode === 'diff' ? '' : 'none';
+    if (mode === 'diff') renderDiff();
+    updateStatus();
+  }
+
+  btnDiff.addEventListener('click', () => setMode('diff'));
+  btnEdit.addEventListener('click', () => setMode('edit'));
+
+  btnSave.addEventListener('click', () => {
+    item._saved = enumSnapshot(item);
+    item._updateRow?.();
+    scheduleSave();
+    setMode('edit');
+  });
+
+  btnCancel.addEventListener('click', () => {
+    if (!isEnumDirty(item)) {
+      item._exp = false;
+      reRender();
+      return;
+    }
+    if (item._saved === null) {
+      const path = findPath(item, state.enums, []);
+      if (path) { removeByPath(path, state.enums); reRender(); scheduleSave(); }
+      return;
+    }
+    const saved = JSON.parse(item._saved);
+    item.name        = saved.name        || '';
+    item.description = saved.description || '';
+    item.values      = JSON.parse(JSON.stringify(saved.values || []));
+    nInp.value = item.name;
+    dInp.value = item.description;
+    refreshChips();
+    item._updateRow?.();
+    scheduleSave();
+    setMode('edit');
+  });
+
+  setMode(item._mode || 'edit');
   return panel;
 }
 
-// ── Row builders ──────────────────────────────────────────────────────────────
+// ── Arg drag system ──────────────────────────────────────────────────────────
 
-function buildGroupRow(entry) {
-  const { item: grp, cols } = entry;
-  const row = el('div', { class: 'rt-row' });
-  let editing = false;
+let argDragState = null;
+let argDragInited = false;
 
-  row.addEventListener('click', e => {
-    if (e.target.tagName === 'BUTTON' || editing) return;
-    const anchorY = row.getBoundingClientRect().top;
-    grp._col = !grp._col;
-    reRenderRules(grp, anchorY);
-  });
-
-  const nameSpan  = el('span', { class: 'rt-name grp' }, grp.group || 'Unnamed group');
-  const n = countItems(grp);
-  const countSpan = el('span', { class: 'rt-grp-count' }, n > 0 ? '(' + n + ' items)' : '');
-  const nameInp   = el('input', { class: 'rt-name-inp', type: 'text',
-    value: grp.group, placeholder: 'Group name', style: 'display:none' });
-
-  nameInp.addEventListener('input', () => { grp.group = nameInp.value; scheduleSave(); });
-  nameInp.addEventListener('blur', () => {
-    editing = false;
-    nameSpan.textContent = grp.group || 'Unnamed group';
-    nameInp.style.display = 'none';
-    nameSpan.style.display = '';
-    countSpan.style.display = '';
-  });
-  nameInp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') nameInp.blur(); });
-
-  const editBtn = el('button', { class: 'rt-rm rt-edit', title: 'Rename' }, '✎');
-  editBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    if (editing) return;
-    editing = true;
-    nameSpan.style.display = 'none';
-    countSpan.style.display = 'none';
-    nameInp.style.display = '';
-    nameInp.focus();
-    nameInp.select();
-  });
-
-  const rm = el('button', { class: 'rt-rm', title: 'Remove group' }, '\xd7');
-  rm.addEventListener('click', e => {
-    e.stopPropagation();
-    if ((grp.rules || []).length && !confirm('Remove "' + grp.group + '" and all its contents?')) return;
-    removeByPath(entry.path, state.rules); reRenderRules(); scheduleSave();
-  });
-
-  const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
-  nameLine.append(nameSpan, countSpan, nameInp);
-  row.append(buildPrefix(cols), el('div', { class: 'rt-content' }, nameLine), el('div', { class: 'rt-actions' }, editBtn, rm));
-
-  attachDrag(row, grp, state.rules);
-  rulesRowRegistry.push({ item: grp, el: row, rootArr: state.rules });
-  const outer = el('div', { class: 'rt-outer' });
-  outer.append(el('span', { class: 'rt-ln' }, String(grp._ln)), row);
-  return outer;
+function initArgDrag() {
+  if (argDragInited) return;
+  argDragInited = true;
+  document.addEventListener('mousemove', onArgDragMove);
+  document.addEventListener('mouseup',   onArgDragEnd);
 }
 
-function buildRuleRow(entry) {
-  const { item: rule, cols } = entry;
-  const exp = !!rule._exp;
-  const row = el('div', { class: 'rt-row' });
-
-  row.addEventListener('click', e => {
-    if (e.target.tagName === 'BUTTON') return;
-    const anchorY = row.getBoundingClientRect().top;
-    rule._exp = !exp;
-    reRenderRules(rule, anchorY);
+function onArgDragMove(e) {
+  if (!argDragState) return;
+  if (!argDragState.active) {
+    if (Math.abs(e.clientY - argDragState.startY) < 5) return;
+    argDragState.active = true;
+  }
+  const { containerEl, argsArr, rebuildFn } = argDragState.ctx;
+  const rows = [...containerEl.querySelectorAll(':scope > .arg-block')];
+  let hoverIdx = -1;
+  rows.forEach((row, i) => {
+    const rect = row.getBoundingClientRect();
+    if (e.clientY >= rect.top && e.clientY <= rect.bottom) hoverIdx = i;
   });
-
-  const nameSpan   = el('span', { class: 'rt-name' }, rule.name || rule.description || '—');
-  nameSpan.style.flex = '1'; nameSpan.style.minWidth = '0';
-  const statusSpan = el('span', { class: 'rt-status' }, '● unsaved');
-  statusSpan.style.display = isDirty(rule) ? '' : 'none';
-  const nameLine   = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
-  nameLine.append(nameSpan, statusSpan);
-  const subSpan    = el('span', { class: 'rt-subdesc' }, rule.description || '');
-  subSpan.style.display = (rule.name && rule.description) ? '' : 'none';
-  const content = el('div', { class: 'rt-content' }, nameLine, subSpan);
-  rule._updateRow = () => {
-    nameSpan.textContent = rule.name || rule.description || '—';
-    subSpan.textContent  = rule.description || '';
-    subSpan.style.display = (rule.name && rule.description) ? '' : 'none';
-    statusSpan.style.display = isDirty(rule) ? '' : 'none';
-  };
-
-  const rm = el('button', { class: 'rt-rm', title: 'Remove rule' }, '\xd7');
-  rm.addEventListener('click', e => {
-    e.stopPropagation();
-    removeByPath(entry.path, state.rules); reRenderRules(); scheduleSave();
-  });
-
-  row.append(buildPrefix(cols), content, el('div', { class: 'rt-actions' }, rm));
-
-  attachDrag(row, rule, state.rules);
-  rulesRowRegistry.push({ item: rule, el: row, rootArr: state.rules });
-  const outer = el('div', { class: 'rt-outer' });
-  outer.append(el('span', { class: 'rt-ln' }, String(rule._ln)), row);
-  return outer;
+  if (hoverIdx === -1 || hoverIdx === argDragState.fromIdx) return;
+  const item = argsArr.splice(argDragState.fromIdx, 1)[0];
+  argsArr.splice(hoverIdx, 0, item);
+  argDragState.fromIdx = hoverIdx;
+  rebuildFn();
 }
 
-function buildPanelRow(entry) {
-  const { item: rule, cols } = entry;
-  const wrap = el('div', { class: 'rt-panel-wrap' });
-  wrap.append(buildPrefix(cols, true));
-  wrap.append(buildRuleFields(rule));
-  const outer = el('div', { class: 'rt-outer' });
-  outer.append(el('span', { class: 'rt-ln' }), wrap);
-  return outer;
+function onArgDragEnd() {
+  if (!argDragState) return;
+  const wasActive = argDragState.active;
+  argDragState = null;
+  if (wasActive) scheduleSave();
 }
 
-function buildEnumGroupRow(entry) {
-  const { item: grp, cols } = entry;
-  const row = el('div', { class: 'rt-row' });
-  let editing = false;
+// ── Script field editor ───────────────────────────────────────────────────────
 
-  row.addEventListener('click', e => {
-    if (e.target.tagName === 'BUTTON' || editing) return;
-    const anchorY = row.getBoundingClientRect().top;
-    grp._col = !grp._col;
-    reRenderEnums(grp, anchorY);
+function buildScriptPanel(script, reRender, inModal = false) {
+  const panel = el('div', { class: 'rt-panel' });
+
+  const btnDiff   = el('button', { class: 'rf-btn' }, 'Diff');
+  const btnSave   = el('button', { class: 'rf-btn rf-btn-save' }, 'Save');
+  const btnEdit   = el('button', { class: 'rf-btn' }, 'Edit');
+  const btnCancel = el('button', { class: 'rf-btn rf-btn-cancel' }, 'Cancel');
+  const idInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'unique-slug-id' });
+  idInp.value = script.id || '';
+  if (script._saved !== null && script._saved !== undefined) {
+    try { if (JSON.parse(script._saved).id) idInp.readOnly = true; } catch {}
+  }
+  idInp.addEventListener('input', () => {
+    script.id = idInp.value.trim().replace(/\s+/g, '-');
+    idInp.value = script.id;
+    script._updateRow?.(); scheduleSave(); updateStatus();
   });
 
-  const nameSpan  = el('span', { class: 'rt-name grp' }, grp.group || 'Unnamed group');
-  const n = countItems(grp);
-  const countSpan = el('span', { class: 'rt-grp-count' }, n > 0 ? '(' + n + ' items)' : '');
-  const nameInp   = el('input', { class: 'rt-name-inp', type: 'text',
-    value: grp.group, placeholder: 'Group name', style: 'display:none' });
+  const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Human-readable name' });
+  nInp.value = script.name || '';
+  nInp.addEventListener('input', () => { script.name = nInp.value; script._updateRow?.(); scheduleSave(); updateStatus(); });
 
-  nameInp.addEventListener('input', () => { grp.group = nameInp.value; scheduleSave(); });
-  nameInp.addEventListener('blur', () => {
-    editing = false;
-    nameSpan.textContent = grp.group || 'Unnamed group';
-    nameInp.style.display = 'none';
-    nameSpan.style.display = '';
-    countSpan.style.display = '';
+  const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'What does this script check?' });
+  dInp.value = script.description || '';
+  dInp.addEventListener('input', () => { script.description = dInp.value; script._updateRow?.(); scheduleSave(); updateStatus(); });
+
+  const cmdTa = el('textarea', { class: 'instr-ta mono', placeholder: 'Shell command(s)…', rows: '4' });
+  cmdTa.value = script.command || '';
+  cmdTa.addEventListener('input', () => { script.command = cmdTa.value; autoResize(cmdTa); scheduleSave(); updateStatus(); });
+
+  if (!Array.isArray(script.args)) script.args = [];
+  initArgDrag();
+
+  const ARG_TYPES = ['string','int','double','regex','path','bool','enum'];
+  const argsListEl = el('div', {});
+
+  function buildArgFields(argDef, onChangeFn) {
+    const keyInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'KEY_NAME' });
+    keyInp.value = argDef.key || '';
+    keyInp.addEventListener('input', () => { argDef.key = keyInp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_'); keyInp.value = argDef.key; onChangeFn?.(); });
+
+    const lblInp = el('input', { class: 'inp', type: 'text', placeholder: 'Label shown in UI' });
+    lblInp.value = argDef.label || '';
+    lblInp.addEventListener('input', () => { argDef.label = lblInp.value; onChangeFn?.(); });
+
+    const typeSeg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
+    ARG_TYPES.forEach(t => {
+      const b = el('button', { class: 'seg-btn' + ((argDef.type || 'string') === t ? ' on t-on' : '') }, t);
+      b.addEventListener('click', () => { argDef.type = t; typeSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.textContent === t ? ' on t-on' : '')); rebuildConstraints(); onChangeFn?.(); });
+      typeSeg.append(b);
+    });
+
+    const reqSeg = el('div', { class: 'seg' });
+    ['required','optional'].forEach(v => {
+      const isOn = v === 'required' ? !!argDef.required : !argDef.required;
+      const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
+      b.addEventListener('click', () => { argDef.required = v === 'required'; reqSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'required') === argDef.required ? ' on t-on' : '')); onChangeFn?.(); });
+      reqSeg.append(b);
+    });
+
+    const constraintsEl = el('div', {});
+    function rebuildConstraints() {
+      constraintsEl.innerHTML = '';
+      const t = argDef.type || 'string';
+
+      if (t !== 'bool') {
+        const ph = el('input', { class: 'inp mono', type: 'text', placeholder: 'Placeholder text' });
+        ph.value = argDef.placeholder || '';
+        ph.addEventListener('input', () => { argDef.placeholder = ph.value || undefined; onChangeFn?.(); });
+        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Placeholder'), ph));
+      }
+
+      const defInp = el('input', { class: 'inp mono', type: t === 'int' || t === 'double' ? 'number' : 'text', placeholder: 'Default (optional)' });
+      defInp.value = argDef.default !== undefined ? String(argDef.default) : '';
+      defInp.addEventListener('input', () => {
+        if (defInp.value === '') { delete argDef.default; }
+        else argDef.default = t === 'int' ? parseInt(defInp.value, 10) : t === 'double' ? parseFloat(defInp.value) : defInp.value;
+        onChangeFn?.();
+      });
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Default'), defInp));
+
+      if (t === 'int' || t === 'double') {
+        const minInp = el('input', { class: 'inp mono', type: 'number', placeholder: 'Min (optional)' });
+        minInp.value = argDef.min !== undefined ? argDef.min : '';
+        minInp.addEventListener('input', () => { argDef.min = minInp.value !== '' ? Number(minInp.value) : undefined; onChangeFn?.(); });
+        const maxInp = el('input', { class: 'inp mono', type: 'number', placeholder: 'Max (optional)' });
+        maxInp.value = argDef.max !== undefined ? argDef.max : '';
+        maxInp.addEventListener('input', () => { argDef.max = maxInp.value !== '' ? Number(maxInp.value) : undefined; onChangeFn?.(); });
+        constraintsEl.append(
+          el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Min'), minInp),
+          el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Max'), maxInp),
+        );
+      }
+
+      if (t === 'enum') {
+        const multiSeg = el('div', { class: 'seg' });
+        ['single','multi'].forEach(v => {
+          const isOn = v === 'multi' ? !!argDef.multi_select : !argDef.multi_select;
+          const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
+          b.addEventListener('click', () => { argDef.multi_select = v === 'multi'; multiSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'multi') === !!argDef.multi_select ? ' on t-on' : '')); onChangeFn?.(); });
+          multiSeg.append(b);
+        });
+        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Select mode'), multiSeg));
+
+        const sepSeg = el('div', { class: 'seg' });
+        ['space','comma','json'].forEach(v => {
+          const isOn = (argDef.separator || 'space') === v;
+          const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
+          b.addEventListener('click', () => { argDef.separator = v; sepSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((argDef.separator || 'space') === x.textContent ? ' on t-on' : '')); onChangeFn?.(); });
+          sepSeg.append(b);
+        });
+        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Multi-select separator'), sepSeg));
+
+        if (!Array.isArray(argDef.options)) argDef.options = [];
+        const optChips = el('div', { class: 'chips' });
+        function refreshOptChips() {
+          optChips.innerHTML = '';
+          if (!argDef.options.length) optChips.append(el('span', { class: 'chip-empty' }, 'none'));
+          argDef.options.forEach((v, i) => {
+            const x = el('button', { class: 'chip-x' }, '\xd7');
+            x.addEventListener('click', () => { argDef.options.splice(i, 1); refreshOptChips(); onChangeFn?.(); });
+            optChips.append(el('span', { class: 'chip' }, v, x));
+          });
+        }
+        refreshOptChips();
+        const optInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'option…' });
+        const optBtn = el('button', { class: 'add-btn' }, '+ add');
+        optBtn.addEventListener('click', () => { const v = optInp.value.trim(); if (v && !argDef.options.includes(v)) { argDef.options.push(v); optInp.value = ''; refreshOptChips(); onChangeFn?.(); } });
+        optInp.addEventListener('keydown', e => { if (e.key === 'Enter') optBtn.click(); });
+        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Options'), el('div', {}, optChips, el('div', { class: 'add-row' }, optInp, optBtn))));
+
+        const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum name (optional)' });
+        refInp.value = argDef.enum_ref || '';
+        refInp.addEventListener('input', () => { argDef.enum_ref = refInp.value.trim() || undefined; onChangeFn?.(); });
+        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Enum ref (optional)'), refInp));
+      }
+
+      // visible_when — available on all arg types
+      const vwKeyInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'sibling KEY', style: 'flex:1' });
+      vwKeyInp.value = argDef.visible_when ? argDef.visible_when.key : '';
+      const vwEqInp  = el('input', { class: 'inp mono', type: 'text', placeholder: 'value', style: 'flex:1' });
+      vwEqInp.value  = argDef.visible_when ? argDef.visible_when.eq  : '';
+      function updateVW() {
+        const k = vwKeyInp.value.trim(), v = vwEqInp.value.trim();
+        argDef.visible_when = (k && v !== '') ? { key: k, eq: v } : undefined;
+        onChangeFn?.();
+      }
+      vwKeyInp.addEventListener('input', updateVW);
+      vwEqInp.addEventListener('input', updateVW);
+      constraintsEl.append(el('div', { class: 'rf-sec' },
+        el('span', { class: 'rf-lbl' }, 'Visible when key = value (optional)'),
+        el('div', { style: 'display:flex;gap:6px;align-items:center' }, vwKeyInp, el('span', { style: 'color:var(--td);flex-shrink:0' }, '='), vwEqInp),
+      ));
+    }
+    rebuildConstraints();
+
+    return el('div', {},
+      el('div', { class: 'arg-grid' },
+        el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Key (env var)'), keyInp),
+        el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Label'), lblInp),
+      ),
+      el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Type'), typeSeg),
+      el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Required'), reqSeg),
+      constraintsEl,
+    );
+  }
+
+  function buildArgRow(argDef, idx) {
+    let open = false;
+
+    const arrow  = el('span', { class: 'arg-collapse-arrow' }, '▶');
+    const handle = el('span', { class: 'arg-drag-handle', title: 'Drag to reorder' }, '⠿');
+    const preview = el('span', { class: 'arg-hdr-preview' });
+    const typeTag = el('span', { class: 'arg-hdr-type' }, argDef.type || 'string');
+    const rmBtn   = el('button', { class: 'arg-hdr-rm', title: 'Remove' }, '×');
+    rmBtn.addEventListener('click', e => { e.stopPropagation(); script.args.splice(idx, 1); rebuildArgsList(); scheduleSave(); });
+
+    function refreshPreview() {
+      const key = argDef.key || '—';
+      const lbl = argDef.label ? ' · ' + argDef.label : '';
+      typeTag.textContent = argDef.type || 'string';
+      preview.innerHTML = '';
+      const strong = document.createElement('strong');
+      strong.textContent = key;
+      preview.append(strong, document.createTextNode(lbl));
+    }
+    refreshPreview();
+
+    const detail = el('div', { class: 'arg-detail', style: 'display:none' });
+    detail.append(buildArgFields(argDef, () => { scheduleSave(); refreshPreview(); }));
+
+    const hdr = el('div', { class: 'arg-hdr' }, handle, arrow, preview, typeTag, rmBtn);
+    hdr.addEventListener('click', e => {
+      if (e.target === rmBtn || e.target === handle) return;
+      open = !open;
+      arrow.classList.toggle('open', open);
+      detail.style.display = open ? '' : 'none';
+    });
+
+    handle.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      argDragState = { fromIdx: idx, startY: e.clientY, active: false, ctx: { containerEl: argsListEl, argsArr: script.args, rebuildFn: rebuildArgsList } };
+      e.preventDefault();
+    });
+
+    return el('div', { class: 'arg-block' }, hdr, detail);
+  }
+
+  let dirtyBadgeScript = null;
+
+  function rebuildArgsList() {
+    argsListEl.innerHTML = '';
+    script.args.forEach((a, i) => argsListEl.append(buildArgRow(a, i)));
+    updateStatus();
+  }
+  rebuildArgsList();
+
+  const addArgBtn = el('button', { class: 'add-root-btn', style: 'width:100%;margin-top:6px' }, '+ Add Arg');
+  addArgBtn.addEventListener('click', () => {
+    const argDef = { key: '', label: '', type: 'string', required: false };
+    openModal(
+      () => buildArgFields(argDef, () => {}),
+      {
+        title:      'Add Argument',
+        onConfirm:  () => { script.args.push(argDef); rebuildArgsList(); scheduleSave(); },
+        onCancel:   () => {},
+        validateFn: () => !!argDef.key,
+        noConfirm:  true,
+      }
+    );
   });
-  nameInp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') nameInp.blur(); });
 
-  const editBtn = el('button', { class: 'rt-rm rt-edit', title: 'Rename' }, '✎');
-  editBtn.addEventListener('click', e => {
-    e.stopPropagation();
-    if (editing) return;
-    editing = true;
-    nameSpan.style.display = 'none';
-    countSpan.style.display = 'none';
-    nameInp.style.display = '';
-    nameInp.focus();
-    nameInp.select();
+  const formView = el('div', { class: 'rf-body' },
+    panelSec('ID (slug, locked after first save)', idInp),
+    panelSec('Name', nInp),
+    panelSec('Description', dInp),
+    panelSec('Command', cmdTa),
+    panelSec('Arguments', el('div', {}, argsListEl, addArgBtn)),
+  );
+
+  const diffView = el('div', { class: 'rf-body' });
+  function renderDiff() {
+    diffView.innerHTML = '';
+    if (!script._saved) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No saved state')); return; }
+    const from = JSON.parse(script._saved);
+    const changes = [];
+    ['id','name','description','command'].forEach(f => {
+      if ((from[f] || '') !== (script[f] || '')) changes.push({ f, from: from[f] || '(empty)', to: script[f] || '(empty)' });
+    });
+    const fa = JSON.stringify(from.args || []), ta = JSON.stringify(script.args || []);
+    if (fa !== ta) changes.push({ f: 'args', from: (from.args || []).length + ' arg(s)', to: (script.args || []).length + ' arg(s)' });
+    if (!changes.length) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No changes')); return; }
+    changes.forEach(({ f, from, to }) => {
+      diffView.append(el('div', { class: 'rf-diff-row' },
+        el('span', { class: 'rf-diff-field' }, f),
+        el('span', { class: 'rf-diff-from' }, from),
+        el('span', { class: 'rf-diff-arrow' }, '→'),
+        el('span', { class: 'rf-diff-to' }, to),
+      ));
+    });
+  }
+
+  if (!inModal) {
+    dirtyBadgeScript = el('div', { class: 'rf-dirty-badge' }, 'Unsaved changes');
+    panel.append(formView, diffView, el('div', { class: 'rf-status-bar' },
+      dirtyBadgeScript,
+      el('div', { class: 'rf-actions-bar' }, btnDiff, btnEdit, btnCancel, btnSave),
+    ));
+  } else {
+    panel.append(formView, diffView);
+  }
+
+  function updateStatus() {
+    const dirty = isScriptDirty(script);
+    const mode  = script._mode;
+    idInp.style.borderColor = script.id ? '' : 'var(--rd)';
+    if (dirtyBadgeScript) dirtyBadgeScript.classList.toggle('visible', dirty);
+    btnDiff.style.display   = (mode === 'edit' && dirty && script._saved !== null) ? '' : 'none';
+    btnSave.style.display   = (dirty && !!script.id) ? '' : 'none';
+    btnEdit.style.display   = mode === 'diff' ? '' : 'none';
+    btnCancel.style.display = '';
+  }
+
+  function setMode(mode) {
+    script._mode = mode;
+    formView.style.display = mode === 'edit' ? '' : 'none';
+    diffView.style.display = mode === 'diff' ? '' : 'none';
+    if (mode === 'diff') renderDiff();
+    updateStatus();
+  }
+
+  btnDiff.addEventListener('click', () => setMode('diff'));
+  btnEdit.addEventListener('click', () => setMode('edit'));
+
+  btnSave.addEventListener('click', () => {
+    script._saved = scriptSnapshot(script);
+    if (script.id) idInp.readOnly = true;
+    script._updateRow?.();
+    scheduleSave();
+    setMode('edit');
   });
 
-  const rm = el('button', { class: 'rt-rm', title: 'Remove group' }, '\xd7');
-  rm.addEventListener('click', e => {
-    e.stopPropagation();
-    if ((grp.rules || []).length && !confirm('Remove "' + grp.group + '" and all its contents?')) return;
-    removeByPath(entry.path, state.enums); reRenderEnums(); scheduleSave();
+  btnCancel.addEventListener('click', () => {
+    if (!isScriptDirty(script)) {
+      script._exp = false;
+      reRender();
+      return;
+    }
+    if (script._saved === null) {
+      const path = findPath(script, state.scripts, []);
+      if (path) { removeByPath(path, state.scripts); reRender(); scheduleSave(); }
+      return;
+    }
+    const saved = JSON.parse(script._saved);
+    script.id          = saved.id          || '';
+    script.name        = saved.name        || '';
+    script.description = saved.description || '';
+    script.command     = saved.command     || '';
+    script.args        = JSON.parse(JSON.stringify(saved.args || []));
+    idInp.value  = script.id;
+    nInp.value   = script.name;
+    dInp.value   = script.description;
+    cmdTa.value  = script.command;
+    rebuildArgsList();
+    script._updateRow?.();
+    scheduleSave();
+    setMode('edit');
   });
 
-  const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
-  nameLine.append(nameSpan, countSpan, nameInp);
-  row.append(buildPrefix(cols), el('div', { class: 'rt-content' }, nameLine), el('div', { class: 'rt-actions' }, editBtn, rm));
-
-  attachDrag(row, grp, state.enums);
-  enumsRowRegistry.push({ item: grp, el: row, rootArr: state.enums });
-  const outer = el('div', { class: 'rt-outer' });
-  outer.append(el('span', { class: 'rt-ln' }, String(grp._ln)), row);
-  return outer;
+  setMode(script._mode || 'edit');
+  requestAnimationFrame(() => autoResize(cmdTa));
+  return panel;
 }
 
-function buildEnumRow(entry) {
-  const { item, cols } = entry;
-  const exp = !!item._exp;
-  const row = el('div', { class: 'rt-row' });
+// ── Tree section factory ──────────────────────────────────────────────────────
 
-  row.addEventListener('click', e => {
-    if (e.target.tagName === 'BUTTON') return;
-    const anchorY = row.getBoundingClientRect().top;
-    item._exp = !exp;
-    reRenderEnums(item, anchorY);
-  });
+function createTreeSection(opts) {
+  let registry = [];
+  let bodyEl   = null;
+  let section;
 
-  const nameSpan = el('span', { class: 'rt-name' }, item.name || '—');
-  const subSpan  = el('span', { class: 'rt-subdesc' }, item.description || '');
-  subSpan.style.display = (item.name && item.description) ? '' : 'none';
-  const content = el('div', { class: 'rt-content' }, nameSpan, subSpan);
-  item._updateRow = () => {
-    nameSpan.textContent = item.name || '—';
-    subSpan.textContent  = item.description || '';
+  function buildGroupRow(entry) {
+    const { item: grp, cols } = entry;
+    const row = el('div', { class: 'rt-row' });
+    let editing = false;
+
+    row.addEventListener('click', e => {
+      if (e.target.tagName === 'BUTTON' || editing) return;
+      const anchorY = row.getBoundingClientRect().top;
+      grp._col = !grp._col;
+      reRender(grp, anchorY);
+    });
+
+    const nameSpan  = el('span', { class: 'rt-name grp' }, grp.group || 'Unnamed group');
+    const n = countItems(grp);
+    const countSpan = el('span', { class: 'rt-grp-count' }, n > 0 ? '(' + n + ' items)' : '');
+    const nameInp   = el('input', { class: 'rt-name-inp', type: 'text',
+      value: grp.group, placeholder: 'Group name', style: 'display:none' });
+
+    nameInp.addEventListener('input', () => { grp.group = nameInp.value; scheduleSave(); });
+    nameInp.addEventListener('blur', () => {
+      editing = false;
+      nameSpan.textContent = grp.group || 'Unnamed group';
+      nameInp.style.display = 'none';
+      nameSpan.style.display = '';
+      countSpan.style.display = '';
+    });
+    nameInp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') nameInp.blur(); });
+
+    const editBtn = el('button', { class: 'rt-rm rt-edit', title: 'Rename' }, '✎');
+    editBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (editing) return;
+      editing = true;
+      nameSpan.style.display = 'none';
+      countSpan.style.display = 'none';
+      nameInp.style.display = '';
+      nameInp.focus();
+      nameInp.select();
+    });
+
+    const rm = el('button', { class: 'rt-rm', title: 'Remove group' }, '\xd7');
+    rm.addEventListener('click', e => {
+      e.stopPropagation();
+      if ((grp.rules || []).length && !confirm('Remove "' + grp.group + '" and all its contents?')) return;
+      removeByPath(entry.path, opts.getData()); reRender(); scheduleSave();
+    });
+
+    const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
+    nameLine.append(nameSpan, countSpan, nameInp);
+    row.append(buildPrefix(cols), el('div', { class: 'rt-content' }, nameLine), el('div', { class: 'rt-actions' }, editBtn, rm));
+
+    attachDrag(row, grp, section);
+    registry.push({ item: grp, el: row, section });
+    const outer = el('div', { class: 'rt-outer' });
+    outer.append(el('span', { class: 'rt-ln' }, String(grp._ln)), row);
+    return outer;
+  }
+
+  function buildItemRow(entry) {
+    const { item, cols } = entry;
+    const exp = !!item._exp;
+    const row = el('div', { class: 'rt-row' });
+
+    row.addEventListener('click', e => {
+      if (e.target.tagName === 'BUTTON') return;
+      if (exp) { item._exp = false; reRender(); return; }
+      const anchorY = row.getBoundingClientRect().top;
+      item._exp = true;
+      reRender(item, anchorY);
+    });
+
+    const nameSpan = el('span', { class: 'rt-name' }, opts.getItemName(item));
+    nameSpan.style.flex = '1'; nameSpan.style.minWidth = '0';
+    const subSpan  = el('span', { class: 'rt-subdesc' }, item.description || '');
     subSpan.style.display = (item.name && item.description) ? '' : 'none';
+    const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
+
+    let statusSpan = null;
+    if (opts.hasStatus) {
+      statusSpan = el('span', { class: 'rt-status' }, '● unsaved');
+      statusSpan.style.display = opts.isItemDirty(item) ? '' : 'none';
+      item._updateRow = () => {
+        nameSpan.textContent = opts.getItemName(item);
+        subSpan.textContent  = item.description || '';
+        subSpan.style.display = (item.name && item.description) ? '' : 'none';
+        statusSpan.style.display = opts.isItemDirty(item) ? '' : 'none';
+      };
+    } else {
+      item._updateRow = () => {
+        nameSpan.textContent = opts.getItemName(item);
+        subSpan.textContent  = item.description || '';
+        subSpan.style.display = (item.name && item.description) ? '' : 'none';
+      };
+    }
+    nameLine.append(nameSpan);
+
+    const content = el('div', { class: 'rt-content' }, nameLine, subSpan);
+
+    const rm = el('button', { class: 'rt-rm', title: 'Remove' }, '\xd7');
+    rm.addEventListener('click', e => {
+      e.stopPropagation();
+      if (opts.confirmRemove && !opts.confirmRemove(item)) return;
+      removeByPath(entry.path, opts.getData()); reRender(); scheduleSave();
+    });
+
+    let togBtn = null;
+    if (opts.hasEnable) {
+      const en0 = item.enabled !== false;
+      row.classList.toggle('rt-item-disabled', !en0);
+      togBtn = el('button', { class: 'rt-tog' + (en0 ? '' : ' off'), title: en0 ? 'Disable' : 'Enable' }, en0 ? 'on' : 'off');
+      togBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        item.enabled = item.enabled !== false ? false : true;
+        const en = item.enabled !== false;
+        togBtn.textContent = en ? 'on' : 'off';
+        togBtn.className   = 'rt-tog' + (en ? '' : ' off');
+        togBtn.title       = en ? 'Disable' : 'Enable';
+        row.classList.toggle('rt-item-disabled', !en);
+        scheduleSave();
+        opts.onReRender?.();
+        if (opts.getFilter && opts.getFilter()) reRender();
+      });
+    }
+
+    row.append(buildPrefix(cols), content, ...(statusSpan ? [statusSpan] : []), ...(togBtn ? [togBtn] : []), el('div', { class: 'rt-actions' }, rm));
+
+    attachDrag(row, item, section);
+    registry.push({ item, el: row, section });
+    const outer = el('div', { class: 'rt-outer' });
+    outer.append(el('span', { class: 'rt-ln' }, String(item._ln)), row);
+    return outer;
+  }
+
+  function buildPanelRow(entry) {
+    const { item, cols } = entry;
+    const wrap = el('div', { class: 'rt-panel-wrap' });
+    wrap.append(buildPrefix(cols, true));
+    wrap.append(opts.buildPanel(entry, reRender, false));
+    const outer = el('div', { class: 'rt-outer' });
+    outer.append(el('span', { class: 'rt-ln' }), wrap);
+    return outer;
+  }
+
+  function buildTree() {
+    registry = [];
+    const wrap = el('div', { class: 'rtree' });
+
+    const filterFn   = opts.getFilter ? opts.getFilter() : null;
+    const rawEntries = flattenTree(opts.getData(), [], []);
+    let entries = rawEntries;
+    if (filterFn) {
+      const visibleItems = new Set(
+        rawEntries.filter(e => e.kind === 'item' && filterFn(e.item)).map(e => e.item)
+      );
+      entries = rawEntries.filter(e => {
+        if (e.kind === 'item')  return visibleItems.has(e.item);
+        if (e.kind === 'panel') return visibleItems.has(e.item);
+        if (e.kind === 'group') return flattenItems(e.item.rules || []).some(i => visibleItems.has(i));
+        return false;
+      });
+    }
+    entries.forEach(entry => {
+      if      (entry.kind === 'group') wrap.append(buildGroupRow(entry));
+      else if (entry.kind === 'item')  wrap.append(buildItemRow(entry));
+      else if (entry.kind === 'panel') wrap.append(buildPanelRow(entry));
+    });
+
+    const addRow = el('div', { class: 'add-root-row' });
+
+    const addItem = el('button', { class: 'add-root-btn' }, opts.addItemLabel);
+    addItem.addEventListener('click', () => {
+      if (modalEl) return;
+      const item = opts.newItem();
+      openModal(
+        () => opts.buildPanel({ item, path: [], cols: [] }, () => {}, true),
+        {
+          title: opts.addItemLabel.replace(/^\+\s*/, ''),
+          onConfirm: () => {
+            item._saved = opts.snapshotFn(item);
+            item._exp   = false;
+            opts.getData().push(item);
+            reRender();
+            scheduleSave();
+          },
+          onCancel:    () => {},
+          noConfirm:   true,
+          validateFn:  () => opts.validateItem ? opts.validateItem(item) : true,
+        }
+      );
+    });
+
+    const addGroup = el('button', { class: 'add-root-btn' }, opts.addGroupLabel || '+ Add Group');
+    addGroup.addEventListener('click', () => {
+      if (modalEl) return;
+      let groupName = '';
+      openModal(
+        () => {
+          const nameInp = el('input', { class: 'inp', type: 'text', placeholder: 'Group name' });
+          nameInp.addEventListener('input', () => { groupName = nameInp.value; });
+          return panelSec('Group name', nameInp);
+        },
+        {
+          title: 'New Group',
+          onConfirm: () => {
+            const grp = opts.newGroup
+              ? opts.newGroup(groupName)
+              : { group: groupName.trim() || 'New Group', rules: [], _col: false };
+            opts.getData().push(grp);
+            reRender();
+            scheduleSave();
+          },
+          onCancel:   () => {},
+          validateFn: () => groupName.trim().length > 0,
+          noConfirm:  true,
+        }
+      );
+    });
+
+    addRow.append(addItem, addGroup);
+    wrap.append(addRow);
+    return wrap;
+  }
+
+  function reRender(anchorItem, anchorY) {
+    if (!bodyEl) return;
+    assignLineNumbers(opts.getData());
+    bodyEl.innerHTML = '';
+    bodyEl.append(buildTree());
+    opts.onReRender?.();
+    if (anchorItem !== undefined && anchorY !== undefined) {
+      const reg = registry.find(r => r.item === anchorItem);
+      if (reg) window.scrollBy(0, reg.el.getBoundingClientRect().top - anchorY);
+    }
+  }
+
+  section = {
+    getData:  opts.getData,
+    reRender,
+    get registry() { return registry; },
+    mount(el) { bodyEl = el; },
   };
-
-  const rm = el('button', { class: 'rt-rm', title: 'Remove enum' }, '\xd7');
-  rm.addEventListener('click', e => {
-    e.stopPropagation();
-    removeByPath(entry.path, state.enums); reRenderEnums(); scheduleSave();
-  });
-
-  row.append(buildPrefix(cols), content, el('div', { class: 'rt-actions' }, rm));
-
-  attachDrag(row, item, state.enums);
-  enumsRowRegistry.push({ item, el: row, rootArr: state.enums });
-  const outer = el('div', { class: 'rt-outer' });
-  outer.append(el('span', { class: 'rt-ln' }, String(item._ln)), row);
-  return outer;
-}
-
-function buildEnumPanelRow(entry) {
-  const { item, cols } = entry;
-  const wrap = el('div', { class: 'rt-panel-wrap' });
-  wrap.append(buildPrefix(cols, true));
-  wrap.append(buildEnumPanel(item));
-  const outer = el('div', { class: 'rt-outer' });
-  outer.append(el('span', { class: 'rt-ln' }), wrap);
-  return outer;
-}
-
-// ── Tree render ───────────────────────────────────────────────────────────────
-
-let rulesBodyEl = null;
-let enumsBodyEl = null;
-
-function buildRulesTree() {
-  rulesRowRegistry = [];
-  const wrap = el('div', { class: 'rtree' });
-
-  flattenRules(state.rules, [], []).forEach(entry => {
-    if      (entry.kind === 'group') wrap.append(buildGroupRow(entry));
-    else if (entry.kind === 'rule')  wrap.append(buildRuleRow(entry));
-    else if (entry.kind === 'panel') wrap.append(buildPanelRow(entry));
-  });
-
-  const addRow  = el('div', { class: 'add-root-row' });
-  const addRule = el('button', { class: 'add-root-btn' }, '+ Add Rule');
-  addRule.addEventListener('click', () => {
-    state.rules.push({ type: 'file_present', name: 'New Rule', description: '', target: '',
-      scope: 'recursive', severity: 'error', instruction: '', _exp: true, _saved: null, _mode: 'edit' });
-    reRenderRules(); scheduleSave();
-  });
-  const addGroup = el('button', { class: 'add-root-btn' }, '+ Add Group');
-  addGroup.addEventListener('click', () => {
-    state.rules.push({ group: 'New Group', rules: [], _col: false });
-    reRenderRules(); scheduleSave();
-  });
-  addRow.append(addRule, addGroup);
-  wrap.append(addRow);
-  return wrap;
-}
-
-function buildEnumsTree() {
-  enumsRowRegistry = [];
-  const wrap = el('div', { class: 'rtree' });
-
-  flattenEnums(state.enums, [], []).forEach(entry => {
-    if      (entry.kind === 'enum-group') wrap.append(buildEnumGroupRow(entry));
-    else if (entry.kind === 'enum')       wrap.append(buildEnumRow(entry));
-    else if (entry.kind === 'enum-panel') wrap.append(buildEnumPanelRow(entry));
-  });
-
-  const addRow  = el('div', { class: 'add-root-row' });
-  const addEnum = el('button', { class: 'add-root-btn' }, '+ Add Enum');
-  addEnum.addEventListener('click', () => {
-    state.enums.push({ name: '', description: '', values: [], _exp: true });
-    reRenderEnums(); scheduleSave();
-  });
-  const addGroup = el('button', { class: 'add-root-btn' }, '+ Add Group');
-  addGroup.addEventListener('click', () => {
-    state.enums.push({ group: 'New Group', rules: [], _col: false });
-    reRenderEnums(); scheduleSave();
-  });
-  addRow.append(addEnum, addGroup);
-  wrap.append(addRow);
-  return wrap;
-}
-
-function reRenderRules(anchorItem, anchorY) {
-  if (!rulesBodyEl) return;
-  assignLineNumbers(state.rules);
-  rulesBodyEl.innerHTML = '';
-  rulesBodyEl.append(buildRulesTree());
-  if (anchorItem !== undefined && anchorY !== undefined) {
-    const reg = rulesRowRegistry.find(r => r.item === anchorItem);
-    if (reg) window.scrollBy(0, reg.el.getBoundingClientRect().top - anchorY);
-  }
-}
-
-function reRenderEnums(anchorItem, anchorY) {
-  if (!enumsBodyEl) return;
-  assignLineNumbers(state.enums);
-  enumsBodyEl.innerHTML = '';
-  enumsBodyEl.append(buildEnumsTree());
-  if (anchorItem !== undefined && anchorY !== undefined) {
-    const reg = enumsRowRegistry.find(r => r.item === anchorItem);
-    if (reg) window.scrollBy(0, reg.el.getBoundingClientRect().top - anchorY);
-  }
+  return section;
 }
 
 // ── Command runner ────────────────────────────────────────────────────────────
@@ -1185,6 +2102,9 @@ function renderActBtns() {
 // ── Page render ───────────────────────────────────────────────────────────────
 
 function renderPage() {
+  if (CONFIG.lineNumbers) document.body.classList.add('feat-line-numbers');
+  if (CONFIG.treeLines)   document.body.classList.add('feat-tree-lines');
+
   const app = document.getElementById('app');
 
   saveEl = el('span', { class: 'hdr-save idle' });
@@ -1193,20 +2113,109 @@ function renderPage() {
     el('span', { class: 'hdr-meta' }, 'v' + META.version),
     el('span', { class: 'hdr-path' }, META.projectDir),
     saveEl,
+    el('button', { class: 'btn-hdr-reset', onclick: showResetModal }, 'Reset'),
   ));
 
   const wrap = el('div', { class: 'wrap' });
 
+  sections = [];
+
+  // Scripts
+  const { sec: scriptsSec, body: sb, titleEl: scriptsTitleEl } = makeSection('scripts', 'Scripts');
+  const scriptsTree = createTreeSection({
+    getData:       () => state.scripts,
+    buildPanel:    (entry, reRender, inModal) => buildScriptPanel(entry.item, reRender, inModal),
+    hasStatus:     true,
+    isItemDirty:   isScriptDirty,
+    getItemName:   item => item.name || item.id || '—',
+    newItem:       () => ({ id: '', name: '', description: '', command: '', args: [], _exp: true, _saved: null, _mode: 'edit' }),
+    snapshotFn:    scriptSnapshot,
+    validateItem:  item => !!item.id && !!item.name,
+    addItemLabel:  '+ Add Script',
+    confirmRemove: (script) => {
+      const refs = flattenItems(state.rules).filter(r => r.type === 'script_reusable' && r.script === script.id);
+      if (!refs.length) return true;
+      return confirm('Script "' + (script.name || script.id) + '" is referenced by ' + refs.length + ' rule(s):\n' + refs.map(r => '  - ' + (r.name || r.description || r.script)).join('\n') + '\n\nDelete anyway?');
+    },
+    onReRender: () => {
+      const n = countSectionItems(state.scripts, true);
+      scriptsTitleEl.textContent = n ? 'Scripts (' + n + ' item' + (n !== 1 ? 's' : '') + ')' : 'Scripts';
+    },
+  });
+  sections.push(scriptsTree);
+  scriptsTree.mount(sb);
+  scriptsTree.reRender();
+  wrap.append(scriptsSec);
+
   // Rules
-  const { sec: rulesSec, body: rb } = makeSection('rules', 'Rules');
-  rulesBodyEl = rb;
-  reRenderRules();
+  const { sec: rulesSec, body: rb, hdr: rulesHdr, titleEl: rulesTitleEl } = makeSection('rules', 'Rules');
+  const filterBtns = {};
+  const filterBar  = el('div', { class: 'sec-filter' });
+  ['all', 'enabled', 'disabled'].forEach(f => {
+    const b = el('button', { class: 'sec-filter-btn' + (f === 'all' ? ' on' : '') }, f);
+    b.addEventListener('click', () => {
+      state.filters.rules = f;
+      Object.values(filterBtns).forEach(x => x.classList.toggle('on', x === b));
+      rulesTree.reRender();
+    });
+    filterBtns[f] = b;
+    filterBar.append(b);
+  });
+  rulesHdr.append(filterBar);
+
+  const rulesTree = createTreeSection({
+    getData:      () => state.rules,
+    buildPanel:   (entry, reRender, inModal) => buildRuleFields(entry.item, reRender, inModal),
+    hasStatus:    true,
+    isItemDirty:  isDirty,
+    hasEnable:    true,
+    getFilter:    () => {
+      const f = state.filters.rules;
+      if (f === 'enabled')  return item => item.enabled !== false;
+      if (f === 'disabled') return item => item.enabled === false;
+      return null;
+    },
+    getItemName:  item => item.name || item.description || '—',
+    newItem:      () => ({ type: 'script_clean', name: '', description: '', command: '',
+                           severity: 'error', instruction: '', enabled: true, _exp: true, _saved: null, _mode: 'edit' }),
+    snapshotFn:   ruleSnapshot,
+    validateItem: item => {
+      if (!item.name) return false;
+      if (item.type === 'script_reusable') return !!item.script && ruleRequiredArgsFilled(item);
+      return !!item.command;
+    },
+    addItemLabel: '+ Add Rule',
+    onReRender: () => {
+      const { total, enabled, disabled } = countRuleStats(state.rules);
+      if (!total) { rulesTitleEl.textContent = 'Rules'; return; }
+      rulesTitleEl.textContent = 'Rules (' + total + ' item' + (total !== 1 ? 's' : '') + ' · ' + enabled + ' on · ' + disabled + ' off)';
+    },
+  });
+  sections.push(rulesTree);
+  rulesTree.mount(rb);
+  rulesTree.reRender();
   wrap.append(rulesSec);
 
   // Enums
-  const { sec: enumsSec, body: eb } = makeSection('enums', 'Enums');
-  enumsBodyEl = eb;
-  reRenderEnums();
+  const { sec: enumsSec, body: eb, titleEl: enumsTitleEl } = makeSection('enums', 'Enums');
+  const enumsTree = createTreeSection({
+    getData:      () => state.enums,
+    buildPanel:   (entry, reRender, inModal) => buildEnumPanel(entry.item, reRender, inModal),
+    hasStatus:    true,
+    isItemDirty:  isEnumDirty,
+    getItemName:  item => item.name || '—',
+    newItem:      () => ({ name: '', description: '', values: [], _exp: true, _saved: null, _mode: 'edit' }),
+    snapshotFn:   enumSnapshot,
+    validateItem: item => !!item.name,
+    addItemLabel: '+ Add Enum',
+    onReRender: () => {
+      const n = countSectionItems(state.enums, true);
+      enumsTitleEl.textContent = n ? 'Enums (' + n + ' item' + (n !== 1 ? 's' : '') + ')' : 'Enums';
+    },
+  });
+  sections.push(enumsTree);
+  enumsTree.mount(eb);
+  enumsTree.reRender();
   wrap.append(enumsSec);
 
   // Actions
