@@ -1,9 +1,12 @@
 # eval-rules — walk the rules: tree from bumfuzzle.yml and run each check
 
-_URULE_VALID_TYPES="file_present file_absent content_present content_absent script_clean script_reusable"
+_URULE_VALID_TYPES="script_clean script_reusable"
 
 _urule_pass() {
-  [[ "$VERBOSE" == true ]] && { _flush_header; printf '[PASS] %s\n' "$1"; }
+  if [[ "$VERBOSE" == true ]]; then
+    _flush_header
+    printf '[PASS] %s\n' "$1"
+  fi
 }
 
 _urule_instruction() {
@@ -14,49 +17,16 @@ _urule_instruction() {
   printf '    → %s\n' "$_instr"
 }
 
-_urule_list_files() {
-  local _target="$1" _scope="$2" _exclude="$3"
-  local _args=() _start="."
-  [[ "$_scope" != "root" && -n "$_scope" ]] && _start="./${_scope%/}"
-  if [[ "$_target" == */* ]]; then
-    _args+=(-path "./$_target")
-  else
-    _args+=(-name "$_target")
-  fi
-  _args+=(-type f)
-  if ! is_blank "$_exclude"; then
-    if [[ "$_exclude" == */* ]]; then
-      _args+=(! -path "./$_exclude")
-    else
-      _args+=(! -name "$_exclude")
-    fi
-  fi
-  find "$_start" "${_args[@]}" 2>/dev/null
-}
-
-_urule_find_any() {
-  local _target="$1" _scope="$2"
-  local _start="."
-  [[ "$_scope" != "root" && -n "$_scope" ]] && _start="./${_scope%/}"
-  if [[ "$_target" == */* ]]; then
-    find "$_start" -path "./$_target" 2>/dev/null | head -1
-  else
-    find "$_start" -name "$_target" 2>/dev/null | head -1
-  fi
-}
 
 _urule_process_rule() {
   local _path="$1"
 
-  local _type _name _desc _target _pattern _scope _exclude _command _sev
+  local _type _name _desc _command _sev _enabled
+  _enabled=$(yq "${_path}.enabled | tostring"         "$PREFLIGHT_FILE" 2>/dev/null || echo null)
+  if [[ "$_enabled" == "false" ]]; then return; fi
   _type=$(yq    "${_path}.type              // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _name=$(yq    "${_path}.name              // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _desc=$(yq    "${_path}.description       // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
-  _target=$(yq  "${_path}.target            // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
-  _pattern=$(yq "${_path}.pattern           // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
-  _scope=$(yq   "${_path}.scope  // \"root\""        "$PREFLIGHT_FILE" 2>/dev/null || echo root)
-  [[ "$_scope" == "recursive" ]] && _scope="root"
-  _exclude=$(yq "${_path}.exclude           // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _command=$(yq "${_path}.command           // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _sev=$(yq     "${_path}.severity // \"error\""     "$PREFLIGHT_FILE" 2>/dev/null || echo error)
 
@@ -69,59 +39,6 @@ _urule_process_rule() {
   local _label="${_name:-${_desc:-${_path} ($_type)}}"
 
   case "$_type" in
-    file_present)
-      is_blank "$_target" && { fail "$_label: 'target' is required" error; return; }
-      local _hit
-      _hit=$(_urule_find_any "$_target" "$_scope")
-      if [[ -n "$_hit" ]]; then
-        _urule_pass "$_label"
-      else
-        fail "$_label: '$_target' not found (scope: $_scope)" "$_sev"
-        _urule_instruction "$_path"
-      fi
-      ;;
-
-    file_absent)
-      is_blank "$_target" && { fail "$_label: 'target' is required" error; return; }
-      local _hit
-      _hit=$(_urule_find_any "$_target" "$_scope")
-      if [[ -z "$_hit" ]]; then
-        _urule_pass "$_label"
-      else
-        fail "$_label: '$_target' must not exist (found: ${_hit#./})" "$_sev"
-        _urule_instruction "$_path"
-      fi
-      ;;
-
-    content_present|content_absent)
-      is_blank "$_target"  && { fail "$_label: 'target' is required" error;  return; }
-      is_blank "$_pattern" && { fail "$_label: 'pattern' is required" error; return; }
-      local _match_file="" _f
-      while IFS= read -r _f; do
-        is_blank "$_f" && continue
-        if grep -qE "$_pattern" "$_f" 2>/dev/null; then
-          _match_file="$_f"
-          break
-        fi
-      done < <(_urule_list_files "$_target" "$_scope" "$_exclude")
-
-      if [[ "$_type" == content_present ]]; then
-        if [[ -n "$_match_file" ]]; then
-          _urule_pass "$_label"
-        else
-          fail "$_label: pattern '$_pattern' not found in '$_target' (scope: $_scope)" "$_sev"
-          _urule_instruction "$_path"
-        fi
-      else
-        if [[ -z "$_match_file" ]]; then
-          _urule_pass "$_label"
-        else
-          fail "$_label: pattern '$_pattern' found in '${_match_file#./}' (must be absent)" "$_sev"
-          _urule_instruction "$_path"
-        fi
-      fi
-      ;;
-
     script_clean)
       is_blank "$_command" && { fail "$_label: 'command' is required" error; return; }
       local _out _ec=0
@@ -141,13 +58,13 @@ _urule_process_rule() {
       local _script_id _script_cmd
       _script_id=$(yq "${_path}.script // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
       is_blank "$_script_id" && { fail "$_label: 'script' id is required" error; return; }
-      _script_cmd=$(yq ".scripts[] | select(.id == \"$_script_id\") | .command // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+      _script_cmd=$(yq ".scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \"$_script_id\") | .command // \"\"" "$PREFLIGHT_FILE" 2>/dev/null | head -1 || true)
       is_blank "$_script_cmd" && { fail "$_label: reusable script '$_script_id' not found or has no command" error; return; }
 
       # unset all vars declared by this script so optional args not provided by the
       # rule don't inherit stale values from a previous rule execution
       local _all_skeys _sk
-      _all_skeys=$(yq ".scripts[] | select(.id == \"$_script_id\") | .args[].key" "$PREFLIGHT_FILE" 2>/dev/null || true)
+      _all_skeys=$(yq ".scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \"$_script_id\") | .args[].key" "$PREFLIGHT_FILE" 2>/dev/null || true)
       while IFS= read -r _sk; do
         is_blank "$_sk" && continue
         unset "$_sk" 2>/dev/null || true

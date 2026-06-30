@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Resolve real script location even when called via symlink
-SOURCE="${BASH_SOURCE[0]}"
-while [[ -L "$SOURCE" ]]; do SOURCE="$(readlink "$SOURCE")"; done
-KICKSTART_REPO="$(cd "$(dirname "$SOURCE")" && pwd)"
-KICKSTART_VERSION="$(cat "$KICKSTART_REPO/VERSION" 2>/dev/null || printf 'unknown')"
+BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+KICKSTART_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -71,8 +68,8 @@ maybe_write_subst() {
 # ── Usage ─────────────────────────────────────────────────────────────────────
 
 usage() {
-  printf 'kickstart v%s — scaffold a project in the current directory\n\n' "$KICKSTART_VERSION" >&2
-  printf 'Usage: kickstart [options]\n\n' >&2
+  printf 'bumfuzzle kickstart v%s — scaffold a project in the current directory\n\n' "$KICKSTART_VERSION" >&2
+  printf 'Usage: bumfuzzle kickstart [options]\n\n' >&2
   printf 'Options:\n' >&2
   printf '  --config <file>                       Config override (default: bumfuzzle-template.yml)\n' >&2
   printf '  --dry-run                             Print steps without executing\n' >&2
@@ -108,44 +105,11 @@ PROJECT_NAME="$(basename "$PROJECT_DIR")"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-[[ -z "$CONFIG_FILE" ]] && CONFIG_FILE="$KICKSTART_REPO/bumfuzzle-template.yml"
+[[ -z "$CONFIG_FILE" ]] && CONFIG_FILE="$BUMFUZZLE_ROOT/bumfuzzle-template.yml"
 
 if ! command -v yq &>/dev/null; then
   printf 'Error: yq is required\n' >&2; exit 1
 fi
-
-cfg() { yq "$1" "$CONFIG_FILE" 2>/dev/null; }
-
-# ── Scaffold merge ────────────────────────────────────────────────────────────
-
-_scaffold_merged=$(mktemp)
-
-_build_scaffold_merged() {
-  if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-    yq eval-all '. as $item ireduce ({}; . * $item)' "$KICKSTART_REPO/bumfuzzle-template.yml" "$PROJECT_DIR/bumfuzzle.yml" > "$_scaffold_merged"
-  else
-    cp "$KICKSTART_REPO/bumfuzzle-template.yml" "$_scaffold_merged"
-  fi
-}
-
-_build_scaffold_merged
-
-scaffold_enabled() {
-  local _val
-  _val=$(yq ".scaffold.${1}" "$_scaffold_merged" 2>/dev/null || echo "null")
-  [[ -z "$_val" || "$_val" == "null" ]] && return 0
-  [[ "$_val" == "true" ]]
-}
-
-artifact_enabled() {
-  local _val
-  _val=$(yq "(.artifacts.${1}.enabled) // \"false\"" "$_scaffold_merged" 2>/dev/null || echo "false")
-  [[ "$_val" == "true" ]]
-}
-
-artifact_path() {
-  yq ".artifacts.${1}.path" "$_scaffold_merged" 2>/dev/null
-}
 
 step_enabled() {
   local step="$1"
@@ -155,7 +119,7 @@ step_enabled() {
   if [[ -n "$SKIP_STEPS" ]]; then
     printf '%s' "$SKIP_STEPS" | tr ',' '\n' | grep -qx "$step" && return 1
   fi
-  [[ "$(yq ".scaffold.steps.${step}" "$_scaffold_merged" 2>/dev/null)" != "false" ]]
+  return 0
 }
 
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -167,18 +131,18 @@ printf '\n-- kickstart v%s (%s) %s\n' \
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 # domain setup disabled — pending reimplementation
-# . "$KICKSTART_REPO/domains/git.sh"
-# . "$KICKSTART_REPO/domains/hooks.sh"
-# . "$KICKSTART_REPO/domains/rules.sh"
-# . "$KICKSTART_REPO/domains/structure.sh"
-# . "$KICKSTART_REPO/domains/env.sh"
-# . "$KICKSTART_REPO/domains/editor.sh"
-# . "$KICKSTART_REPO/domains/dependencies.sh"
-# . "$KICKSTART_REPO/domains/docker.sh"
-# . "$KICKSTART_REPO/domains/config.sh"
+# . "$BUMFUZZLE_ROOT/domains/git.sh"
+# . "$BUMFUZZLE_ROOT/domains/hooks.sh"
+# . "$BUMFUZZLE_ROOT/domains/rules.sh"
+# . "$BUMFUZZLE_ROOT/domains/structure.sh"
+# . "$BUMFUZZLE_ROOT/domains/env.sh"
+# . "$BUMFUZZLE_ROOT/domains/editor.sh"
+# . "$BUMFUZZLE_ROOT/domains/dependencies.sh"
+# . "$BUMFUZZLE_ROOT/domains/docker.sh"
+# . "$BUMFUZZLE_ROOT/domains/config.sh"
 
 if step_enabled bumfuzzle_yml; then
-  maybe_copy "$KICKSTART_REPO/bumfuzzle-template.yml" "$PROJECT_DIR/bumfuzzle.yml"
+  maybe_copy "$CONFIG_FILE" "$PROJECT_DIR/bumfuzzle.yml"
 fi
 # git_setup
 # hooks_setup

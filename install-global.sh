@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-global-bumfuzzle.sh — install bumfuzzle tools globally on this machine
+# install-global.sh — install bumfuzzle globally on this machine
 #
 # EXCEPTION: this script is the sole file in the repo permitted to write outside
 # $PROJECT_DIR. It installs symlinks into $HOME/.local/bin by design.
@@ -28,13 +28,10 @@ link_tool() {
 
 printf '\nbumfuzzle v%s — global install\n\n' "$VERSION"
 
-link_tool kickstart  "$REPO/kickstart.sh"
 link_tool bumfuzzle "$REPO/bumfuzzle.sh"
-link_tool preflight "$REPO/preflight.sh"
 
 printf '\n'
 
-# PATH check
 if ! printf '%s' "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
   printf '[warn]   %s is not on your PATH\n' "$BIN_DIR"
   printf '         Add this to your shell profile:\n\n'
@@ -43,4 +40,4 @@ else
   printf '[ok]     %s is on your PATH\n' "$BIN_DIR"
 fi
 
-printf '\nDone. Run: kickstart --help\n\n'
+printf '\nDone. Run: bumfuzzle --help\n\n'

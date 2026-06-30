@@ -56,7 +56,8 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 
 /* ── Enum value list ── */
 .enum-vals{display:flex;flex-direction:column;gap:4px}
-.enum-val{display:flex;align-items:center;gap:6px;padding:5px 6px;border:1px solid var(--b1);border-radius:var(--r);background:var(--surf2)}
+.enum-val{display:flex;flex-direction:column;gap:4px;padding:5px 6px;border:1px solid var(--b1);border-radius:var(--r);background:var(--surf2)}
+.enum-val-row{display:flex;align-items:center;gap:6px}
 .enum-val .inp{width:auto}
 .enum-val-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--tm);font-family:var(--mono);white-space:nowrap;flex-shrink:0}
 .enum-val-rm{background:none;border:none;color:var(--td);cursor:pointer;width:20px;height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;transition:color .1s,background .1s;flex-shrink:0;margin-left:2px}
@@ -282,30 +283,14 @@ function isAncestorOf(ancestor, item) {
 
 // ── Data init ─────────────────────────────────────────────────────────────────
 
-function defaultEnums() {
-  const mv = n => ({ name: n, value: n });
-  return [
-    { name: 'environments', description: 'Deployment environments — preflight validates each .env.<name> file.', values: [] },
-    {
-      group: 'Claude Model Configuration',
-      rules: [
-        { name: 'model', description: 'Selects the default model.', values: ['claude-3-5-sonnet','claude-3-opus','claude-3-haiku','claude-3-5-haiku'].map(mv) },
-        { name: 'availableModels', description: 'Restricts the models available to users or subagents.', values: ['claude-3-5-sonnet','claude-3-opus','claude-3-haiku','claude-3-5-haiku'].map(mv) },
-        { name: 'effortLevel', description: 'Controls the depth of extended thinking.', values: ['low','medium','high'].map(mv) },
-      ],
-    },
-  ];
-}
-
 function initData() {
   const cRules   = C && C.rules;
   const sRules   = S && S.rules;
   const cEnums   = C && C.enums;
-  const sEnums   = S && S.enums;
   const cScripts = C && C.scripts;
   state = {
     rules:   JSON.parse(JSON.stringify(cRules   || sRules   || [])),
-    enums:   JSON.parse(JSON.stringify(cEnums   || sEnums   || defaultEnums())),
+    enums:   JSON.parse(JSON.stringify(cEnums)),
     scripts: JSON.parse(JSON.stringify(cScripts || [])),
     sections: { rules: true, enums: true, scripts: true, actions: true },
     filters:  { rules: 'all' },
@@ -323,8 +308,8 @@ function annotate(items) {
       annotate(item.rules);
     } else {
       if (item._exp === undefined) item._exp = false;
+      if (!item.id)   item.id   = '';
       if (!item.name) item.name = '';
-      if (!item.scope || item.scope === 'recursive') item.scope = 'root';
       if (Array.isArray(item.hints)) {
         item.instruction = item.hints.join('\n');
         delete item.hints;
@@ -352,11 +337,12 @@ function annotateEnums(items) {
       annotateEnums(item.rules);
     } else {
       if (item._exp === undefined) item._exp = false;
-      if (!item.name) item.name = '';
+      if (!item.id)          item.id          = '';
+      if (!item.name)        item.name        = '';
       if (!item.description) item.description = '';
       if (!Array.isArray(item.values)) item.values = [];
-      item.values = item.values.map(v => typeof v === 'string' ? { name: v, value: v } : v);
-      item.values.forEach(v => { if (!v.name) v.name = ''; if (!v.value) v.value = ''; });
+      item.values = item.values.map(v => typeof v === 'string' ? { name: v, value: v, description: '' } : v);
+      item.values.forEach(v => { if (!v.name) v.name = ''; if (!v.value) v.value = ''; if (v.description === undefined) v.description = ''; });
       if (item._saved === undefined) item._saved = enumSnapshot(item);
       if (item._mode === undefined) item._mode = 'edit';
     }
@@ -532,7 +518,8 @@ function generateYaml() {
         if (item.rules && item.rules.length) writeRuleItems(item.rules, indent + '    ');
       } else if (item.type === 'script_reusable') {
         lines.push(indent + '- type: script_reusable');
-        lines.push(indent + '  name: '                              + JSON.stringify(item.name));
+        if (item.id) lines.push(indent + '  id: '   + JSON.stringify(item.id));
+        lines.push(indent + '  name: '              + JSON.stringify(item.name));
         if (item.enabled === false) lines.push(indent + '  enabled: false');
         if (item.script)      lines.push(indent + '  script: '      + JSON.stringify(item.script));
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
@@ -553,15 +540,10 @@ function generateYaml() {
         }
       } else {
         lines.push(indent + '- type: ' + item.type);
-        lines.push(indent + '  name: '                              + JSON.stringify(item.name));
+        if (item.id) lines.push(indent + '  id: '   + JSON.stringify(item.id));
+        lines.push(indent + '  name: '              + JSON.stringify(item.name));
         if (item.enabled === false) lines.push(indent + '  enabled: false');
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
-        if (item.target)      lines.push(indent + '  target: '      + JSON.stringify(item.target));
-        if (item.pattern !== undefined && item.pattern !== '')
-                              lines.push(indent + '  pattern: '     + JSON.stringify(item.pattern));
-        if (item.scope && item.scope !== 'root')
-                              lines.push(indent + '  scope: '       + JSON.stringify(item.scope));
-        if (item.exclude)     lines.push(indent + '  exclude: '     + JSON.stringify(item.exclude));
         if (item.command)     lines.push(indent + '  command: '     + JSON.stringify(item.command));
         if (item.severity && item.severity !== 'error')
                               lines.push(indent + '  severity: '    + item.severity);
@@ -577,13 +559,15 @@ function generateYaml() {
         lines.push(indent + '  enums:');
         if (item.rules && item.rules.length) writeEnumItems(item.rules, indent + '    ');
       } else {
-        lines.push(indent + '- name: ' + JSON.stringify(item.name));
+        lines.push(indent + '- id: '   + JSON.stringify(item.id));
+        lines.push(indent + '  name: ' + JSON.stringify(item.name));
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
         if (item.values.length) {
           lines.push(indent + '  values:');
           item.values.forEach(v => {
-            lines.push(indent + '    - name: ' + JSON.stringify(v.name || ''));
+            lines.push(indent + '    - name: '  + JSON.stringify(v.name  || ''));
             lines.push(indent + '      value: ' + JSON.stringify(v.value || ''));
+            if (v.description) lines.push(indent + '      description: ' + JSON.stringify(v.description));
           });
         } else {
           lines.push(indent + '  values: []');
@@ -821,6 +805,31 @@ function openModal(buildBodyFn, { title, onConfirm, onCancel, validateFn, noConf
   first?.focus();
 }
 
+function openDeleteModal({ title, lines = [], onDelete }) {
+  if (modalEl) return;
+  const overlay  = el('div', { class: 'modal-overlay' });
+  const box      = el('div', { class: 'modal-box', style: 'max-width:420px' });
+  const hdrEl    = el('div', { class: 'modal-header' }, title);
+  const footerEl = el('div', { class: 'modal-footer' });
+  const cancelBtn = el('button', { class: 'btn cancel' }, 'Cancel');
+  const deleteBtn = el('button', { class: 'btn danger' }, 'Delete');
+  cancelBtn.addEventListener('click', closeModal);
+  deleteBtn.addEventListener('click', () => { closeModal(); onDelete(); });
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  footerEl.append(cancelBtn, deleteBtn);
+  box.append(hdrEl);
+  if (lines.length) {
+    const bodyEl = el('div', { class: 'modal-body' });
+    lines.forEach(line => bodyEl.append(el('div', { style: 'font-size:12px;color:var(--tm);padding:1px 0;font-family:var(--mono)' }, line)));
+    box.append(bodyEl);
+  }
+  box.append(footerEl);
+  overlay.append(box);
+  document.body.append(overlay);
+  document.getElementById('app').classList.add('app-blurred');
+  modalEl = overlay;
+}
+
 // ── Section factory ───────────────────────────────────────────────────────────
 
 function makeSection(key, title) {
@@ -843,7 +852,7 @@ function makeSection(key, title) {
 // ── Snapshot helpers ──────────────────────────────────────────────────────────
 
 const SEV_LEVELS  = ['info','warn','error','hard-stop'];
-const SNAP_FIELDS = ['type','name','description','target','scope','pattern','exclude','command','severity','instruction','script'];
+const SNAP_FIELDS = ['id','type','name','description','command','severity','instruction','script'];
 
 function ruleSnapshot(rule) {
   const s = {};
@@ -857,6 +866,7 @@ function isDirty(rule) {
 
 function enumSnapshot(item) {
   return JSON.stringify({
+    id:          item.id          || '',
     name:        item.name        || '',
     description: item.description || '',
     values:      JSON.parse(JSON.stringify(item.values || [])),
@@ -896,7 +906,7 @@ function getEnumValues(enumRef) {
   function search(items) {
     for (const item of (items || [])) {
       if (isGroup(item)) { const r = search(item.rules || []); if (r) return r; }
-      else if (item.name === enumRef) return item.values || [];
+      else if (item.id === enumRef) return item.values || [];
     }
     return null;
   }
@@ -907,13 +917,12 @@ function buildArgWidget(argDef, rule, onChange) {
   const wrap = el('div', { class: 'rf-sec' });
   const req  = argDef.required ? ' *' : '';
   wrap.append(el('span', { class: 'rf-lbl' }, (argDef.label || argDef.key || '?') + req));
-  if (!rule.args) rule.args = {};
-  const stored = rule.args[argDef.key];
+  const stored = rule.args?.[argDef.key];
   const def    = argDef.default !== undefined ? argDef.default : '';
   const cur    = stored !== undefined ? stored : def;
   const type   = argDef.type || 'string';
 
-  function set(val) { rule.args[argDef.key] = val; onChange(); }
+  function set(val) { if (!rule.args || typeof rule.args !== 'object' || Array.isArray(rule.args)) rule.args = {}; rule.args[argDef.key] = val; onChange(); }
 
   if (type === 'bool') {
     const seg = el('div', { class: 'seg' });
@@ -933,7 +942,6 @@ function buildArgWidget(argDef, rule, onChange) {
     const valToName = Object.fromEntries(options.map(o => [String(o.value), o.name]));
     if (argDef.multi_select) {
       const selected = Array.isArray(cur) ? [...cur] : (cur ? [String(cur)] : []);
-      set([...selected]);
       const chipsEl = el('div', { class: 'chips' });
       function refreshMulti() {
         chipsEl.innerHTML = '';
@@ -1050,9 +1058,20 @@ function buildRuleFields(rule, reRender, inModal = false) {
 
   const formView = el('div', { class: 'rf-body' });
 
+  const idInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'unique-rule-id (optional)' });
+  idInp.value = rule.id || '';
+  if (rule._saved !== null && rule._saved !== undefined) {
+    try { if (JSON.parse(rule._saved).id) idInp.readOnly = true; } catch {}
+  }
+  idInp.addEventListener('input', () => {
+    rule.id = idInp.value.trim().replace(/\s+/g, '-');
+    idInp.value = rule.id;
+    rule._updateRow?.(); updateStatus();
+  });
+
   const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Short label for this rule' });
   nInp.value = rule.name || '';
-  nInp.addEventListener('input', () => { rule.name = nInp.value; rule._updateRow?.(); scheduleSave(); updateStatus(); });
+  nInp.addEventListener('input', () => { rule.name = nInp.value; rule._updateRow?.(); updateStatus(); });
   nInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); dInp.focus(); } });
 
   const typeSeg       = el('div', { class: 'seg' });
@@ -1063,7 +1082,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
     rule.type = 'script_clean';
     typeCustomBtn.className = 'seg-btn on t-on';
     typeReusBtn.className   = 'seg-btn';
-    rebuildTypeView(); scheduleSave(); updateStatus();
+    rebuildTypeView(); updateStatus();
   });
   typeReusBtn.addEventListener('click', () => {
     if (rule.type === 'script_reusable') return;
@@ -1072,25 +1091,24 @@ function buildRuleFields(rule, reRender, inModal = false) {
     if (!rule.script) rule.script = '';
     typeCustomBtn.className = 'seg-btn';
     typeReusBtn.className   = 'seg-btn on t-on';
-    rebuildTypeView(); scheduleSave(); updateStatus();
+    rebuildTypeView(); updateStatus();
   });
   typeSeg.append(typeCustomBtn, typeReusBtn);
 
   let iTaRef = null;
   const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'What does this rule check?' });
   dInp.value = rule.description || '';
-  dInp.addEventListener('input', () => { rule.description = dInp.value; rule._updateRow?.(); scheduleSave(); updateStatus(); });
+  dInp.addEventListener('input', () => { rule.description = dInp.value; rule._updateRow?.(); updateStatus(); });
   dInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); iTaRef?.focus(); } });
 
   // ── Custom script command field ──
   const cInp = el('textarea', { class: 'instr-ta mono', placeholder: 'npx tsc --noEmit', rows: '3' });
   cInp.value = rule.command || '';
-  cInp.addEventListener('input', () => { rule.command = cInp.value; autoResize(cInp); scheduleSave(); updateStatus(); });
+  cInp.addEventListener('input', () => { rule.command = cInp.value; autoResize(cInp); updateStatus(); });
   const customViewEl = panelSec('Command', cInp);
 
   // ── Reusable script picker ──
   function buildReusableSection() {
-    if (!rule.args || typeof rule.args !== 'object' || Array.isArray(rule.args)) rule.args = {};
     const wrap = el('div', {});
 
     const picker = el('select', { class: 'inp' });
@@ -1140,7 +1158,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
       rule.args = {};
       refreshHint();
       rebuildArgs();
-      scheduleSave(); updateStatus();
+      updateStatus();
     });
 
     refreshHint();
@@ -1174,7 +1192,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
     b.addEventListener('click', () => {
       rule.severity = s;
       Object.values(sBtns).forEach(x => x.className = 'seg-btn' + (x.dataset.val === s ? ' on t-' + s : ''));
-      scheduleSave(); updateStatus();
+      updateStatus();
     });
     sBtns[s] = b; sSeg.append(b);
   });
@@ -1182,9 +1200,10 @@ function buildRuleFields(rule, reRender, inModal = false) {
   const iTa = el('textarea', { class: 'instr-ta', placeholder: 'What should the developer do when this check fails?' });
   iTaRef = iTa;
   iTa.value = rule.instruction || '';
-  iTa.addEventListener('input', () => { rule.instruction = iTa.value; autoResize(iTa); scheduleSave(); updateStatus(); });
+  iTa.addEventListener('input', () => { rule.instruction = iTa.value; autoResize(iTa); updateStatus(); });
 
   formView.append(
+    panelSec('ID (optional slug, locked after first save)', idInp),
     panelSec('Name', nInp),
     panelSec('Description', dInp),
     panelSec('Severity on fail', sSeg),
@@ -1255,6 +1274,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
     const isReusable = rule.type === 'script_reusable';
     if (!rule.name || !hasRequiredArgsFilled() || (!isReusable && !rule.command)) return;
     rule._saved = ruleSnapshot(rule);
+    if (rule.id) idInp.readOnly = true;
     rule._updateRow?.();
     scheduleSave();
     setMode('edit');
@@ -1274,6 +1294,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
     const saved = JSON.parse(rule._saved);
     SNAP_FIELDS.forEach(f => { rule[f] = saved[f] ?? ''; });
     rule.args = JSON.parse(saved.args || '{}');
+    idInp.value = rule.id         || '';
     nInp.value = rule.name        || '';
     dInp.value = rule.description || '';
     cInp.value = rule.command     || '';
@@ -1304,13 +1325,23 @@ function buildEnumPanel(item, reRender, inModal = false) {
   const btnSave   = el('button', { class: 'rf-btn rf-btn-save' }, 'Save');
   const btnEdit   = el('button', { class: 'rf-btn' }, 'Edit');
   const btnCancel = el('button', { class: 'rf-btn rf-btn-cancel' }, 'Cancel');
+  const idInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'camelCase-or-slug-id' });
+  idInp.value = item.id || '';
+  if (item._saved !== null && item._saved !== undefined) {
+    try { if (JSON.parse(item._saved).id) idInp.readOnly = true; } catch {}
+  }
+  idInp.addEventListener('input', () => {
+    item.id = idInp.value.trim().replace(/\s+/g, '-');
+    idInp.value = item.id;
+    item._updateRow?.(); updateStatus();
+  });
   const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Enum name' });
   nInp.value = item.name || '';
-  nInp.addEventListener('input', () => { item.name = nInp.value; item._updateRow?.(); scheduleSave(); updateStatus(); });
+  nInp.addEventListener('input', () => { item.name = nInp.value; item._updateRow?.(); updateStatus(); });
 
   const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'Description (optional)' });
   dInp.value = item.description || '';
-  dInp.addEventListener('input', () => { item.description = dInp.value; item._updateRow?.(); scheduleSave(); updateStatus(); });
+  dInp.addEventListener('input', () => { item.description = dInp.value; item._updateRow?.(); updateStatus(); });
 
   const valsEl = el('div', { class: 'enum-vals' });
   function refreshVals() {
@@ -1319,16 +1350,26 @@ function buildEnumPanel(item, reRender, inModal = false) {
     item.values.forEach((v, i) => {
       const nv = el('input', { class: 'inp', type: 'text', placeholder: 'name', style: 'flex:0 0 130px' });
       nv.value = v.name || '';
-      nv.addEventListener('input', () => { v.name = nv.value; scheduleSave(); updateStatus(); });
-      const vv = el('input', { class: 'inp mono', type: 'text', placeholder: 'value', style: 'flex:1;min-width:60px' });
+      nv.addEventListener('input', () => { v.name = nv.value; updateStatus(); });
+      const vv = el('input', { class: 'inp mono', type: 'text', placeholder: 'value', style: 'flex:1' });
       vv.value = v.value || '';
-      vv.addEventListener('input', () => { v.value = vv.value; scheduleSave(); updateStatus(); });
+      vv.addEventListener('input', () => { v.value = vv.value; updateStatus(); });
+      const dv = el('input', { class: 'inp', type: 'text', placeholder: 'description', style: 'flex:1' });
+      dv.value = v.description || '';
+      dv.addEventListener('input', () => { v.description = dv.value; updateStatus(); });
       const rm = el('button', { class: 'enum-val-rm' }, '\xd7');
-      rm.addEventListener('click', () => { item.values.splice(i, 1); refreshVals(); scheduleSave(); updateStatus(); });
+      rm.addEventListener('click', () => {
+        openDeleteModal({ title: 'Remove value "' + (v.name || v.value || 'this value') + '"?', onDelete: () => { item.values.splice(i, 1); refreshVals(); updateStatus(); } });
+      });
       valsEl.append(el('div', { class: 'enum-val' },
-        el('span', { class: 'enum-val-lbl' }, 'Name'), nv,
-        el('span', { class: 'enum-val-lbl' }, 'Value'), vv,
-        rm,
+        el('div', { class: 'enum-val-row' },
+          el('span', { class: 'enum-val-lbl' }, 'Name'), nv,
+          el('span', { class: 'enum-val-lbl' }, 'Value'), vv,
+          rm,
+        ),
+        el('div', { class: 'enum-val-row' },
+          el('span', { class: 'enum-val-lbl' }, 'Desc'), dv,
+        ),
       ));
     });
   }
@@ -1336,13 +1377,13 @@ function buildEnumPanel(item, reRender, inModal = false) {
 
   const addValBtn = el('button', { class: 'add-btn', style: 'margin-top:8px' }, '+ Add value');
   addValBtn.addEventListener('click', () => {
-    item.values.push({ name: '', value: '' });
+    item.values.push({ name: '', value: '', description: '' });
     refreshVals();
-    scheduleSave();
     updateStatus();
   });
 
   const formView = el('div', { class: 'rf-body' },
+    panelSec('ID (slug, locked after first save)', idInp),
     panelSec('Name', nInp),
     panelSec('Description', dInp),
     panelSec('Values', el('div', {}, valsEl, addValBtn)),
@@ -1354,6 +1395,7 @@ function buildEnumPanel(item, reRender, inModal = false) {
     if (!item._saved) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No saved state')); return; }
     const from = JSON.parse(item._saved);
     const changes = [];
+    if ((from.id   || '') !== (item.id   || ''))               changes.push({ f: 'id',          from: from.id          || '(empty)', to: item.id          || '(empty)' });
     if ((from.name || '') !== (item.name || ''))               changes.push({ f: 'name',        from: from.name        || '(empty)', to: item.name        || '(empty)' });
     if ((from.description || '') !== (item.description || '')) changes.push({ f: 'description', from: from.description || '(empty)', to: item.description || '(empty)' });
     const fv = (from.values || []).map(v => v.name || v.value || '').join(', '), tv = (item.values || []).map(v => v.name || v.value || '').join(', ');
@@ -1383,10 +1425,11 @@ function buildEnumPanel(item, reRender, inModal = false) {
   function updateStatus() {
     const dirty = isEnumDirty(item);
     const mode  = item._mode;
-    nInp.style.borderColor = item.name ? '' : 'var(--rd)';
+    idInp.style.borderColor = item.id   ? '' : 'var(--rd)';
+    nInp.style.borderColor  = item.name ? '' : 'var(--rd)';
     if (dirtyBadgeEnum) dirtyBadgeEnum.classList.toggle('visible', dirty);
     btnDiff.style.display   = (mode === 'edit' && dirty && item._saved !== null) ? '' : 'none';
-    btnSave.style.display   = (dirty && !!item.name) ? '' : 'none';
+    btnSave.style.display   = (dirty && !!item.id && !!item.name) ? '' : 'none';
     btnEdit.style.display   = mode === 'diff' ? '' : 'none';
     btnCancel.style.display = '';
   }
@@ -1404,6 +1447,7 @@ function buildEnumPanel(item, reRender, inModal = false) {
 
   btnSave.addEventListener('click', () => {
     item._saved = enumSnapshot(item);
+    if (item.id) idInp.readOnly = true;
     item._updateRow?.();
     scheduleSave();
     setMode('edit');
@@ -1421,11 +1465,13 @@ function buildEnumPanel(item, reRender, inModal = false) {
       return;
     }
     const saved = JSON.parse(item._saved);
+    item.id          = saved.id          || '';
     item.name        = saved.name        || '';
     item.description = saved.description || '';
     item.values      = JSON.parse(JSON.stringify(saved.values || []));
-    nInp.value = item.name;
-    dInp.value = item.description;
+    idInp.value = item.id;
+    nInp.value  = item.name;
+    dInp.value  = item.description;
     refreshVals();
     item._updateRow?.();
     scheduleSave();
@@ -1492,22 +1538,21 @@ function buildScriptPanel(script, reRender, inModal = false) {
   idInp.addEventListener('input', () => {
     script.id = idInp.value.trim().replace(/\s+/g, '-');
     idInp.value = script.id;
-    script._updateRow?.(); scheduleSave(); updateStatus();
+    script._updateRow?.(); updateStatus();
   });
 
   const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Human-readable name' });
   nInp.value = script.name || '';
-  nInp.addEventListener('input', () => { script.name = nInp.value; script._updateRow?.(); scheduleSave(); updateStatus(); });
+  nInp.addEventListener('input', () => { script.name = nInp.value; script._updateRow?.(); updateStatus(); });
 
   const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'What does this script check?' });
   dInp.value = script.description || '';
-  dInp.addEventListener('input', () => { script.description = dInp.value; script._updateRow?.(); scheduleSave(); updateStatus(); });
+  dInp.addEventListener('input', () => { script.description = dInp.value; script._updateRow?.(); updateStatus(); });
 
   const cmdTa = el('textarea', { class: 'instr-ta mono', placeholder: 'Shell command(s)…', rows: '4' });
   cmdTa.value = script.command || '';
-  cmdTa.addEventListener('input', () => { script.command = cmdTa.value; autoResize(cmdTa); scheduleSave(); updateStatus(); });
+  cmdTa.addEventListener('input', () => { script.command = cmdTa.value; autoResize(cmdTa); updateStatus(); });
 
-  if (!Array.isArray(script.args)) script.args = [];
   initArgDrag();
 
   const ARG_TYPES = ['string','int','double','regex','path','bool','enum'];
@@ -1590,12 +1635,12 @@ function buildScriptPanel(script, reRender, inModal = false) {
         });
         constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Multi-select separator'), sepSeg));
 
-        if (!Array.isArray(argDef.options)) argDef.options = [];
         const optChips = el('div', { class: 'chips' });
         function refreshOptChips() {
           optChips.innerHTML = '';
-          if (!argDef.options.length) optChips.append(el('span', { class: 'chip-empty' }, 'none'));
-          argDef.options.forEach((v, i) => {
+          const options = argDef.options || [];
+          if (!options.length) optChips.append(el('span', { class: 'chip-empty' }, 'none'));
+          options.forEach((v, i) => {
             const x = el('button', { class: 'chip-x' }, '\xd7');
             x.addEventListener('click', () => { argDef.options.splice(i, 1); refreshOptChips(); onChangeFn?.(); });
             optChips.append(el('span', { class: 'chip' }, v, x));
@@ -1604,11 +1649,11 @@ function buildScriptPanel(script, reRender, inModal = false) {
         refreshOptChips();
         const optInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'option…' });
         const optBtn = el('button', { class: 'add-btn' }, '+ add');
-        optBtn.addEventListener('click', () => { const v = optInp.value.trim(); if (v && !argDef.options.includes(v)) { argDef.options.push(v); optInp.value = ''; refreshOptChips(); onChangeFn?.(); } });
+        optBtn.addEventListener('click', () => { const v = optInp.value.trim(); if (v) { if (!Array.isArray(argDef.options)) argDef.options = []; if (!argDef.options.includes(v)) { argDef.options.push(v); optInp.value = ''; refreshOptChips(); onChangeFn?.(); } } });
         optInp.addEventListener('keydown', e => { if (e.key === 'Enter') optBtn.click(); });
         constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Options'), el('div', {}, optChips, el('div', { class: 'add-row' }, optInp, optBtn))));
 
-        const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum name (optional)' });
+        const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum id (optional)' });
         refInp.value = argDef.enum_ref || '';
         refInp.addEventListener('input', () => { argDef.enum_ref = refInp.value.trim() || undefined; onChangeFn?.(); });
         constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Enum ref (optional)'), refInp));
@@ -1652,7 +1697,10 @@ function buildScriptPanel(script, reRender, inModal = false) {
     const preview = el('span', { class: 'arg-hdr-preview' });
     const typeTag = el('span', { class: 'arg-hdr-type' }, argDef.type || 'string');
     const rmBtn   = el('button', { class: 'arg-hdr-rm', title: 'Remove' }, '×');
-    rmBtn.addEventListener('click', e => { e.stopPropagation(); script.args.splice(idx, 1); rebuildArgsList(); scheduleSave(); });
+    rmBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      openDeleteModal({ title: 'Remove arg "' + (argDef.label || argDef.key || 'this arg') + '"?', onDelete: () => { script.args.splice(idx, 1); rebuildArgsList(); } });
+    });
 
     function refreshPreview() {
       const key = argDef.key || '—';
@@ -1666,7 +1714,7 @@ function buildScriptPanel(script, reRender, inModal = false) {
     refreshPreview();
 
     const detail = el('div', { class: 'arg-detail', style: 'display:none' });
-    detail.append(buildArgFields(argDef, () => { scheduleSave(); refreshPreview(); }));
+    detail.append(buildArgFields(argDef, () => { refreshPreview(); updateStatus(); }));
 
     const hdr = el('div', { class: 'arg-hdr' }, handle, arrow, preview, typeTag, rmBtn);
     hdr.addEventListener('click', e => {
@@ -1701,7 +1749,7 @@ function buildScriptPanel(script, reRender, inModal = false) {
       () => buildArgFields(argDef, () => {}),
       {
         title:      'Add Argument',
-        onConfirm:  () => { script.args.push(argDef); rebuildArgsList(); scheduleSave(); },
+        onConfirm:  () => { script.args.push(argDef); rebuildArgsList(); },
         onCancel:   () => {},
         validateFn: () => !!argDef.key,
         noConfirm:  true,
@@ -1861,8 +1909,9 @@ function createTreeSection(opts) {
     const rm = el('button', { class: 'rt-rm', title: 'Remove group' }, '\xd7');
     rm.addEventListener('click', e => {
       e.stopPropagation();
-      if ((grp.rules || []).length && !confirm('Remove "' + grp.group + '" and all its contents?')) return;
-      removeByPath(entry.path, opts.getData()); reRender(); scheduleSave();
+      const count = (grp.rules || []).length;
+      const lines = count ? ['This will also delete ' + count + ' item' + (count !== 1 ? 's' : '') + ' inside.'] : [];
+      openDeleteModal({ title: 'Remove group "' + grp.group + '"?', lines, onDelete: () => { removeByPath(entry.path, opts.getData()); reRender(); scheduleSave(); } });
     });
 
     const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
@@ -1919,8 +1968,8 @@ function createTreeSection(opts) {
     const rm = el('button', { class: 'rt-rm', title: 'Remove' }, '\xd7');
     rm.addEventListener('click', e => {
       e.stopPropagation();
-      if (opts.confirmRemove && !opts.confirmRemove(item)) return;
-      removeByPath(entry.path, opts.getData()); reRender(); scheduleSave();
+      const info = opts.getDeleteInfo ? opts.getDeleteInfo(item) : {};
+      openDeleteModal({ title: info.title || ('Remove "' + opts.getItemName(item) + '"?'), lines: info.lines || [], onDelete: () => { removeByPath(entry.path, opts.getData()); reRender(); scheduleSave(); } });
     });
 
     let togBtn = null;
@@ -2147,33 +2196,6 @@ function renderPage() {
 
   sections = [];
 
-  // Scripts
-  const { sec: scriptsSec, body: sb, titleEl: scriptsTitleEl } = makeSection('scripts', 'Scripts');
-  const scriptsTree = createTreeSection({
-    getData:       () => state.scripts,
-    buildPanel:    (entry, reRender, inModal) => buildScriptPanel(entry.item, reRender, inModal),
-    hasStatus:     true,
-    isItemDirty:   isScriptDirty,
-    getItemName:   item => item.name || item.id || '—',
-    newItem:       () => ({ id: '', name: '', description: '', command: '', args: [], _exp: true, _saved: null, _mode: 'edit' }),
-    snapshotFn:    scriptSnapshot,
-    validateItem:  item => !!item.id && !!item.name,
-    addItemLabel:  '+ Add Script',
-    confirmRemove: (script) => {
-      const refs = flattenItems(state.rules).filter(r => r.type === 'script_reusable' && r.script === script.id);
-      if (!refs.length) return true;
-      return confirm('Script "' + (script.name || script.id) + '" is referenced by ' + refs.length + ' rule(s):\n' + refs.map(r => '  - ' + (r.name || r.description || r.script)).join('\n') + '\n\nDelete anyway?');
-    },
-    onReRender: () => {
-      const n = countSectionItems(state.scripts, true);
-      scriptsTitleEl.textContent = n ? 'Scripts (' + n + ' item' + (n !== 1 ? 's' : '') + ')' : 'Scripts';
-    },
-  });
-  sections.push(scriptsTree);
-  scriptsTree.mount(sb);
-  scriptsTree.reRender();
-  wrap.append(scriptsSec);
-
   // Rules
   const { sec: rulesSec, body: rb, hdr: rulesHdr, titleEl: rulesTitleEl } = makeSection('rules', 'Rules');
   const filterBtns = {};
@@ -2217,14 +2239,44 @@ function renderPage() {
       if (!total) { rulesTitleEl.textContent = 'Rules'; return; }
       rulesTitleEl.textContent = 'Rules (' + total + ' item' + (total !== 1 ? 's' : '') + ' · ' + enabled + ' on · ' + disabled + ' off)';
     },
+    getDeleteInfo: item => ({ title: 'Remove rule "' + (item.name || item.description || '—') + '"?' }),
   });
   sections.push(rulesTree);
   rulesTree.mount(rb);
   rulesTree.reRender();
   wrap.append(rulesSec);
 
-  // Enums
-  const { sec: enumsSec, body: eb, titleEl: enumsTitleEl } = makeSection('enums', 'Enums');
+  // Shared Scripts
+  const { sec: scriptsSec, body: sb, titleEl: scriptsTitleEl } = makeSection('scripts', 'Shared Scripts');
+  const scriptsTree = createTreeSection({
+    getData:       () => state.scripts,
+    buildPanel:    (entry, reRender, inModal) => buildScriptPanel(entry.item, reRender, inModal),
+    hasStatus:     true,
+    isItemDirty:   isScriptDirty,
+    getItemName:   item => item.name || item.id || '—',
+    newItem:       () => ({ id: '', name: '', description: '', command: '', args: [], _exp: true, _saved: null, _mode: 'edit' }),
+    snapshotFn:    scriptSnapshot,
+    validateItem:  item => !!item.id && !!item.name,
+    addItemLabel:  '+ Add Script',
+    getDeleteInfo: script => {
+      const refs = flattenItems(state.rules).filter(r => r.type === 'script_reusable' && r.script === script.id);
+      return {
+        title: 'Remove script "' + (script.name || script.id) + '"?',
+        lines: refs.length ? ['Used by ' + refs.length + ' rule' + (refs.length !== 1 ? 's' : '') + ':', ...refs.map(r => '  • ' + (r.name || r.description || r.script))] : [],
+      };
+    },
+    onReRender: () => {
+      const n = countSectionItems(state.scripts, true);
+      scriptsTitleEl.textContent = n ? 'Shared Scripts (' + n + ' item' + (n !== 1 ? 's' : '') + ')' : 'Shared Scripts';
+    },
+  });
+  sections.push(scriptsTree);
+  scriptsTree.mount(sb);
+  scriptsTree.reRender();
+  wrap.append(scriptsSec);
+
+  // Shared Enums
+  const { sec: enumsSec, body: eb, titleEl: enumsTitleEl } = makeSection('enums', 'Shared Enums');
   const enumsTree = createTreeSection({
     getData:      () => state.enums,
     buildPanel:   (entry, reRender, inModal) => buildEnumPanel(entry.item, reRender, inModal),
@@ -2235,9 +2287,17 @@ function renderPage() {
     snapshotFn:   enumSnapshot,
     validateItem: item => !!item.name,
     addItemLabel: '+ Add Enum',
+    getDeleteInfo: item => {
+      const refs = [];
+      flattenItems(state.scripts).forEach(s => { (s.args || []).forEach(a => { if (a.enum_ref === item.name) refs.push(s.name || s.id || '—'); }); });
+      return {
+        title: 'Remove enum "' + (item.name || '—') + '"?',
+        lines: refs.length ? ['Referenced by ' + refs.length + ' script arg' + (refs.length !== 1 ? 's' : '') + ':', ...refs.map(r => '  • ' + r)] : [],
+      };
+    },
     onReRender: () => {
       const n = countSectionItems(state.enums, true);
-      enumsTitleEl.textContent = n ? 'Enums (' + n + ' item' + (n !== 1 ? 's' : '') + ')' : 'Enums';
+      enumsTitleEl.textContent = n ? 'Shared Enums (' + n + ' item' + (n !== 1 ? 's' : '') + ')' : 'Shared Enums';
     },
   });
   sections.push(enumsTree);

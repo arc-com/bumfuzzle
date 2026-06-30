@@ -1,26 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Resolve real script location before cd changes CWD
-_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-_SELF="$_SCRIPT_DIR/$(basename "$0")"
-while [[ -L "$_SELF" ]]; do
-  _LINK="$(readlink "$_SELF")"
-  if [[ "$_LINK" = /* ]]; then _SELF="$_LINK"
-  else _SELF="$(cd "$(dirname "$_SELF")" && cd "$(dirname "$_LINK")" && pwd)/$(basename "$_LINK")"
-  fi
-done
-PREFLIGHT_REPO="$(cd "$(dirname "$_SELF")" && pwd)"
+BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
-# cd to the project root: one level up if called from a scripts/ dir (client project),
-# or stay in place if called directly from the repo root (self-validation)
-if [[ "$(basename "$_SCRIPT_DIR")" == "scripts" ]]; then
-  cd "$_SCRIPT_DIR/.."
-elif [[ "$_SCRIPT_DIR" == "$PREFLIGHT_REPO" ]]; then
-  cd "$_SCRIPT_DIR"
-fi
-
-PREFLIGHT_VERSION="$(cat "$PREFLIGHT_REPO/VERSION" 2>/dev/null || printf 'unknown')"
+PREFLIGHT_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
 PREFLIGHT_FILE="bumfuzzle.yml"
 ERRORS=()
 WARNINGS=()
@@ -34,7 +17,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      echo "Usage: ./preflight.sh [--verbose|-v]"
+      printf 'Usage: bumfuzzle preflight [--verbose|-v]\n'
       exit 1
       ;;
   esac
@@ -61,7 +44,6 @@ pass() {
 fail() {
   local _sev="${2:-error}"
   case "$_sev" in
-    skip) return ;;
     warn)
       _flush_header
       printf '[WARN] %s\n' "$1"
@@ -99,18 +81,9 @@ pass "yq is installed"
 pass "$PREFLIGHT_FILE is present"
 pass "preflight v$PREFLIGHT_VERSION"
 
-RULES_FILE="$PREFLIGHT_REPO/bumfuzzle-template.yml"
-if [[ ! -f "$RULES_FILE" ]]; then
-  printf '[FAIL] bumfuzzle-template.yml not found at %s\n' "$RULES_FILE"
-  exit 1
-fi
-_project_preflight="$(pwd)/$PREFLIGHT_FILE"
-_merged=$(mktemp)
-yq eval-all '. as $item ireduce ({}; . * $item)' "$RULES_FILE" "$_project_preflight" > "$_merged"
-pass "config merged"
-PREFLIGHT_FILE="$_merged"
+PREFLIGHT_FILE="$(pwd)/$PREFLIGHT_FILE"
 
-. "$PREFLIGHT_REPO/eval-rules.sh"
+. "$BUMFUZZLE_ROOT/eval-rules.sh"
 
 user_rules_check
 
