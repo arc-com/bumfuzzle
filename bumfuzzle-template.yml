@@ -1,7 +1,7 @@
 scripts:
   - group: "Claude Settings"
     scripts:
-      - id: permission_mode
+      - id: permission-mode
         name: "Permission mode"
         description: "Checks that permissions.defaultMode in .claude/settings.json matches the expected value"
         command: |
@@ -12,9 +12,9 @@ scripts:
             label: "Expected permission mode"
             type: enum
             required: true
-            enum_ref: claudePermissionMode
+            enum_ref: claude-permission-mode
 
-      - id: permission_entry
+      - id: permission-entry
         name: "Permission entry"
         description: "Checks that .claude/settings.json contains a specific deny/allow/ask entry for a given tool and optional pattern"
         command: |
@@ -27,12 +27,12 @@ scripts:
             label: "Rule type"
             type: enum
             required: true
-            enum_ref: claudeRule
+            enum_ref: claude-rule
           - key: TOOL
             label: "Claude tool"
             type: enum
             required: true
-            enum_ref: claudeTool
+            enum_ref: claude-tool
           - key: PATTERN
             label: "Pattern (optional)"
             type: string
@@ -41,9 +41,9 @@ scripts:
 
   - group: "File meta checks"
     scripts:
-      - id: file_existence
-        name: "File existence"
-        description: "Checks whether a file or directory exists at the given path. Defaults to present; set EXPECT: absent to invert."
+      - id: file-or-dir-existence
+        name: "File or directory existence"
+        description: "Checks whether a file or directory exists at the given path."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
@@ -53,7 +53,7 @@ scripts:
           else
             _hit=$(find "." -name "$FILE_PATH" 2>/dev/null | head -1)
           fi
-          if [[ "${EXPECT:-present}" == "present" ]]; then [[ -n "$_hit" ]]; else [[ -z "$_hit" ]]; fi
+          if [[ "$EXPECT" == "present" ]]; then [[ -n "$_hit" ]]; else [[ -z "$_hit" ]]; fi
         args:
           - key: FILE_PATH
             label: "File or directory path"
@@ -63,12 +63,24 @@ scripts:
           - key: EXPECT
             label: "Expect"
             type: enum
-            required: false
-            enum_ref: fileExistsExpect
+            required: true
+            enum_ref: presence-values
+      - id: yaml-valid
+        name: "YAML valid"
+        description: "Checks that a YAML file parses without errors."
+        command: |
+          [ ! -f "$FILE_PATH" ] && exit 0
+          yq '.' "$FILE_PATH" > /dev/null
+        args:
+          - key: FILE_PATH
+            label: "YAML file path"
+            type: path
+            required: true
+            placeholder: "config.yml"
 
   - group: "File content checks"
     scripts:
-      - id: file_line_contains
+      - id: file-line-contains
         name: "File line contains"
         description: "Checks that a regex pattern matches (or does not match) a substring of at least one line in a file. Defaults to match; set EXPECT: no_match to invert."
         command: |
@@ -102,9 +114,9 @@ scripts:
             label: "Expect"
             type: enum
             required: false
-            enum_ref: fileMatchExpect
+            enum_ref: match-value
 
-      - id: file_line_match
+      - id: file-line-match
         name: "File line match"
         description: "Checks that a regex pattern matches (or does not match) an entire line in a file. Defaults to match; set EXPECT: no_match to invert."
         command: |
@@ -138,9 +150,9 @@ scripts:
             label: "Expect"
             type: enum
             required: false
-            enum_ref: fileMatchExpect
+            enum_ref: match-value
 
-      - id: file_word_match
+      - id: file-word-match
         name: "File word match"
         description: "Checks that a regex pattern matches (or does not match) a whole word in a file. Defaults to match; set EXPECT: no_match to invert."
         command: |
@@ -174,40 +186,28 @@ scripts:
             label: "Expect"
             type: enum
             required: false
-            enum_ref: fileMatchExpect
+            enum_ref: match-value
 
 rules:
-  - group: General
-    rules:
-      - type: script_reusable
-        name: "Readme present"
-        description: "README.md exists at the project root"
-        script: file_existence
-        severity: error
-        instruction: "Create README.md in the project root"
-        args:
-          FILE_PATH: README.md
-      - type: script_clean
-        name: "Single manifest file"
-        description: "At most one package manifest (package.json, Cargo.toml, go.mod, etc.) exists at the root — multiple manifests indicate a misconfigured or hybrid project"
-        command: "test $(find . -maxdepth 1 \\( -name 'package.json' -o -name 'Cargo.toml' -o -name 'pom.xml' -o -name 'go.mod' -o -name 'pyproject.toml' \\) | wc -l | tr -d ' ') -le 1"
-        severity: warn
-        instruction: "Remove duplicate manifest files from the project root"
-
   - group: Bumfuzzle
     rules:
-      - type: script_clean
+      - type: script_reusable
         name: "Preflight wired into pre-commit"
         description: "preflight.sh is called inside the pre-commit hook so checks run before every commit"
-        command: "grep -q 'preflight' .git/hooks/pre-commit 2>/dev/null || grep -q 'preflight' .githooks/pre-commit 2>/dev/null"
-        severity: error
+        script: file-line-contains
+        severity: hard-stop
         instruction: "Add a call to preflight.sh in .githooks/pre-commit"
-      - type: script_clean
+        args:
+          FILE_PATH: .githooks/pre-commit
+          PATTERN: preflight
+      - type: script_reusable
         name: "bumfuzzle.yml parses cleanly"
         description: "bumfuzzle.yml is syntactically valid YAML — yq can parse it without errors"
-        command: "yq '.' bumfuzzle.yml > /dev/null"
-        severity: error
+        script: yaml-valid
+        severity: hard-stop
         instruction: "Fix YAML syntax errors in bumfuzzle.yml"
+        args:
+          FILE_PATH: bumfuzzle.yml
       - type: script_clean
         name: "bumfuzzle.yml validation rules are well-formed"
         description: "Every rule under .validation.* has a boolean enabled (if set), a valid severity (if set), only lists for sequence fields, and selected_hints that reference existing hint keys"
@@ -235,7 +235,7 @@ rules:
             done
           done < <(yq '.validation | keys | .[]' bumfuzzle.yml 2>/dev/null || true)
           [[ "$ok" == true ]]
-        severity: error
+        severity: hard-stop
         instruction: "Fix the reported validation rule fields in bumfuzzle.yml"
       - type: script_clean
         name: "bumfuzzle.yml env.vars is a list"
@@ -243,27 +243,47 @@ rules:
         command: |
           t=$(yq '.env.vars | type' bumfuzzle.yml 2>/dev/null)
           [[ "$t" == "null" || "$t" == "!!null" || "$t" == "!!seq" ]]
-        severity: error
+        severity: hard-stop
         instruction: "Change env.vars in bumfuzzle.yml to a list (or remove it)"
+
+  - group: General
+    rules:
+      - type: script_reusable
+        name: "Readme present"
+        description: "README.md exists at the project root"
+        script: file-or-dir-existence
+        severity: error
+        instruction: "Create README.md in the project root"
+        args:
+          FILE_PATH: README.md
+          EXPECT: present
+      - type: script_clean
+        name: "Single manifest file"
+        description: "At most one package manifest (package.json, Cargo.toml, go.mod, etc.) exists at the root — multiple manifests indicate a misconfigured or hybrid project"
+        command: "test $(find . -maxdepth 1 \\( -name 'package.json' -o -name 'Cargo.toml' -o -name 'pom.xml' -o -name 'go.mod' -o -name 'pyproject.toml' \\) | wc -l | tr -d ' ') -le 1"
+        severity: warn
+        instruction: "Remove duplicate manifest files from the project root"
 
   - group: Git
     rules:
-      - type: script_clean
-        name: "No AI co-authors in history"
-        description: "No commit in the repository history lists Claude as a co-author"
-        command: "! git log --format='%b' | grep -qi 'co-authored-by: claude'"
-        severity: error
-        instruction: "Review and amend commits: git log --grep='Co-Authored-By: Claude' -i --oneline"
-      - type: script_reusable
-        name: "No AI co-author in commit message"
-        description: "The staged commit message does not contain a Co-Authored-By: Claude line"
-        script: file_line_contains
-        severity: hard-stop
-        instruction: "Remove Co-Authored-By lines from the commit message"
-        args:
-          FILE_PATH: .git/COMMIT_EDITMSG
-          PATTERN: 'Co-Authored-By: Claude'
-          EXPECT: no_match
+      - group: Versioning
+        rules:
+          - type: script_clean
+            name: "No AI co-authors in history"
+            description: "No commit in the repository history lists Claude as a co-author"
+            command: "! git log --format='%b' | grep -qi 'co-authored-by: claude'"
+            severity: error
+            instruction: "Review and amend commits: git log --grep='Co-Authored-By: Claude' -i --oneline"
+          - type: script_reusable
+            name: "No AI co-author in commit message"
+            description: "The staged commit message does not contain a Co-Authored-By: Claude line"
+            script: file-line-contains
+            severity: hard-stop
+            instruction: "Remove Co-Authored-By lines from the commit message"
+            args:
+              FILE_PATH: .git/COMMIT_EDITMSG
+              PATTERN: 'Co-Authored-By: Claude'
+              EXPECT: no_match
       - group: Hooks
         rules:
           - type: script_clean
@@ -279,22 +299,44 @@ rules:
               done
             severity: error
             instruction: "Run: scripts/hooks.sh --force to reinstall hooks"
-          - type: script_clean
-            name: "Approval gate guards declared"
-            description: ".githooks/pre-commit references CONFIG_APPROVED, DOCS_APPROVED, and ENV_APPROVED environment variable guards"
-            command: "grep -q 'CONFIG_APPROVED' .githooks/pre-commit 2>/dev/null && grep -q 'DOCS_APPROVED' .githooks/pre-commit 2>/dev/null && grep -q 'ENV_APPROVED' .githooks/pre-commit 2>/dev/null"
+          - type: script_reusable
+            name: "CONFIG_APPROVED guard declared"
+            description: ".githooks/pre-commit references the CONFIG_APPROVED environment variable guard"
+            script: file-line-contains
             severity: warn
-            instruction: "Add CONFIG_APPROVED / DOCS_APPROVED / ENV_APPROVED guards in .githooks/pre-commit"
+            instruction: "Add a CONFIG_APPROVED guard in .githooks/pre-commit"
+            args:
+              FILE_PATH: .githooks/pre-commit
+              PATTERN: CONFIG_APPROVED
+          - type: script_reusable
+            name: "DOCS_APPROVED guard declared"
+            description: ".githooks/pre-commit references the DOCS_APPROVED environment variable guard"
+            script: file-line-contains
+            severity: warn
+            instruction: "Add a DOCS_APPROVED guard in .githooks/pre-commit"
+            args:
+              FILE_PATH: .githooks/pre-commit
+              PATTERN: DOCS_APPROVED
+          - type: script_reusable
+            name: "ENV_APPROVED guard declared"
+            description: ".githooks/pre-commit references the ENV_APPROVED environment variable guard"
+            script: file-line-contains
+            severity: warn
+            instruction: "Add an ENV_APPROVED guard in .githooks/pre-commit"
+            args:
+              FILE_PATH: .githooks/pre-commit
+              PATTERN: ENV_APPROVED
       - group: Gitignore
         rules:
           - type: script_reusable
             name: ".gitignore present"
             description: ".gitignore exists at the project root"
-            script: file_existence
+            script: file-or-dir-existence
             severity: error
             instruction: "Create .gitignore at the project root"
             args:
               FILE_PATH: .gitignore
+              EXPECT: present
           - type: script_clean
             name: "bumfuzzle extra patterns gitignored"
             description: "Every extra pattern declared in bumfuzzle.yml under gitignore.extra_patterns is also listed in .gitignore"
@@ -312,7 +354,7 @@ rules:
           - type: script_clean
             name: "No ignored files in git index"
             description: "No file currently tracked by git would be matched by .gitignore — no stale cached files that should be ignored"
-            command: "! git ls-files --cached | while read f; do git check-ignore -q \"$f\" && echo \"$f\"; done | grep -q ."
+            command: "! git ls-files --cached | while IFS= read -r f; do git check-ignore -q \"$f\" && echo \"$f\"; done | grep -q ."
             severity: warn
             instruction: "Run: git rm -r --cached <file> for any ignored files still tracked"
           - type: script_clean
@@ -321,12 +363,12 @@ rules:
             command: "! git ls-files | grep -E '^\\.env\\.' | grep -v '^\\.env\\.template$' | grep -q ."
             severity: error
             instruction: "Run: git rm --cached <file> for each tracked .env.* file, then ensure .env.* is in .gitignore"
-          - group: Ignore Pattern Groups
+          - group: Ignore Patterns
             rules:
               - type: script_reusable
                 name: ".DS_Store ignored"
                 description: ".gitignore contains a pattern covering .DS_Store macOS metadata files"
-                script: file_line_contains
+                script: file-line-contains
                 severity: warn
                 instruction: "Add '.DS_Store' to .gitignore"
                 args:
@@ -335,7 +377,7 @@ rules:
               - type: script_reusable
                 name: ".idea/ ignored"
                 description: ".gitignore contains a pattern covering the .idea/ IntelliJ project directory"
-                script: file_line_contains
+                script: file-line-contains
                 severity: warn
                 instruction: "Add '.idea/' to .gitignore"
                 args:
@@ -344,7 +386,7 @@ rules:
               - type: script_reusable
                 name: "*.iml ignored"
                 description: ".gitignore contains a pattern covering *.iml IntelliJ module files"
-                script: file_line_contains
+                script: file-line-contains
                 severity: warn
                 instruction: "Add '*.iml' to .gitignore"
                 args:
@@ -353,7 +395,7 @@ rules:
               - type: script_reusable
                 name: "*.iws ignored"
                 description: ".gitignore contains a pattern covering *.iws IntelliJ workspace files"
-                script: file_line_contains
+                script: file-line-contains
                 severity: warn
                 instruction: "Add '*.iws' to .gitignore"
                 args:
@@ -362,32 +404,42 @@ rules:
               - type: script_reusable
                 name: ".vscode/ ignored"
                 description: ".gitignore contains a pattern covering .vscode/ VS Code editor settings"
-                script: file_line_contains
+                script: file-line-contains
                 severity: warn
                 instruction: "Add '.vscode/' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
                   PATTERN: '\.vscode/'
               - type: script_reusable
-                name: ".env.* files gitignored"
+                name: ".env.* gitignored"
                 description: ".gitignore contains a pattern excluding .env.* environment files — real secrets must not be committed"
-                script: file_line_contains
+                script: file-line-contains
                 severity: error
                 instruction: "Add '.env.*' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
                   PATTERN: '^\.env\.'
+              - type: script_reusable
+                name: "tmp/ ignored"
+                description: ".gitignore contains 'tmp/' so its contents are never accidentally committed"
+                script: file-line-contains
+                severity: warn
+                instruction: "Add 'tmp/' to .gitignore"
+                args:
+                  FILE_PATH: .gitignore
+                  PATTERN: '^tmp/'
 
   - group: Environment Variables
     rules:
       - type: script_reusable
         name: ".env.template present"
         description: ".env.template exists at the project root and declares all required environment variable keys"
-        script: file_existence
+        script: file-or-dir-existence
         severity: error
         instruction: "Create .env.template declaring all required environment variables"
         args:
           FILE_PATH: .env.template
+          EXPECT: present
       - type: script_clean
         name: "All template keys in every .env.* file"
         description: "Every key declared in .env.template is present in each .env.* file — no environment is missing a declared variable"
@@ -459,21 +511,22 @@ rules:
       - type: script_reusable
         name: "Dockerfile present"
         description: "A Dockerfile exists at the project root"
-        script: file_existence
+        script: file-or-dir-existence
         severity: warn
         instruction: "Create a Dockerfile at the project root"
         args:
           FILE_PATH: Dockerfile
+          EXPECT: present
       - type: script_clean
         name: "Compose files render without errors"
         description: "All docker-compose*.yml files in the project pass docker compose config — no unresolved variables or syntax errors"
-        command: "find . -maxdepth 2 -name 'docker-compose*.yml' | while read f; do docker compose -f \"$f\" config --quiet || exit 1; done"
+        command: "find . -maxdepth 2 -name 'docker-compose*.yml' | while IFS= read -r f; do docker compose -f \"$f\" config --quiet || exit 1; done"
         severity: error
         instruction: "Run: docker compose -f <file> config to see render errors"
       - type: script_reusable
         name: "No :latest image tags"
         description: "No Docker image reference in *.yml files uses :latest — all images must be pinned to a specific version for reproducible builds"
-        script: file_line_contains
+        script: file-line-contains
         severity: error
         instruction: "Pin image tags to a specific version instead of :latest"
         args:
@@ -519,17 +572,20 @@ rules:
       - type: script_reusable
         name: "Config file present"
         description: "config.yml exists at the project root"
-        script: file_existence
+        script: file-or-dir-existence
         severity: warn
         instruction: "Create config.yml in the project root"
         args:
           FILE_PATH: config.yml
-      - type: script_clean
+          EXPECT: present
+      - type: script_reusable
         name: "Config file is valid YAML"
         description: "config.yml can be parsed by yq without errors"
-        command: "[ ! -f config.yml ] || yq '.' config.yml > /dev/null"
+        script: yaml-valid
         severity: error
         instruction: "Fix YAML syntax errors in config.yml"
+        args:
+          FILE_PATH: config.yml
       - type: script_clean
         name: "Config extends targets exist"
         description: "Every file path referenced by an extends field in config files exists on disk"
@@ -551,28 +607,37 @@ rules:
       - type: script_reusable
         name: "tmp/ directory present"
         description: "The tmp/ directory exists at the project root for ephemeral, non-tracked scratch files"
-        script: file_existence
+        script: file-or-dir-existence
         severity: warn
         instruction: "Create the tmp/ directory"
         args:
           FILE_PATH: tmp
+          EXPECT: present
       - type: script_reusable
-        name: "tmp/ is gitignored"
-        description: ".gitignore contains 'tmp/' so its contents are never accidentally committed"
-        script: file_line_contains
+        name: "Export/ directory present"
+        description: "The Export/ directory exists at the project root"
+        script: file-or-dir-existence
         severity: warn
-        instruction: "Add 'tmp/' to .gitignore"
+        instruction: "Create the Export/ directory"
         args:
-          FILE_PATH: .gitignore
-          PATTERN: '^tmp/'
+          FILE_PATH: Export
+          EXPECT: present
+      - type: script_reusable
+        name: "Logs/ directory present"
+        description: "The Logs/ directory exists at the project root"
+        script: file-or-dir-existence
+        severity: warn
+        instruction: "Create the Logs/ directory"
+        args:
+          FILE_PATH: Logs
+          EXPECT: present
 
   - group: Claude Settings
     rules:
       - type: script_reusable
         name: ".claude/ directory gitignored"
-        enabled: false
         description: ".gitignore contains '.claude/' so local Claude Code settings and memory are never committed"
-        script: file_line_contains
+        script: file-line-contains
         severity: error
         instruction: "Add '.claude/' to .gitignore"
         args:
@@ -582,27 +647,25 @@ rules:
         rules:
           - type: script_reusable
             name: "Shared Claude settings present"
-            enabled: false
             description: ".claude/settings.json exists — project-level Claude Code settings are configured"
-            script: file_existence
+            script: file-or-dir-existence
             severity: warn
             instruction: "Create .claude/settings.json with the desired Claude Code configuration"
             args:
               FILE_PATH: .claude/settings.json
+              EXPECT: present
           - type: script_reusable
             name: "Permission mode is set to bypassPermissions"
-            enabled: false
             description: "permissions.defaultMode in .claude/settings.json is set to bypassPermissions"
-            script: permission_mode
+            script: permission-mode
             severity: error
             instruction: "Set permissions.defaultMode to bypassPermissions in .claude/settings.json"
             args:
               MODE: bypassPermissions
           - type: script_reusable
             name: "Deny all curl commands"
-            enabled: false
             description: ".claude/settings.json denies Bash(curl *) — curl is blocked from Claude tools"
-            script: permission_entry
+            script: permission-entry
             severity: error
             instruction: "Add 'Bash(curl *)' to permissions.deny in .claude/settings.json"
             args:
@@ -611,9 +674,8 @@ rules:
               PATTERN: "curl *"
           - type: script_reusable
             name: "Deny all wget commands"
-            enabled: false
             description: ".claude/settings.json denies Bash(wget *) — wget is blocked from Claude tools"
-            script: permission_entry
+            script: permission-entry
             severity: error
             instruction: "Add 'Bash(wget *)' to permissions.deny in .claude/settings.json"
             args:
@@ -622,9 +684,8 @@ rules:
               PATTERN: "wget *"
           - type: script_reusable
             name: "Forbid 'Agent' skill usage"
-            enabled: false
             description: "'Agent' tool responsible for spawning new sub-agents is denied in .claude/settings.json"
-            script: permission_entry
+            script: permission-entry
             severity: error
             instruction: "Add 'Agent' to permissions.deny in .claude/settings.json"
             args:
@@ -632,9 +693,8 @@ rules:
               TOOL: Agent
           - type: script_reusable
             name: "Forbid 'Skill' skill usage"
-            enabled: false
             description: "'Skill' tool responsible for invoking and proposing skills is denied in .claude/settings.json"
-            script: permission_entry
+            script: permission-entry
             severity: error
             instruction: "Add 'Skill' to permissions.deny in .claude/settings.json"
             args:
@@ -644,19 +704,19 @@ rules:
         rules:
           - type: script_reusable
             name: "Local Claude settings present"
-            enabled: false
             description: ".claude/settings.local.json exists — machine-local Claude Code settings are configured"
-            script: file_existence
+            script: file-or-dir-existence
             severity: warn
             instruction: "Create .claude/settings.local.json with machine-specific Claude Code configuration"
             args:
               FILE_PATH: .claude/settings.local.json
+              EXPECT: present
 
 enums:
   - group: Code Conventions
     enums:
-      - id: namingConvention
-        name: namingConvention
+      - id: naming-convention
+        name: "Naming convention"
         description: "Regex patterns for identifier naming conventions — validates symbol casing across source code, configs, and file names"
         values:
           - name: camelCase
@@ -696,28 +756,106 @@ enums:
             value: "^[A-Z][a-z0-9]*( [A-Z][a-z0-9]*)*$"
             description: "Every word capitalized, separated by spaces. Used for UI labels, button text, menu items, and display strings — not valid as a code identifier in most languages."
 
-  - group: File checks
-    enums:
-      - id: fileExistsExpect
-        name: fileExistsExpect
-        description: "Whether the file or directory should be present or absent"
-        values:
-          - name: present
-            value: present
-            description: "File or directory must exist at the given path"
-          - name: absent
-            value: absent
-            description: "File or directory must not exist at the given path"
-      - id: fileMatchExpect
-        name: fileMatchExpect
-        description: "Whether the pattern should match or not match"
-        values:
-          - name: match
-            value: match
-            description: "The pattern must be found in the file"
-          - name: no_match
-            value: no_match
-            description: "The pattern must not appear in the file"
+  - id: presence-values
+    name: "Presence values"
+    description: "Whether the file or directory should be present or absent"
+    values:
+      - name: Present
+        value: present
+        description: "File or directory must exist at the given path"
+      - name: Absent
+        value: absent
+        description: "File or directory must not exist at the given path"
+  - id: match-value
+    name: "Match value"
+    description: "Whether the pattern should match or not match"
+    values:
+      - name: Match
+        value: match
+        description: "The pattern must be found in the file"
+      - name: "No match"
+        value: no_match
+        description: "The pattern must not appear in the file"
+
+  - id: common-manifest
+    name: "Common manifest"
+    description: "Common project manifest filenames across ecosystems — use as FILE_PATH in file existence or file match rules"
+    values:
+      - name: package.json
+        value: package.json
+        description: "Node.js / npm / yarn / pnpm / bun — declares dependencies, scripts, and package metadata"
+      - name: deno.json
+        value: deno.json
+        description: "Deno — runtime configuration, import maps, and task definitions"
+      - name: Cargo.toml
+        value: Cargo.toml
+        description: "Rust / Cargo — package metadata, dependencies, and workspace configuration"
+      - name: pom.xml
+        value: pom.xml
+        description: "Java / Maven — project object model defining build lifecycle, dependencies, and plugins"
+      - name: build.gradle
+        value: build.gradle
+        description: "Java / Kotlin / Groovy / Gradle — build script in Groovy DSL"
+      - name: build.gradle.kts
+        value: build.gradle.kts
+        description: "Kotlin / Gradle — build script in Kotlin DSL"
+      - name: settings.gradle
+        value: settings.gradle
+        description: "Java / Gradle (multi-project) — declares subproject structure in Groovy DSL"
+      - name: settings.gradle.kts
+        value: settings.gradle.kts
+        description: "Kotlin / Gradle (multi-project) — declares subproject structure in Kotlin DSL"
+      - name: pyproject.toml
+        value: pyproject.toml
+        description: "Python / PEP 517 — standard build and tool configuration used by Poetry, Hatch, PDM, and Flit"
+      - name: requirements.txt
+        value: requirements.txt
+        description: "Python / pip — plain list of package requirements for pip install"
+      - name: setup.py
+        value: setup.py
+        description: "Python / setuptools (legacy) — imperative build script predating pyproject.toml"
+      - name: setup.cfg
+        value: setup.cfg
+        description: "Python / setuptools (legacy) — declarative companion to setup.py for package metadata"
+      - name: Pipfile
+        value: Pipfile
+        description: "Python / Pipenv — declares dependencies and Python version for Pipenv-managed environments"
+      - name: go.mod
+        value: go.mod
+        description: "Go / modules — declares the module path and dependency requirements"
+      - name: Gemfile
+        value: Gemfile
+        description: "Ruby / Bundler — specifies gem dependencies for Ruby projects"
+      - name: composer.json
+        value: composer.json
+        description: "PHP / Composer — declares PHP package dependencies and autoloading configuration"
+      - name: Package.swift
+        value: Package.swift
+        description: "Swift / SPM — Swift Package Manager manifest defining targets and dependencies"
+      - name: pubspec.yaml
+        value: pubspec.yaml
+        description: "Dart / Flutter — declares package metadata, dependencies, and assets"
+      - name: CMakeLists.txt
+        value: CMakeLists.txt
+        description: "C / C++ / CMake — top-level build system configuration for CMake projects"
+      - name: vcpkg.json
+        value: vcpkg.json
+        description: "C / C++ / vcpkg — manifest mode dependency declaration for the vcpkg package manager"
+      - name: conanfile.txt
+        value: conanfile.txt
+        description: "C / C++ / Conan — lists Conan package dependencies and generators"
+      - name: stack.yaml
+        value: stack.yaml
+        description: "Haskell / Stack — resolver and dependency configuration for Stack builds"
+      - name: cabal.project
+        value: cabal.project
+        description: "Haskell / Cabal — multi-package project configuration for Cabal builds"
+      - name: mix.exs
+        value: mix.exs
+        description: "Elixir / Mix — project definition, dependencies, and Mix task configuration"
+      - name: build.sbt
+        value: build.sbt
+        description: "Scala / sbt — build definitions, dependencies, and settings for sbt projects"
 
   - id: environments
     name: "App Environments"
@@ -729,43 +867,43 @@ enums:
 
   - group: Claude Settings
     enums:
-      - id: claudePermissionMode
-        name: claudePermissionMode
+      - id: claude-permission-mode
+        name: "Claude permission mode"
         description: "Valid values for permissions.defaultMode in .claude/settings.json"
         values:
-          - name: default
+          - name: Default
             value: default
             description: "Asks you before doing anything"
-          - name: acceptEdits
+          - name: "Accept edits"
             value: acceptEdits
             description: "Changes files freely, but asks before running commands"
-          - name: plan
+          - name: Plan
             value: plan
             description: "Looks at code and plans, but cannot change files"
-          - name: auto
+          - name: Auto
             value: auto
             description: "AI automatically decides if a task is safe to run"
-          - name: dontAsk
+          - name: "Don't ask"
             value: dontAsk
             description: "Blocks everything unless you already allowed it"
-          - name: bypassPermissions
+          - name: "Bypass permissions"
             value: bypassPermissions
             description: "Runs everything instantly without asking"
-      - id: claudeRule
-        name: claudeRule
+      - id: claude-rule
+        name: "Claude rule"
         description: "Permission rule types: deny blocks, allow auto-approves, ask always prompts"
         values:
-          - name: deny
+          - name: Deny
             value: deny
             description: "Blocks the action instantly; the tool is hidden or rejected without asking"
-          - name: allow
+          - name: Allow
             value: allow
             description: "Auto-approves the action silently without a prompt"
-          - name: ask
+          - name: Ask
             value: ask
             description: "Always interrupts and prompts you for confirmation before executing"
-      - id: claudeTool
-        name: claudeTool
+      - id: claude-tool
+        name: "Claude tool"
         description: "Claude Code tool names used in permission patterns"
         values:
           - name: Bash

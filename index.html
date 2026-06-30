@@ -308,7 +308,6 @@ function annotate(items) {
       annotate(item.rules);
     } else {
       if (item._exp === undefined) item._exp = false;
-      if (!item.id)   item.id   = '';
       if (!item.name) item.name = '';
       if (Array.isArray(item.hints)) {
         item.instruction = item.hints.join('\n');
@@ -320,7 +319,6 @@ function annotate(items) {
         if (!item.script) item.script = '';
         if (!item.args || typeof item.args !== 'object' || Array.isArray(item.args)) item.args = {};
       }
-      if (item.enabled === undefined) item.enabled = true;
       if (item._saved === undefined) item._saved = ruleSnapshot(item);
       if (item._mode === undefined) item._mode = 'edit';
     }
@@ -399,6 +397,15 @@ function panelSec(lbl, content) {
 // ── Auto-save ─────────────────────────────────────────────────────────────────
 
 let saveTimer = null, saveEl = null;
+
+function toTitleCase(s) {
+  return s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
+}
+
+function toSentenceCase(s) {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1).replace(/ ([A-Za-z])/g, (_, c) => ' ' + c.toLowerCase());
+}
 
 function scheduleSave() {
   clearTimeout(saveTimer);
@@ -518,9 +525,8 @@ function generateYaml() {
         if (item.rules && item.rules.length) writeRuleItems(item.rules, indent + '    ');
       } else if (item.type === 'script_reusable') {
         lines.push(indent + '- type: script_reusable');
-        if (item.id) lines.push(indent + '  id: '   + JSON.stringify(item.id));
         lines.push(indent + '  name: '              + JSON.stringify(item.name));
-        if (item.enabled === false) lines.push(indent + '  enabled: false');
+        if (item.enabled === true) lines.push(indent + '  enabled: true');
         if (item.script)      lines.push(indent + '  script: '      + JSON.stringify(item.script));
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
         if (item.severity && item.severity !== 'error')
@@ -540,9 +546,8 @@ function generateYaml() {
         }
       } else {
         lines.push(indent + '- type: ' + item.type);
-        if (item.id) lines.push(indent + '  id: '   + JSON.stringify(item.id));
         lines.push(indent + '  name: '              + JSON.stringify(item.name));
-        if (item.enabled === false) lines.push(indent + '  enabled: false');
+        if (item.enabled === true) lines.push(indent + '  enabled: true');
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
         if (item.command)     lines.push(indent + '  command: '     + JSON.stringify(item.command));
         if (item.severity && item.severity !== 'error')
@@ -640,7 +645,7 @@ function countRuleStats(items) {
       if (isGroup(item)) { walk(item.rules); return; }
       if (item._saved === null) return;
       total++;
-      if (item.enabled !== false) enabled++; else disabled++;
+      if (item.enabled === true) enabled++; else disabled++;
     });
   }
   walk(items);
@@ -852,7 +857,7 @@ function makeSection(key, title) {
 // ── Snapshot helpers ──────────────────────────────────────────────────────────
 
 const SEV_LEVELS  = ['info','warn','error','hard-stop'];
-const SNAP_FIELDS = ['id','type','name','description','command','severity','instruction','script'];
+const SNAP_FIELDS = ['type','name','description','command','severity','instruction','script'];
 
 function ruleSnapshot(rule) {
   const s = {};
@@ -1058,20 +1063,13 @@ function buildRuleFields(rule, reRender, inModal = false) {
 
   const formView = el('div', { class: 'rf-body' });
 
-  const idInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'unique-rule-id (optional)' });
-  idInp.value = rule.id || '';
-  if (rule._saved !== null && rule._saved !== undefined) {
-    try { if (JSON.parse(rule._saved).id) idInp.readOnly = true; } catch {}
-  }
-  idInp.addEventListener('input', () => {
-    rule.id = idInp.value.trim().replace(/\s+/g, '-');
-    idInp.value = rule.id;
-    rule._updateRow?.(); updateStatus();
-  });
-
   const nInp = el('input', { class: 'inp', type: 'text', placeholder: 'Short label for this rule' });
   nInp.value = rule.name || '';
-  nInp.addEventListener('input', () => { rule.name = nInp.value; rule._updateRow?.(); updateStatus(); });
+  nInp.addEventListener('input', () => {
+    const s = nInp.selectionStart, e = nInp.selectionEnd, v = toSentenceCase(nInp.value);
+    if (v !== nInp.value) { nInp.value = v; nInp.setSelectionRange(s, e); }
+    rule.name = nInp.value; rule._updateRow?.(); updateStatus();
+  });
   nInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); dInp.focus(); } });
 
   const typeSeg       = el('div', { class: 'seg' });
@@ -1203,7 +1201,6 @@ function buildRuleFields(rule, reRender, inModal = false) {
   iTa.addEventListener('input', () => { rule.instruction = iTa.value; autoResize(iTa); updateStatus(); });
 
   formView.append(
-    panelSec('ID (optional slug, locked after first save)', idInp),
     panelSec('Name', nInp),
     panelSec('Description', dInp),
     panelSec('Severity on fail', sSeg),
@@ -1253,6 +1250,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
     const pickerEl = reusableEl?.querySelector('select.inp');
     if (pickerEl) pickerEl.style.borderColor = (isReusable && !rule.script) ? 'var(--rd)' : '';
     if (dirtyBadge) dirtyBadge.classList.toggle('visible', dirty);
+    rule._updateRow?.();
     btnDiff.style.display   = (mode === 'edit' && dirty && rule._saved !== null) ? '' : 'none';
     btnSave.style.display   = canSave ? '' : 'none';
     btnEdit.style.display   = mode === 'diff' ? '' : 'none';
@@ -1274,7 +1272,6 @@ function buildRuleFields(rule, reRender, inModal = false) {
     const isReusable = rule.type === 'script_reusable';
     if (!rule.name || !hasRequiredArgsFilled() || (!isReusable && !rule.command)) return;
     rule._saved = ruleSnapshot(rule);
-    if (rule.id) idInp.readOnly = true;
     rule._updateRow?.();
     scheduleSave();
     setMode('edit');
@@ -1294,7 +1291,6 @@ function buildRuleFields(rule, reRender, inModal = false) {
     const saved = JSON.parse(rule._saved);
     SNAP_FIELDS.forEach(f => { rule[f] = saved[f] ?? ''; });
     rule.args = JSON.parse(saved.args || '{}');
-    idInp.value = rule.id         || '';
     nInp.value = rule.name        || '';
     dInp.value = rule.description || '';
     cInp.value = rule.command     || '';
@@ -1428,6 +1424,7 @@ function buildEnumPanel(item, reRender, inModal = false) {
     idInp.style.borderColor = item.id   ? '' : 'var(--rd)';
     nInp.style.borderColor  = item.name ? '' : 'var(--rd)';
     if (dirtyBadgeEnum) dirtyBadgeEnum.classList.toggle('visible', dirty);
+    item._updateRow?.();
     btnDiff.style.display   = (mode === 'edit' && dirty && item._saved !== null) ? '' : 'none';
     btnSave.style.display   = (dirty && !!item.id && !!item.name) ? '' : 'none';
     btnEdit.style.display   = mode === 'diff' ? '' : 'none';
@@ -1802,6 +1799,7 @@ function buildScriptPanel(script, reRender, inModal = false) {
     const mode  = script._mode;
     idInp.style.borderColor = script.id ? '' : 'var(--rd)';
     if (dirtyBadgeScript) dirtyBadgeScript.classList.toggle('visible', dirty);
+    script._updateRow?.();
     btnDiff.style.display   = (mode === 'edit' && dirty && script._saved !== null) ? '' : 'none';
     btnSave.style.display   = (dirty && !!script.id) ? '' : 'none';
     btnEdit.style.display   = mode === 'diff' ? '' : 'none';
@@ -1884,7 +1882,11 @@ function createTreeSection(opts) {
     const nameInp   = el('input', { class: 'rt-name-inp', type: 'text',
       value: grp.group, placeholder: 'Group name', style: 'display:none' });
 
-    nameInp.addEventListener('input', () => { grp.group = nameInp.value; scheduleSave(); });
+    nameInp.addEventListener('input', () => {
+      const s = nameInp.selectionStart, e = nameInp.selectionEnd, v = toTitleCase(nameInp.value);
+      if (v !== nameInp.value) { nameInp.value = v; nameInp.setSelectionRange(s, e); }
+      grp.group = nameInp.value; scheduleSave();
+    });
     nameInp.addEventListener('blur', () => {
       editing = false;
       nameSpan.textContent = grp.group || 'Unnamed group';
@@ -1946,7 +1948,7 @@ function createTreeSection(opts) {
 
     let statusSpan = null;
     if (opts.hasStatus) {
-      statusSpan = el('span', { class: 'rt-status' }, '● unsaved');
+      statusSpan = el('span', { class: 'rt-status' }, '●');
       statusSpan.style.display = opts.isItemDirty(item) ? '' : 'none';
       item._updateRow = () => {
         nameSpan.textContent = opts.getItemName(item);
@@ -1974,13 +1976,13 @@ function createTreeSection(opts) {
 
     let togBtn = null;
     if (opts.hasEnable) {
-      const en0 = item.enabled !== false;
+      const en0 = item.enabled === true;
       row.classList.toggle('rt-item-disabled', !en0);
       togBtn = el('button', { class: 'rt-tog' + (en0 ? '' : ' off'), title: en0 ? 'Disable' : 'Enable' }, en0 ? 'on' : 'off');
       togBtn.addEventListener('click', e => {
         e.stopPropagation();
-        item.enabled = item.enabled !== false ? false : true;
-        const en = item.enabled !== false;
+        if (item.enabled === true) delete item.enabled; else item.enabled = true;
+        const en = item.enabled === true;
         togBtn.textContent = en ? 'on' : 'off';
         togBtn.className   = 'rt-tog' + (en ? '' : ' off');
         togBtn.title       = en ? 'Disable' : 'Enable';
@@ -2019,7 +2021,7 @@ function createTreeSection(opts) {
     let entries = rawEntries;
     if (filterFn) {
       const visibleItems = new Set(
-        rawEntries.filter(e => e.kind === 'item' && filterFn(e.item)).map(e => e.item)
+        flattenItems(opts.getData()).filter(filterFn)
       );
       entries = rawEntries.filter(e => {
         if (e.kind === 'item')  return visibleItems.has(e.item);
@@ -2065,7 +2067,11 @@ function createTreeSection(opts) {
       openModal(
         () => {
           const nameInp = el('input', { class: 'inp', type: 'text', placeholder: 'Group name' });
-          nameInp.addEventListener('input', () => { groupName = nameInp.value; });
+          nameInp.addEventListener('input', () => {
+            const s = nameInp.selectionStart, e = nameInp.selectionEnd, v = toTitleCase(nameInp.value);
+            if (v !== nameInp.value) { nameInp.value = v; nameInp.setSelectionRange(s, e); }
+            groupName = nameInp.value;
+          });
           return panelSec('Group name', nameInp);
         },
         {
@@ -2132,9 +2138,6 @@ async function runCmd(cmd) {
         if (!ev.startsWith('data: ')) continue;
         const line = JSON.parse(ev.slice(6));
         if (typeof line === 'string' && line.startsWith('__DONE__')) {
-          const ec = parseInt(line.split(' ')[1], 10);
-          outStatusEl.textContent = ec === 0 ? '✓ Done' : '✗ Exited ' + ec;
-          outStatusEl.className = 'out-status ' + (ec === 0 ? 'ok' : 'err');
           break outer;
         }
         outLogEl.textContent += line + '\n';
@@ -2142,8 +2145,7 @@ async function runCmd(cmd) {
       }
     }
   } catch (e) {
-    outStatusEl.textContent = '✗ ' + e.message;
-    outStatusEl.className = 'out-status err';
+    outLogEl.textContent += '✗ ' + e.message + '\n';
   }
   cmdRunning = false;
   renderActBtns();
@@ -2160,7 +2162,7 @@ function renderActBtns() {
         cmdRunning = true;
         outLogEl.textContent = ''; outStatusEl.textContent = '';
         outStatusEl.className = 'out-status';
-        outWrapEl.style.display = '';
+        outWrapEl.style.display = 'block';
         renderActBtns(); runCmd(cmd);
       }}, 'Run ' + confirmCmd),
     );
@@ -2220,8 +2222,8 @@ function renderPage() {
     hasEnable:    true,
     getFilter:    () => {
       const f = state.filters.rules;
-      if (f === 'enabled')  return item => item.enabled !== false;
-      if (f === 'disabled') return item => item.enabled === false;
+      if (f === 'enabled')  return item => item.enabled === true;
+      if (f === 'disabled') return item => item.enabled !== true;
       return null;
     },
     getItemName:  item => item.name || item.description || '—',

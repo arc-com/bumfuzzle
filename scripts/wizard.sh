@@ -109,7 +109,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.end_headers()
         elif self.path in ('/run/kickstart', '/run/preflight'):
-            script = KS_SH if self.path == '/run/kickstart' else PF_SH
+            is_preflight = self.path == '/run/preflight'
+            script = PF_SH if is_preflight else KS_SH
+            argv   = [script, '--verbose'] if is_preflight else [script]
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')
@@ -117,7 +119,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             try:
                 proc = subprocess.Popen(
-                    [script], cwd=PROJ_DIR,
+                    argv, cwd=PROJ_DIR,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                 )
                 for line in proc.stdout:

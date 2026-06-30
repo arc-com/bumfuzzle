@@ -23,7 +23,7 @@ _urule_process_rule() {
 
   local _type _name _desc _command _sev _enabled
   _enabled=$(yq "${_path}.enabled | tostring"         "$PREFLIGHT_FILE" 2>/dev/null || echo null)
-  if [[ "$_enabled" == "false" ]]; then return; fi
+  if [[ "$_enabled" != "true" ]]; then return; fi
   _type=$(yq    "${_path}.type              // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _name=$(yq    "${_path}.name              // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _desc=$(yq    "${_path}.description       // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
@@ -58,7 +58,7 @@ _urule_process_rule() {
       local _script_id _script_cmd
       _script_id=$(yq "${_path}.script // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
       is_blank "$_script_id" && { fail "$_label: 'script' id is required" error; return; }
-      _script_cmd=$(yq ".scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \"$_script_id\") | .command // \"\"" "$PREFLIGHT_FILE" 2>/dev/null | head -1 || true)
+      _script_cmd=$(yq ".scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \"$_script_id\") | .command // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
       is_blank "$_script_cmd" && { fail "$_label: reusable script '$_script_id' not found or has no command" error; return; }
 
       # unset all vars declared by this script so optional args not provided by the

@@ -1,14 +1,22 @@
 <div align="center">
 
+<p align="center">
+    <picture>
+        <img src="./public/bumfuzzle.png" alt="Bumfuzzle" width="500">
+    </picture>
+</p>
+
 # 🌀 Bumfuzzle
 
 ### YAML-Based Rules Engine & Structural Linter for AI Coding Agents
 _Keep your AI agents (Cursor, Claude Code, Devin) bounded, predictable, and aligned with your codebase rules._
 
-[![Version](https://img.shields.io/badge/version-1.0-blue)](https://github.com/arc-com/bumfuzzle/releases)
-[![License](https://img.shields.io/github/license/arc-com/bumfuzzle)](LICENSE)
-[![CI Build](https://img.shields.io/github/actions/workflow/status/arc-com/bumfuzzle/ci.yml)](https://github.com/arc-com/bumfuzzle/actions)
-[![Stars](https://img.shields.io/github/stars/arc-com/bumfuzzle?style=flat)](https://github.com/arc-com/bumfuzzle/stargazers)
+<p align="center">
+  <a href="https://github.com/arc-com/bumfuzzle/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/arc-com/bumfuzzle/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/arc-com/bumfuzzle/releases"><img src="https://img.shields.io/github/v/release/arc-com/bumfuzzle?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
+  <a href="https://github.com/arc-com/bumfuzzle/stargazers"><img src="https://img.shields.io/github/stars/arc-com/bumfuzzle?style=for-the-badge" alt="GitHub stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/arc-com/bumfuzzle?style=for-the-badge" alt="License"></a>
+</p>
 
 <!-- DEMO: replace with asciinema cast or GIF -->
 
@@ -48,6 +56,7 @@ When a check fails, preflight prints exactly what broke and how to fix it. The a
 - [Install](#install)
 - [How to use](#how-to-use)
 - [How it works](#how-it-works)
+- [Roadmap](#roadmap)
 - [Contributing](#contributing)
 
 ---
@@ -149,6 +158,19 @@ Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumf
 `bumfuzzle.yml` is the only config file created in your project. One file, all rules.
 
 `preflight` only reads, never writes. `kickstart` only creates, never overwrites. They are symmetric: if you declare a file as expected, `kickstart` creates it and `preflight` checks it.
+
+---
+
+## Roadmap
+
+### Bug fixes
+- [ ] Fix drag-and-drop crash when dropping a rule into an empty group
+
+### Planned improvements
+- [ ] Implement the `kickstart` scaffolding script (auto-detect project type, create config and hooks)
+- [ ] Standardize argument-passing and argument-expectation conventions across shared scripts
+- [ ] Support user-defined arguments in custom `command_checks` scripts
+- [ ] Reduce `bumfuzzle.yml` size by extracting reusable rule sets into importable modules
 
 ---
 
