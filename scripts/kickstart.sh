@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-printf '[kickstart] not yet implemented — coming soon\n' >&2
-exit 1
+BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+PROJECT_DIR="$(pwd)"
+CONFIG_FILE="${1:-$BUMFUZZLE_ROOT/bumfuzzle-template.yml}"
+
+# Temporary: only copies the template config so `preflight` has something to
+# validate against. Full scaffolding (git hooks, dirs, env files, etc.) is
+# tracked in the Roadmap and replaces this.
+if [[ -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
+  printf '[kickstart] bumfuzzle.yml already exists — skipping\n'
+else
+  printf '[kickstart] writing bumfuzzle.yml\n'
+  cp "$CONFIG_FILE" "$PROJECT_DIR/bumfuzzle.yml"
+fi
+
+exit 0
 
 # BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 # KICKSTART_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"

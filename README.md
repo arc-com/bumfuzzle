@@ -1,9 +1,6 @@
 <div align="center">
 
-# 🦝 Bumfuzzle
-
-### Starting point for every project
-_Complete Rules Engine for enforcing conventions._
+# 🦝 Bumfuzzle – Starting Point for Every Project
 
 <p align="center">
     <picture>
@@ -12,8 +9,12 @@ _Complete Rules Engine for enforcing conventions._
 </p>
 
 <p align="center">
+  <strong>EXFOLIATE! EXFOLIATE!</strong>
+</p>
+
+<p align="center">
   <a href="https://github.com/arc-com/bumfuzzle/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/arc-com/bumfuzzle/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
-  <a href="https://github.com/arc-com/bumfuzzle/releases"><img src="https://img.shields.io/github/v/release/arc-com/bumfuzzle?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
+  <a href="https://discord.gg/REPLACE_ME"><img src="https://img.shields.io/badge/-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="https://github.com/arc-com/bumfuzzle/stargazers"><img src="https://img.shields.io/github/stars/arc-com/bumfuzzle?style=for-the-badge" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/arc-com/bumfuzzle?style=for-the-badge" alt="License"></a>
 </p>
@@ -26,7 +27,7 @@ _Complete Rules Engine for enforcing conventions._
 
 > [!CAUTION]
 > Bash the soul out of your coding agent.
-> And it will never break a rule again.
+> Now it will never break a rule again.
 
 ---
 
@@ -68,15 +69,11 @@ When a check fails, preflight prints exactly what broke and how to fix it. The a
 
 ## Install
 
-### Homebrew
-
 ```bash
+# Homebrew
 brew install bumfuzzle
-```
 
-### Package managers
-
-```bash
+# Package managers
 pnpm add -D bumfuzzle
 npm install -D bumfuzzle
 yarn add -D bumfuzzle
@@ -84,16 +81,13 @@ yarn add -D bumfuzzle
 pip install bumfuzzle
 uv add --dev bumfuzzle
 poetry add --group dev bumfuzzle
-```
 
-### From source
-
-```bash
+# From source
 git clone https://github.com/arc-com/bumfuzzle ~/.local/share/bumfuzzle
 bash ~/.local/share/bumfuzzle/setup.sh
 ```
 
-Adds `kickstart`, `bumfuzzle`, and `preflight` to `~/.local/bin`.
+Installing from source adds `kickstart`, `bumfuzzle`, and `preflight` to `~/.local/bin`.
 
 ---
 
