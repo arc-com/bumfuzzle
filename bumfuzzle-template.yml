@@ -77,6 +77,72 @@ scripts:
             type: path
             required: true
             placeholder: "config.yml"
+      - id: bash-valid
+        name: "Bash valid"
+        description: "Checks that a shell script passes bash -n syntax validation without errors."
+        command: |
+          [ ! -f "$FILE_PATH" ] && exit 0
+          bash -n "$FILE_PATH"
+        args:
+          - key: FILE_PATH
+            label: "Shell script path"
+            type: path
+            required: true
+            placeholder: "scripts/deploy.sh"
+      - id: file-names-match
+        name: "File names match"
+        description: "Checks that all file basenames matching includeFilesGlob (and not matching excludeFilesGlob) satisfy the checkPattern regex. Searches under 'from' up to 'depth' levels deep. depth 1 means files directly inside 'from'; omit for unlimited depth. excludeFilesGlob matches on filename only, not full path."
+        command: |
+          [[ "$FROM" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
+          _depth_arg=""
+          if [[ -n "$DEPTH" && "$DEPTH" -ge 1 ]]; then
+            _depth_arg="-maxdepth $DEPTH"
+          fi
+          _from="${FROM:-.}"
+          _exclude_args=""
+          if [[ -n "$EXCLUDE_FILES_GLOB" ]]; then
+            _exclude_args="-not -name $EXCLUDE_FILES_GLOB"
+          fi
+          _failed=false
+          while IFS= read -r _f; do
+            _base=$(basename "$_f")
+            if ! echo "$_base" | grep -qE "$CHECK_PATTERN"; then
+              printf 'FAIL: %s does not match %s\n' "$_f" "$CHECK_PATTERN"
+              _failed=true
+            fi
+          done < <(find "$_from" $_depth_arg -name "$INCLUDE_FILES_GLOB" $_exclude_args -type f 2>/dev/null)
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: FROM
+            label: "Search root"
+            type: path
+            required: false
+            placeholder: "."
+            description: "Directory to search from. Defaults to . (project root)."
+          - key: DEPTH
+            label: "Max depth"
+            type: integer
+            required: false
+            placeholder: "1"
+            description: "Maximum directory depth to search. 1 = files directly inside FROM. Omit for unlimited depth."
+          - key: INCLUDE_FILES_GLOB
+            label: "Include files glob"
+            type: string
+            required: true
+            placeholder: "*.java"
+            description: "Glob pattern matched against file basenames to include (e.g. *.java, *Controller*)."
+          - key: EXCLUDE_FILES_GLOB
+            label: "Exclude files glob"
+            type: string
+            required: false
+            placeholder: "*Test.java"
+            description: "Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path."
+          - key: CHECK_PATTERN
+            label: "Check pattern"
+            type: string
+            required: true
+            placeholder: "^[A-Z][a-zA-Z0-9]+\\.java$"
+            description: "Regex applied to each matched file's basename. Files not matching will fail the check."
 
   - group: "File content checks"
     scripts:
