@@ -1,15 +1,15 @@
 <div align="center">
 
+# 🦝 Bumfuzzle
+
+### Starting point for every project
+_Complete Rules Engine for enforcing conventions._
+
 <p align="center">
     <picture>
         <img src="./public/bumfuzzle.png" alt="Bumfuzzle" width="500">
     </picture>
 </p>
-
-# 🌀 Bumfuzzle
-
-### YAML-Based Rules Engine & Structural Linter for AI Coding Agents
-_Keep your AI agents (Cursor, Claude Code, Devin) bounded, predictable, and aligned with your codebase rules._
 
 <p align="center">
   <a href="https://github.com/arc-com/bumfuzzle/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/arc-com/bumfuzzle/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
@@ -24,26 +24,17 @@ _Keep your AI agents (Cursor, Claude Code, Devin) bounded, predictable, and alig
 
 ---
 
-> Your AI agent forgot its instructions and nuked important files — again.  
-> A half-finished refactor left a prod landmine in the codebase.  
-> `.env.template` drifted from `.env` three commits ago, and the agent ignored it.  
-> Config broke because of yet another hardcoded value.
-
-**Bumfuzzle won't allow it. Your project structure will never drift again.**
+> [!CAUTION]
+> Bash the soul out of your coding agent.
+> And it will never break a rule again.
 
 ---
 
 ## Working with AI coding agents
 
-Works with **Cursor**, **Claude Code**, **Devin**, **Copilot Workspace**, and any agent that reads a context file.
+It works perfectly with **Cursor**, **Claude Code**, **Codex**, and many more.
 
-Add one line to your `AGENTS.md`:
-
-```
-After finishing each feature, run: preflight
-```
-
-Or reference `BUMFUZZLE_SKILL.md` from your `AGENTS.md` for a full agent-facing instruction set.
+Models: Opus 4.8, Sonnet 5, Fable 5, GPT 5.5, GLM 5.2, and many more.
 
 When a check fails, preflight prints exactly what broke and how to fix it. The agent reads the hint, resolves the issue, and reruns — in a loop — until the board is clean.
 
@@ -51,34 +42,27 @@ When a check fails, preflight prints exactly what broke and how to fix it. The a
 
 ## Table of contents
 
-- [Why Bumfuzzle](#why-bumfuzzle)
 - [Features](#features)
 - [Install](#install)
 - [How to use](#how-to-use)
 - [How it works](#how-it-works)
 - [Roadmap](#roadmap)
+- [Comparison](#comparison)
 - [Contributing](#contributing)
-
----
-
-## Why Bumfuzzle
-
-- **One config file for everything.** A single `bumfuzzle.yml` at your project root declares all rules. No fragmented configs across tools.
-- **Wizard setup in seconds.** Run `bumfuzzle` in any project and configure every check visually — no YAML hand-editing required.
-- **Zero prod footprint.** Bumfuzzle is a dev dependency. It is never included in your build.
-- **Works everywhere.** Any language, any framework, any OS. Any project size.
 
 ---
 
 ## Features
 
-- **Out-of-the-box integrations.** Whatever stack you use, bumfuzzle validates the structural invariants that are universal: config drift, missing files, stale hooks, undeclared env vars.
-- **Deterministic and side-effect-free.** `preflight` reads and checks. It never writes, installs, or modifies state. Same inputs, same output, every time.
-- **Fast, simple, universal.** One YAML file. Three commands. No pipeline integration required. Works with any IDE, terminal, or agent harness.
-- **Pre-configured presets, fully customizable.** Choose a preset (`backend`, `node`, `python`, `web`, and more) that enables the right checks for your project type. Disable anything, extend with your own rules via `command_checks`.
-- **File and directory presence checks.** Ensure required files exist — or don't. Hooks, `AGENTS.md`, config files, any artifact your project depends on.
-- **Env file consistency.** Catches `.env` ↔ `.env.template` drift: missing keys, undeclared keys, blank values, vars used in configs but never declared in template.
-- **Custom grep checks.** Use `command_checks` to flag hardcoded IP addresses, API keys, or any pattern that doesn't belong outside your config files.
+- **Closes the agentic verification loop** — custom instructions tell the model exactly what to do next.
+- **Extremely fast, ridiculously simple, and lightweight** — zero external dependencies.
+- **Works with any language, any OS, any project** — from a personal website to the Linux kernel.
+- **You pick the rules yourself** — linters, hooks, and virtually anything else.
+- **One config to rule them all** — a single `bumfuzzle.yml` stores every configuration.
+- **One entry point for every check** — the `bumfuzzle` command runs it all.
+- **Visual Wizard** — set up every check you want in seconds.
+- **Zero prod footprint** — Bumfuzzle is never included in your build.
+- **Batteries included** — ships with most of the common presets, so you just pick what you need.
 
 ---
 
@@ -171,6 +155,22 @@ Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumf
 - [ ] Standardize argument-passing and argument-expectation conventions across shared scripts
 - [ ] Support user-defined arguments in custom `command_checks` scripts
 - [ ] Reduce `bumfuzzle.yml` size by extracting reusable rule sets into importable modules
+
+---
+
+## Comparison
+
+How Bumfuzzle compares to other tools in the AI-agent-guardrail space:
+
+| | Bumfuzzle | [agentlint](https://github.com/mauhpr/agentlint) | [agent-governance-toolkit](https://github.com/microsoft/agent-governance-toolkit) | [drift-guard](https://dev.to/hwaninet/how-i-built-drift-guard-a-cli-to-stop-ai-agents-from-destroying-your-design-3egc) | Plain `pre-commit` |
+|---|---|---|---|---|---|
+| Enforcement point | Git commit (pre-commit hook) | Real-time, tool-call time | Git commit (hook templates) | Git commit / CLI | Git commit |
+| Config format | Single `bumfuzzle.yml` | Rule packs (JS/JSON config) | Docs + hook templates, no single schema | Zero-config | `.pre-commit-config.yaml` + per-hook config |
+| Structural checks (files, dirs, env drift) | ✅ built-in | Partial (code-quality/security focus) | Governance/process focus, not file structure | Design/UI drift only | Only if you write custom hooks |
+| Visual setup wizard | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Zero prod footprint | ✅ (dev dependency only) | ✅ | ✅ (docs/process, not shipped) | ✅ | ✅ |
+
+_Comparisons above reflect public information about these projects as of July 2026 and may not capture every capability — verify directly with each project before relying on this table._
 
 ---
 
