@@ -25,7 +25,7 @@
 
 ---
 
-> **CAUTION:**
+> [!CAUTION]
 > Now you can bash the soul out of your coding agent.
 > And it will never break a rule again.
 
