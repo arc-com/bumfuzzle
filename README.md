@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🦝 Bumfuzzle – Starting Point for Every Project
+# 🦝 Bumfuzzle: Starting Point for Every Project
 
 <p align="center">
     <picture>
@@ -14,8 +14,8 @@
 
 <p align="center">
   <a href="https://github.com/arc-com/bumfuzzle/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/arc-com/bumfuzzle/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
+  <a href="https://github.com/arc-com/bumfuzzle/releases"><img src="https://img.shields.io/github/v/release/arc-com/bumfuzzle?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
   <a href="https://discord.gg/REPLACE_ME"><img src="https://img.shields.io/badge/-Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="https://github.com/arc-com/bumfuzzle/stargazers"><img src="https://img.shields.io/github/stars/arc-com/bumfuzzle?style=for-the-badge" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/arc-com/bumfuzzle?style=for-the-badge" alt="License"></a>
 </p>
 
@@ -25,9 +25,17 @@
 
 ---
 
-> [!CAUTION]
-> Bash the soul out of your coding agent.
-> Now it will never break a rule again.
+> **CAUTION:**
+> Now you can bash the soul out of your coding agent.
+> And it will never break a rule again.
+
+---
+
+## Summary
+
+- `bumfuzzle` is a single self-contained HTML file served by a lightweight local Python server. It shuts down when you close the tab. Nothing leaves your machine.
+- `bumfuzzle.yml` is the only config file created in your project. One file, all rules.
+- `preflight` only reads, never writes. `kickstart` only creates, never overwrites. They are symmetric: if you declare a file as expected, `kickstart` creates it and `preflight` checks it.
 
 ---
 
@@ -37,7 +45,7 @@ It works perfectly with **Cursor**, **Claude Code**, **Codex**, and many more.
 
 Models: Opus 4.8, Sonnet 5, Fable 5, GPT 5.5, GLM 5.2, and many more.
 
-When a check fails, preflight prints exactly what broke and how to fix it. The agent reads the hint, resolves the issue, and reruns — in a loop — until the board is clean.
+When a check fails, preflight prints exactly what broke and how to fix it. The agent reads the hint, resolves the issue, and reruns, in a loop, until the board is clean.
 
 ---
 
@@ -46,7 +54,6 @@ When a check fails, preflight prints exactly what broke and how to fix it. The a
 - [Features](#features)
 - [Install](#install)
 - [How to use](#how-to-use)
-- [How it works](#how-it-works)
 - [Roadmap](#roadmap)
 - [Comparison](#comparison)
 - [Contributing](#contributing)
@@ -55,15 +62,15 @@ When a check fails, preflight prints exactly what broke and how to fix it. The a
 
 ## Features
 
-- **Closes the agentic verification loop** — custom instructions tell the model exactly what to do next.
-- **Extremely fast, ridiculously simple, and lightweight** — zero external dependencies.
-- **Works with any language, any OS, any project** — from a personal website to the Linux kernel.
-- **You pick the rules yourself** — linters, hooks, and virtually anything else.
-- **One config to rule them all** — a single `bumfuzzle.yml` stores every configuration.
-- **One entry point for every check** — the `bumfuzzle` command runs it all.
-- **Visual Wizard** — set up every check you want in seconds.
-- **Zero prod footprint** — Bumfuzzle is never included in your build.
-- **Batteries included** — ships with most of the common presets, so you just pick what you need.
+- **Closes the agentic verification loop:** custom instructions tell the model exactly what to do next.
+- **Extremely fast, ridiculously simple, and lightweight:** zero external dependencies.
+- **Works with any language, any OS, any project:** from a personal website to the Linux kernel.
+- **You pick the rules yourself:** linters, hooks, and virtually anything else.
+- **One config to rule them all:** a single `bumfuzzle.yml` stores every configuration.
+- **One entry point for every check:** the `bumfuzzle` command runs it all.
+- **Visual Wizard:** set up every check you want in seconds.
+- **Zero prod footprint:** Bumfuzzle is never included in your build.
+- **Batteries included:** ships with most of the common presets, so you just pick what you need.
 
 ---
 
@@ -93,31 +100,20 @@ Installing from source adds `kickstart`, `bumfuzzle`, and `preflight` to `~/.loc
 
 ## How to use
 
-### Path A — visual (`bumfuzzle`)
-
 ```bash
 cd my-project
+
+# Path A, visual
 bumfuzzle
-# → opens web wizard in browser; configure checks, environments, stacks, rules
-# → save → bumfuzzle.yml written to project root
-preflight
-# → runs all checks; exits 0 or 1
-```
+# opens web wizard in browser; configure checks, environments, stacks, rules
+# save, writes bumfuzzle.yml to project root
 
-### Path B — fast (`kickstart`)
-
-```bash
-cd my-project
+# Path B, fast
 kickstart
-# → detects project type from manifests; scaffolds files and dirs; writes bumfuzzle.yml
-# → edit bumfuzzle.yml directly, or run bumfuzzle to open the wizard later
-preflight
-# → runs all checks; exits 0 or 1
-```
+# detects project type from manifests; scaffolds files and dirs; writes bumfuzzle.yml
+# edit bumfuzzle.yml directly, or run bumfuzzle to open the wizard later
 
-### Every subsequent run
-
-```bash
+# Every subsequent run
 preflight              # run all checks
 preflight --verbose    # show passing checks too
 preflight --env prod   # scope to one environment
@@ -125,17 +121,7 @@ preflight --env prod   # scope to one environment
 
 `preflight` also runs automatically on every `git commit` via the pre-commit hook installed by `kickstart`.
 
-Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumfuzzle.yml` directly. `kickstart` is safe to rerun — it never deletes or overwrites. `preflight` is read-only. Both are idempotent.
-
----
-
-## How it works
-
-`bumfuzzle` is a single self-contained HTML file served by a lightweight local Python server. It shuts down when you close the tab. Nothing leaves your machine.
-
-`bumfuzzle.yml` is the only config file created in your project. One file, all rules.
-
-`preflight` only reads, never writes. `kickstart` only creates, never overwrites. They are symmetric: if you declare a file as expected, `kickstart` creates it and `preflight` checks it.
+Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumfuzzle.yml` directly. `kickstart` is safe to rerun, it never deletes or overwrites. `preflight` is read-only. Both are idempotent.
 
 ---
 
@@ -164,7 +150,7 @@ How Bumfuzzle compares to other tools in the AI-agent-guardrail space:
 | Visual setup wizard | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Zero prod footprint | ✅ (dev dependency only) | ✅ | ✅ (docs/process, not shipped) | ✅ | ✅ |
 
-_Comparisons above reflect public information about these projects as of July 2026 and may not capture every capability — verify directly with each project before relying on this table._
+_Comparisons above reflect public information about these projects as of July 2026 and may not capture every capability. Verify directly with each project before relying on this table._
 
 ---
 
