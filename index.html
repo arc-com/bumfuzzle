@@ -284,26 +284,39 @@ function isAncestorOf(ancestor, item) {
 // ── Data init ─────────────────────────────────────────────────────────────────
 
 function initData() {
-  const cRules   = C && C.rules;
-  const sRules   = S && S.rules;
-  const cEnums   = C && C.enums;
-  const cScripts = C && C.scripts;
+  const cRules        = C && C.rules;
+  const sRules        = S && S.rules;
+  const cEnums        = C && C.enums;
+  const cScripts      = C && C.scripts;
+  const cArgTemplates = C && C['arg-templates'];
   state = {
-    rules:   JSON.parse(JSON.stringify(cRules   || sRules   || [])),
-    enums:   JSON.parse(JSON.stringify(cEnums)),
-    scripts: JSON.parse(JSON.stringify(cScripts || [])),
-    sections: { rules: true, enums: true, scripts: true, actions: true },
+    rules:        JSON.parse(JSON.stringify(cRules   || sRules   || [])),
+    enums:        JSON.parse(JSON.stringify(cEnums)),
+    scripts:      JSON.parse(JSON.stringify(cScripts || [])),
+    argTemplates: JSON.parse(JSON.stringify(cArgTemplates || [])),
+    sections: { rules: true, enums: true, scripts: true, argTemplates: true, actions: true },
     filters:  { rules: 'all' },
   };
   annotate(state.rules);
   annotateEnums(state.enums);
   annotateScripts(state.scripts);
+  annotateArgTemplates(state.argTemplates);
+}
+
+function annotateArgTemplates(items) {
+  (items || []).forEach(item => {
+    if (item._exp === undefined) item._exp = false;
+    if (!item.id)  item.id  = '';
+    if (!item.key) item.key = '';
+    if (item._saved === undefined) item._saved = argTemplateSnapshot(item);
+    if (item._mode === undefined) item._mode = 'edit';
+  });
 }
 
 function annotate(items) {
   (items || []).forEach(item => {
     if (isGroup(item)) {
-      if (item._col === undefined) item._col = false;
+      if (item._col === undefined) item._col = true;
       if (!item.rules) item.rules = [];
       annotate(item.rules);
     } else {
@@ -328,7 +341,7 @@ function annotate(items) {
 function annotateEnums(items) {
   (items || []).forEach(item => {
     if (isGroup(item)) {
-      if (item._col === undefined) item._col = false;
+      if (item._col === undefined) item._col = true;
       // normalize group children key from saved YAML
       if (item.enums && !item.rules) { item.rules = item.enums; delete item.enums; }
       if (!item.rules) item.rules = [];
@@ -350,7 +363,7 @@ function annotateEnums(items) {
 function annotateScripts(items) {
   (items || []).forEach(item => {
     if (isGroup(item)) {
-      if (item._col === undefined) item._col = false;
+      if (item._col === undefined) item._col = true;
       if (item.scripts && !item.rules) { item.rules = item.scripts; delete item.scripts; }
       if (!item.rules) item.rules = [];
       annotateScripts(item.rules);
@@ -473,6 +486,7 @@ function generateYaml() {
 
   function writeScriptArgConstraints(a, indent) {
     if (a.required)                   lines.push(indent + 'required: true');
+    if (a.description)                lines.push(indent + 'description: ' + JSON.stringify(a.description));
     if (a.placeholder)                lines.push(indent + 'placeholder: ' + JSON.stringify(a.placeholder));
     if (a.default !== undefined && a.default !== '') lines.push(indent + 'default: ' + JSON.stringify(a.default));
     if (a.min !== undefined)          lines.push(indent + 'min: ' + a.min);
@@ -507,6 +521,10 @@ function generateYaml() {
         if (Array.isArray(item.args) && item.args.length) {
           lines.push(indent + '  args:');
           item.args.forEach(a => {
+            if (a.arg_ref) {
+              lines.push(indent + '    - arg_ref: ' + JSON.stringify(a.arg_ref));
+              return;
+            }
             lines.push(indent + '    - key: '   + JSON.stringify(a.key || ''));
             lines.push(indent + '      label: ' + JSON.stringify(a.label || ''));
             lines.push(indent + '      type: '  + (a.type || 'string'));
@@ -581,10 +599,22 @@ function generateYaml() {
     }
   }
 
+  function writeArgTemplates(items) {
+    items.forEach(t => {
+      lines.push('  - id: '  + JSON.stringify(t.id || ''));
+      lines.push('    key: ' + JSON.stringify(t.key || ''));
+      lines.push('    label: ' + JSON.stringify(t.label || ''));
+      lines.push('    type: '  + (t.type || 'string'));
+      writeScriptArgConstraints(t, '    ');
+    });
+  }
+
   if (state.scripts && state.scripts.length) { lines.push('scripts:'); writeScriptItems(state.scripts, '  '); }
 
   if (state.rules.length) { lines.push('rules:'); writeRuleItems(state.rules, '  '); }
   else lines.push('rules: []');
+
+  if (state.argTemplates && state.argTemplates.length) { lines.push('arg-templates:'); writeArgTemplates(state.argTemplates); }
 
   if (state.enums.length) { lines.push('enums:'); writeEnumItems(state.enums, '  '); }
   else lines.push('enums: []');
@@ -881,6 +911,29 @@ function isEnumDirty(item) {
   return item._saved === null || enumSnapshot(item) !== item._saved;
 }
 
+function argTemplateSnapshot(item) {
+  return JSON.stringify({
+    id:           item.id           || '',
+    key:          item.key          || '',
+    label:        item.label        || '',
+    description:  item.description  || '',
+    type:         item.type         || 'string',
+    required:     !!item.required,
+    placeholder:  item.placeholder  || '',
+    default:      item.default,
+    min:          item.min,
+    max:          item.max,
+    enum_ref:     item.enum_ref     || '',
+    multi_select: !!item.multi_select,
+    separator:    item.separator    || '',
+    options:      JSON.parse(JSON.stringify(item.options || [])),
+    visible_when: item.visible_when || null,
+  });
+}
+function isArgTemplateDirty(item) {
+  return item._saved === null || argTemplateSnapshot(item) !== item._saved;
+}
+
 function scriptSnapshot(s) {
   return JSON.stringify({
     id:          s.id          || '',
@@ -916,6 +969,17 @@ function getEnumValues(enumRef) {
     return null;
   }
   return search(state.enums) || [];
+}
+
+// resolves a script args[] entry against arg-templates: when it uses arg_ref
+// instead of inline key/label/type/etc.; any field set alongside arg_ref overrides the template
+function resolveArg(a) {
+  if (!a || !a.arg_ref) return a;
+  const t = (state.argTemplates || []).find(x => x.id === a.arg_ref);
+  return t ? { ...t, ...a } : a;
+}
+function getResolvedArgs(script) {
+  return (script && Array.isArray(script.args) ? script.args : []).map(resolveArg);
 }
 
 function buildArgWidget(argDef, rule, onChange) {
@@ -1047,7 +1111,7 @@ function ruleRequiredArgsFilled(item) {
   if (!item.script) return false;
   const s = flattenItems(state.scripts || []).find(x => isScript(x) && x.id === item.script);
   if (!s || !Array.isArray(s.args)) return true;
-  return s.args.filter(a => a.required).every(a => {
+  return getResolvedArgs(s).filter(a => a.required).every(a => {
     const v = item.args?.[a.key];
     return v !== undefined && v !== '' && !(Array.isArray(v) && !v.length);
   });
@@ -1133,17 +1197,18 @@ function buildRuleFields(rule, reRender, inModal = false) {
       argsEl.innerHTML = '';
       const s = getScriptDef();
       if (!s || !Array.isArray(s.args) || !s.args.length) return;
+      const rArgs = getResolvedArgs(s);
       const fieldEls = {};
 
       function refreshVisibility() {
-        (s.args || []).forEach(a => {
+        rArgs.forEach(a => {
           if (!a.visible_when || !fieldEls[a.key]) return;
-          const condVal = String(rule.args[a.visible_when.key] ?? (s.args.find(x => x.key === a.visible_when.key)?.default ?? ''));
+          const condVal = String(rule.args[a.visible_when.key] ?? (rArgs.find(x => x.key === a.visible_when.key)?.default ?? ''));
           fieldEls[a.key].style.display = condVal === String(a.visible_when.eq) ? '' : 'none';
         });
       }
 
-      s.args.forEach(a => {
+      rArgs.forEach(a => {
         const w = buildArgWidget(a, rule, () => { refreshVisibility(); updateStatus(); });
         fieldEls[a.key] = w;
         argsEl.append(w);
@@ -1520,6 +1585,258 @@ function onArgDragEnd() {
 
 // ── Script field editor ───────────────────────────────────────────────────────
 
+const ARG_TYPES = ['string','int','double','regex','path','bool','enum'];
+
+// shared by buildScriptPanel's arg editor and buildArgTemplatePanel
+function buildArgFields(argDef, onChangeFn) {
+  const keyInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'KEY_NAME' });
+  keyInp.value = argDef.key || '';
+  keyInp.addEventListener('input', () => { argDef.key = keyInp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_'); keyInp.value = argDef.key; onChangeFn?.(); });
+
+  const lblInp = el('input', { class: 'inp', type: 'text', placeholder: 'Label shown in UI' });
+  lblInp.value = argDef.label || '';
+  lblInp.addEventListener('input', () => { argDef.label = lblInp.value; onChangeFn?.(); });
+
+  const descInp = el('input', { class: 'inp', type: 'text', placeholder: 'Description (optional)' });
+  descInp.value = argDef.description || '';
+  descInp.addEventListener('input', () => { argDef.description = descInp.value || undefined; onChangeFn?.(); });
+
+  const typeSeg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
+  ARG_TYPES.forEach(t => {
+    const b = el('button', { class: 'seg-btn' + ((argDef.type || 'string') === t ? ' on t-on' : '') }, t);
+    b.addEventListener('click', () => { argDef.type = t; typeSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.textContent === t ? ' on t-on' : '')); rebuildConstraints(); onChangeFn?.(); });
+    typeSeg.append(b);
+  });
+
+  const reqSeg = el('div', { class: 'seg' });
+  ['required','optional'].forEach(v => {
+    const isOn = v === 'required' ? !!argDef.required : !argDef.required;
+    const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
+    b.addEventListener('click', () => { argDef.required = v === 'required'; reqSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'required') === argDef.required ? ' on t-on' : '')); onChangeFn?.(); });
+    reqSeg.append(b);
+  });
+
+  const constraintsEl = el('div', {});
+  function rebuildConstraints() {
+    constraintsEl.innerHTML = '';
+    const t = argDef.type || 'string';
+
+    if (t !== 'bool') {
+      const ph = el('input', { class: 'inp mono', type: 'text', placeholder: 'Placeholder text' });
+      ph.value = argDef.placeholder || '';
+      ph.addEventListener('input', () => { argDef.placeholder = ph.value || undefined; onChangeFn?.(); });
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Placeholder'), ph));
+    }
+
+    const defInp = el('input', { class: 'inp mono', type: t === 'int' || t === 'double' ? 'number' : 'text', placeholder: 'Default (optional)' });
+    defInp.value = argDef.default !== undefined ? String(argDef.default) : '';
+    defInp.addEventListener('input', () => {
+      if (defInp.value === '') { delete argDef.default; }
+      else argDef.default = t === 'int' ? parseInt(defInp.value, 10) : t === 'double' ? parseFloat(defInp.value) : defInp.value;
+      onChangeFn?.();
+    });
+    constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Default'), defInp));
+
+    if (t === 'int' || t === 'double') {
+      const minInp = el('input', { class: 'inp mono', type: 'number', placeholder: 'Min (optional)' });
+      minInp.value = argDef.min !== undefined ? argDef.min : '';
+      minInp.addEventListener('input', () => { argDef.min = minInp.value !== '' ? Number(minInp.value) : undefined; onChangeFn?.(); });
+      const maxInp = el('input', { class: 'inp mono', type: 'number', placeholder: 'Max (optional)' });
+      maxInp.value = argDef.max !== undefined ? argDef.max : '';
+      maxInp.addEventListener('input', () => { argDef.max = maxInp.value !== '' ? Number(maxInp.value) : undefined; onChangeFn?.(); });
+      constraintsEl.append(
+        el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Min'), minInp),
+        el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Max'), maxInp),
+      );
+    }
+
+    if (t === 'enum') {
+      const multiSeg = el('div', { class: 'seg' });
+      ['single','multi'].forEach(v => {
+        const isOn = v === 'multi' ? !!argDef.multi_select : !argDef.multi_select;
+        const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
+        b.addEventListener('click', () => { argDef.multi_select = v === 'multi'; multiSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'multi') === !!argDef.multi_select ? ' on t-on' : '')); onChangeFn?.(); });
+        multiSeg.append(b);
+      });
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Select mode'), multiSeg));
+
+      const sepSeg = el('div', { class: 'seg' });
+      ['space','comma','json'].forEach(v => {
+        const isOn = (argDef.separator || 'space') === v;
+        const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
+        b.addEventListener('click', () => { argDef.separator = v; sepSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((argDef.separator || 'space') === x.textContent ? ' on t-on' : '')); onChangeFn?.(); });
+        sepSeg.append(b);
+      });
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Multi-select separator'), sepSeg));
+
+      const optChips = el('div', { class: 'chips' });
+      function refreshOptChips() {
+        optChips.innerHTML = '';
+        const options = argDef.options || [];
+        if (!options.length) optChips.append(el('span', { class: 'chip-empty' }, 'none'));
+        options.forEach((v, i) => {
+          const x = el('button', { class: 'chip-x' }, '\xd7');
+          x.addEventListener('click', () => { argDef.options.splice(i, 1); refreshOptChips(); onChangeFn?.(); });
+          optChips.append(el('span', { class: 'chip' }, v, x));
+        });
+      }
+      refreshOptChips();
+      const optInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'option…' });
+      const optBtn = el('button', { class: 'add-btn' }, '+ add');
+      optBtn.addEventListener('click', () => { const v = optInp.value.trim(); if (v) { if (!Array.isArray(argDef.options)) argDef.options = []; if (!argDef.options.includes(v)) { argDef.options.push(v); optInp.value = ''; refreshOptChips(); onChangeFn?.(); } } });
+      optInp.addEventListener('keydown', e => { if (e.key === 'Enter') optBtn.click(); });
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Options'), el('div', {}, optChips, el('div', { class: 'add-row' }, optInp, optBtn))));
+
+      const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum id (optional)' });
+      refInp.value = argDef.enum_ref || '';
+      refInp.addEventListener('input', () => { argDef.enum_ref = refInp.value.trim() || undefined; onChangeFn?.(); });
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Enum ref (optional)'), refInp));
+    }
+
+    // visible_when — available on all arg types
+    const vwKeyInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'sibling KEY', style: 'flex:1' });
+    vwKeyInp.value = argDef.visible_when ? argDef.visible_when.key : '';
+    const vwEqInp  = el('input', { class: 'inp mono', type: 'text', placeholder: 'value', style: 'flex:1' });
+    vwEqInp.value  = argDef.visible_when ? argDef.visible_when.eq  : '';
+    function updateVW() {
+      const k = vwKeyInp.value.trim(), v = vwEqInp.value.trim();
+      argDef.visible_when = (k && v !== '') ? { key: k, eq: v } : undefined;
+      onChangeFn?.();
+    }
+    vwKeyInp.addEventListener('input', updateVW);
+    vwEqInp.addEventListener('input', updateVW);
+    constraintsEl.append(el('div', { class: 'rf-sec' },
+      el('span', { class: 'rf-lbl' }, 'Visible when key = value (optional)'),
+      el('div', { style: 'display:flex;gap:6px;align-items:center' }, vwKeyInp, el('span', { style: 'color:var(--td);flex-shrink:0' }, '='), vwEqInp),
+    ));
+  }
+  rebuildConstraints();
+
+  return el('div', {},
+    el('div', { class: 'arg-grid' },
+      el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Key (env var)'), keyInp),
+      el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Label'), lblInp),
+    ),
+    el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Description'), descInp),
+    el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Type'), typeSeg),
+    el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Required'), reqSeg),
+    constraintsEl,
+  );
+}
+
+function buildArgTemplatePanel(item, reRender, inModal = false) {
+  const panel = el('div', { class: 'rt-panel' });
+
+  const btnDiff   = el('button', { class: 'rf-btn' }, 'Diff');
+  const btnSave   = el('button', { class: 'rf-btn rf-btn-save' }, 'Save');
+  const btnEdit   = el('button', { class: 'rf-btn' }, 'Edit');
+  const btnCancel = el('button', { class: 'rf-btn rf-btn-cancel' }, 'Cancel');
+
+  const idInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'kebab-case-id' });
+  idInp.value = item.id || '';
+  if (item._saved !== null && item._saved !== undefined) {
+    try { if (JSON.parse(item._saved).id) idInp.readOnly = true; } catch {}
+  }
+  idInp.addEventListener('input', () => {
+    item.id = idInp.value.trim().replace(/\s+/g, '-');
+    idInp.value = item.id;
+    item._updateRow?.(); updateStatus();
+  });
+
+  const fieldsEl = buildArgFields(item, () => { item._updateRow?.(); updateStatus(); });
+
+  const formView = el('div', { class: 'rf-body' },
+    panelSec('ID (slug, locked after first save; referenced by scripts via arg_ref)', idInp),
+    fieldsEl,
+  );
+
+  const diffView = el('div', { class: 'rf-body' });
+  function renderDiff() {
+    diffView.innerHTML = '';
+    if (!item._saved) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No saved state')); return; }
+    const from = JSON.parse(item._saved);
+    const changes = [];
+    const fields = ['id','key','label','description','type','required','placeholder','enum_ref'];
+    fields.forEach(f => {
+      const fv = from[f] ?? '', tv = item[f] ?? '';
+      if (String(fv) !== String(tv)) changes.push({ f, from: fv === '' ? '(empty)' : String(fv), to: tv === '' ? '(empty)' : String(tv) });
+    });
+    if (!changes.length) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No changes')); return; }
+    changes.forEach(({ f, from, to }) => {
+      diffView.append(el('div', { class: 'rf-diff-row' },
+        el('span', { class: 'rf-diff-field' }, f),
+        el('span', { class: 'rf-diff-from' }, from),
+        el('span', { class: 'rf-diff-arrow' }, '→'),
+        el('span', { class: 'rf-diff-to' }, to),
+      ));
+    });
+  }
+
+  let dirtyBadgeArgTemplate = null;
+  if (!inModal) {
+    dirtyBadgeArgTemplate = el('div', { class: 'rf-dirty-badge' }, 'Unsaved changes');
+    panel.append(formView, diffView, el('div', { class: 'rf-status-bar' },
+      dirtyBadgeArgTemplate,
+      el('div', { class: 'rf-actions-bar' }, btnDiff, btnEdit, btnCancel, btnSave),
+    ));
+  } else {
+    panel.append(formView, diffView);
+  }
+
+  function updateStatus() {
+    const dirty = isArgTemplateDirty(item);
+    const mode  = item._mode;
+    idInp.style.borderColor = item.id ? '' : 'var(--rd)';
+    if (dirtyBadgeArgTemplate) dirtyBadgeArgTemplate.classList.toggle('visible', dirty);
+    item._updateRow?.();
+    btnDiff.style.display   = (mode === 'edit' && dirty && item._saved !== null) ? '' : 'none';
+    btnSave.style.display   = (dirty && !!item.id && !!item.key) ? '' : 'none';
+    btnEdit.style.display   = mode === 'diff' ? '' : 'none';
+    btnCancel.style.display = '';
+  }
+
+  function setMode(mode) {
+    item._mode = mode;
+    formView.style.display = mode === 'edit' ? '' : 'none';
+    diffView.style.display = mode === 'diff' ? '' : 'none';
+    if (mode === 'diff') renderDiff();
+    updateStatus();
+  }
+
+  btnDiff.addEventListener('click', () => setMode('diff'));
+  btnEdit.addEventListener('click', () => setMode('edit'));
+
+  btnSave.addEventListener('click', () => {
+    item._saved = argTemplateSnapshot(item);
+    if (item.id) idInp.readOnly = true;
+    item._updateRow?.();
+    scheduleSave();
+    setMode('edit');
+  });
+
+  btnCancel.addEventListener('click', () => {
+    if (!isArgTemplateDirty(item)) {
+      item._exp = false;
+      reRender();
+      return;
+    }
+    if (item._saved === null) {
+      const path = findPath(item, state.argTemplates, []);
+      if (path) { removeByPath(path, state.argTemplates); reRender(); scheduleSave(); }
+      return;
+    }
+    const saved = JSON.parse(item._saved);
+    Object.keys(item).forEach(k => { if (!k.startsWith('_')) delete item[k]; });
+    Object.assign(item, JSON.parse(JSON.stringify(saved)));
+    reRender();
+    scheduleSave();
+    setMode('edit');
+  });
+
+  setMode(item._mode || 'edit');
+  return panel;
+}
+
 function buildScriptPanel(script, reRender, inModal = false) {
   const panel = el('div', { class: 'rt-panel' });
 
@@ -1552,141 +1869,32 @@ function buildScriptPanel(script, reRender, inModal = false) {
 
   initArgDrag();
 
-  const ARG_TYPES = ['string','int','double','regex','path','bool','enum'];
   const argsListEl = el('div', {});
 
-  function buildArgFields(argDef, onChangeFn) {
-    const keyInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'KEY_NAME' });
-    keyInp.value = argDef.key || '';
-    keyInp.addEventListener('input', () => { argDef.key = keyInp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_'); keyInp.value = argDef.key; onChangeFn?.(); });
-
-    const lblInp = el('input', { class: 'inp', type: 'text', placeholder: 'Label shown in UI' });
-    lblInp.value = argDef.label || '';
-    lblInp.addEventListener('input', () => { argDef.label = lblInp.value; onChangeFn?.(); });
-
-    const typeSeg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
-    ARG_TYPES.forEach(t => {
-      const b = el('button', { class: 'seg-btn' + ((argDef.type || 'string') === t ? ' on t-on' : '') }, t);
-      b.addEventListener('click', () => { argDef.type = t; typeSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.textContent === t ? ' on t-on' : '')); rebuildConstraints(); onChangeFn?.(); });
-      typeSeg.append(b);
-    });
-
-    const reqSeg = el('div', { class: 'seg' });
-    ['required','optional'].forEach(v => {
-      const isOn = v === 'required' ? !!argDef.required : !argDef.required;
-      const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
-      b.addEventListener('click', () => { argDef.required = v === 'required'; reqSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'required') === argDef.required ? ' on t-on' : '')); onChangeFn?.(); });
-      reqSeg.append(b);
-    });
-
-    const constraintsEl = el('div', {});
-    function rebuildConstraints() {
-      constraintsEl.innerHTML = '';
-      const t = argDef.type || 'string';
-
-      if (t !== 'bool') {
-        const ph = el('input', { class: 'inp mono', type: 'text', placeholder: 'Placeholder text' });
-        ph.value = argDef.placeholder || '';
-        ph.addEventListener('input', () => { argDef.placeholder = ph.value || undefined; onChangeFn?.(); });
-        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Placeholder'), ph));
-      }
-
-      const defInp = el('input', { class: 'inp mono', type: t === 'int' || t === 'double' ? 'number' : 'text', placeholder: 'Default (optional)' });
-      defInp.value = argDef.default !== undefined ? String(argDef.default) : '';
-      defInp.addEventListener('input', () => {
-        if (defInp.value === '') { delete argDef.default; }
-        else argDef.default = t === 'int' ? parseInt(defInp.value, 10) : t === 'double' ? parseFloat(defInp.value) : defInp.value;
-        onChangeFn?.();
-      });
-      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Default'), defInp));
-
-      if (t === 'int' || t === 'double') {
-        const minInp = el('input', { class: 'inp mono', type: 'number', placeholder: 'Min (optional)' });
-        minInp.value = argDef.min !== undefined ? argDef.min : '';
-        minInp.addEventListener('input', () => { argDef.min = minInp.value !== '' ? Number(minInp.value) : undefined; onChangeFn?.(); });
-        const maxInp = el('input', { class: 'inp mono', type: 'number', placeholder: 'Max (optional)' });
-        maxInp.value = argDef.max !== undefined ? argDef.max : '';
-        maxInp.addEventListener('input', () => { argDef.max = maxInp.value !== '' ? Number(maxInp.value) : undefined; onChangeFn?.(); });
-        constraintsEl.append(
-          el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Min'), minInp),
-          el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Max'), maxInp),
-        );
-      }
-
-      if (t === 'enum') {
-        const multiSeg = el('div', { class: 'seg' });
-        ['single','multi'].forEach(v => {
-          const isOn = v === 'multi' ? !!argDef.multi_select : !argDef.multi_select;
-          const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
-          b.addEventListener('click', () => { argDef.multi_select = v === 'multi'; multiSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'multi') === !!argDef.multi_select ? ' on t-on' : '')); onChangeFn?.(); });
-          multiSeg.append(b);
-        });
-        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Select mode'), multiSeg));
-
-        const sepSeg = el('div', { class: 'seg' });
-        ['space','comma','json'].forEach(v => {
-          const isOn = (argDef.separator || 'space') === v;
-          const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
-          b.addEventListener('click', () => { argDef.separator = v; sepSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((argDef.separator || 'space') === x.textContent ? ' on t-on' : '')); onChangeFn?.(); });
-          sepSeg.append(b);
-        });
-        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Multi-select separator'), sepSeg));
-
-        const optChips = el('div', { class: 'chips' });
-        function refreshOptChips() {
-          optChips.innerHTML = '';
-          const options = argDef.options || [];
-          if (!options.length) optChips.append(el('span', { class: 'chip-empty' }, 'none'));
-          options.forEach((v, i) => {
-            const x = el('button', { class: 'chip-x' }, '\xd7');
-            x.addEventListener('click', () => { argDef.options.splice(i, 1); refreshOptChips(); onChangeFn?.(); });
-            optChips.append(el('span', { class: 'chip' }, v, x));
-          });
-        }
-        refreshOptChips();
-        const optInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'option…' });
-        const optBtn = el('button', { class: 'add-btn' }, '+ add');
-        optBtn.addEventListener('click', () => { const v = optInp.value.trim(); if (v) { if (!Array.isArray(argDef.options)) argDef.options = []; if (!argDef.options.includes(v)) { argDef.options.push(v); optInp.value = ''; refreshOptChips(); onChangeFn?.(); } } });
-        optInp.addEventListener('keydown', e => { if (e.key === 'Enter') optBtn.click(); });
-        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Options'), el('div', {}, optChips, el('div', { class: 'add-row' }, optInp, optBtn))));
-
-        const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum id (optional)' });
-        refInp.value = argDef.enum_ref || '';
-        refInp.addEventListener('input', () => { argDef.enum_ref = refInp.value.trim() || undefined; onChangeFn?.(); });
-        constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Enum ref (optional)'), refInp));
-      }
-
-      // visible_when — available on all arg types
-      const vwKeyInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'sibling KEY', style: 'flex:1' });
-      vwKeyInp.value = argDef.visible_when ? argDef.visible_when.key : '';
-      const vwEqInp  = el('input', { class: 'inp mono', type: 'text', placeholder: 'value', style: 'flex:1' });
-      vwEqInp.value  = argDef.visible_when ? argDef.visible_when.eq  : '';
-      function updateVW() {
-        const k = vwKeyInp.value.trim(), v = vwEqInp.value.trim();
-        argDef.visible_when = (k && v !== '') ? { key: k, eq: v } : undefined;
-        onChangeFn?.();
-      }
-      vwKeyInp.addEventListener('input', updateVW);
-      vwEqInp.addEventListener('input', updateVW);
-      constraintsEl.append(el('div', { class: 'rf-sec' },
-        el('span', { class: 'rf-lbl' }, 'Visible when key = value (optional)'),
-        el('div', { style: 'display:flex;gap:6px;align-items:center' }, vwKeyInp, el('span', { style: 'color:var(--td);flex-shrink:0' }, '='), vwEqInp),
-      ));
-    }
-    rebuildConstraints();
-
-    return el('div', {},
-      el('div', { class: 'arg-grid' },
-        el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Key (env var)'), keyInp),
-        el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Label'), lblInp),
-      ),
-      el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Type'), typeSeg),
-      el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Required'), reqSeg),
-      constraintsEl,
-    );
-  }
-
   function buildArgRow(argDef, idx) {
+    if (argDef.arg_ref) {
+      // arg_ref'd entries are edited by changing the shared arg-templates: entry, not inline here
+      const resolved = resolveArg(argDef);
+      const handle  = el('span', { class: 'arg-drag-handle', title: 'Drag to reorder' }, '⠿');
+      const strong  = document.createElement('strong');
+      strong.textContent = resolved.key || argDef.arg_ref;
+      const preview = el('span', { class: 'arg-hdr-preview' }, strong,
+        document.createTextNode(' · template: ' + argDef.arg_ref + (resolved.label ? ' (' + resolved.label + ')' : '')));
+      const typeTag = el('span', { class: 'arg-hdr-type' }, resolved.type || 'string');
+      const rmBtn   = el('button', { class: 'arg-hdr-rm', title: 'Remove' }, '×');
+      rmBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        openDeleteModal({ title: 'Remove arg template ref "' + argDef.arg_ref + '"?', onDelete: () => { script.args.splice(idx, 1); rebuildArgsList(); } });
+      });
+      handle.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+        argDragState = { fromIdx: idx, startY: e.clientY, active: false, ctx: { containerEl: argsListEl, argsArr: script.args, rebuildFn: rebuildArgsList } };
+        e.preventDefault();
+      });
+      const hdr = el('div', { class: 'arg-hdr' }, handle, preview, typeTag, rmBtn);
+      return el('div', { class: 'arg-block' }, hdr);
+    }
+
     let open = false;
 
     const arrow  = el('span', { class: 'arg-collapse-arrow' }, '▶');
@@ -2060,38 +2268,40 @@ function createTreeSection(opts) {
       );
     });
 
-    const addGroup = el('button', { class: 'add-root-btn' }, opts.addGroupLabel || '+ Add Group');
-    addGroup.addEventListener('click', () => {
-      if (modalEl) return;
-      let groupName = '';
-      openModal(
-        () => {
-          const nameInp = el('input', { class: 'inp', type: 'text', placeholder: 'Group name' });
-          nameInp.addEventListener('input', () => {
-            const s = nameInp.selectionStart, e = nameInp.selectionEnd, v = toTitleCase(nameInp.value);
-            if (v !== nameInp.value) { nameInp.value = v; nameInp.setSelectionRange(s, e); }
-            groupName = nameInp.value;
-          });
-          return panelSec('Group name', nameInp);
-        },
-        {
-          title: 'New Group',
-          onConfirm: () => {
-            const grp = opts.newGroup
-              ? opts.newGroup(groupName)
-              : { group: groupName.trim() || 'New Group', rules: [], _col: false };
-            opts.getData().push(grp);
-            reRender();
-            scheduleSave();
+    addRow.append(addItem);
+    if (opts.allowGroups !== false) {
+      const addGroup = el('button', { class: 'add-root-btn' }, opts.addGroupLabel || '+ Add Group');
+      addGroup.addEventListener('click', () => {
+        if (modalEl) return;
+        let groupName = '';
+        openModal(
+          () => {
+            const nameInp = el('input', { class: 'inp', type: 'text', placeholder: 'Group name' });
+            nameInp.addEventListener('input', () => {
+              const s = nameInp.selectionStart, e = nameInp.selectionEnd, v = toTitleCase(nameInp.value);
+              if (v !== nameInp.value) { nameInp.value = v; nameInp.setSelectionRange(s, e); }
+              groupName = nameInp.value;
+            });
+            return panelSec('Group name', nameInp);
           },
-          onCancel:   () => {},
-          validateFn: () => groupName.trim().length > 0,
-          noConfirm:  true,
-        }
-      );
-    });
-
-    addRow.append(addItem, addGroup);
+          {
+            title: 'New Group',
+            onConfirm: () => {
+              const grp = opts.newGroup
+                ? opts.newGroup(groupName)
+                : { group: groupName.trim() || 'New Group', rules: [], _col: false };
+              opts.getData().push(grp);
+              reRender();
+              scheduleSave();
+            },
+            onCancel:   () => {},
+            validateFn: () => groupName.trim().length > 0,
+            noConfirm:  true,
+          }
+        );
+      });
+      addRow.append(addGroup);
+    }
     wrap.append(addRow);
     return wrap;
   }
@@ -2291,7 +2501,7 @@ function renderPage() {
     addItemLabel: '+ Add Enum',
     getDeleteInfo: item => {
       const refs = [];
-      flattenItems(state.scripts).forEach(s => { (s.args || []).forEach(a => { if (a.enum_ref === item.name) refs.push(s.name || s.id || '—'); }); });
+      flattenItems(state.scripts).forEach(s => { getResolvedArgs(s).forEach(a => { if (a.enum_ref === item.name) refs.push(s.name || s.id || '—'); }); });
       return {
         title: 'Remove enum "' + (item.name || '—') + '"?',
         lines: refs.length ? ['Referenced by ' + refs.length + ' script arg' + (refs.length !== 1 ? 's' : '') + ':', ...refs.map(r => '  • ' + r)] : [],
@@ -2306,6 +2516,38 @@ function renderPage() {
   enumsTree.mount(eb);
   enumsTree.reRender();
   wrap.append(enumsSec);
+
+  // Arg Templates — shared arg definitions (key/label/type/enum_ref/etc.) that
+  // script args:[] entries can reference via arg_ref instead of inlining
+  const { sec: argTplSec, body: atb, titleEl: argTplTitleEl } = makeSection('argTemplates', 'Arg Templates');
+  const argTemplatesTree = createTreeSection({
+    getData:      () => state.argTemplates,
+    buildPanel:   (entry, reRender, inModal) => buildArgTemplatePanel(entry.item, reRender, inModal),
+    hasStatus:    true,
+    isItemDirty:  isArgTemplateDirty,
+    getItemName:  item => item.id || item.key || '—',
+    newItem:      () => ({ id: '', key: '', label: '', type: 'string', required: false, _exp: true, _saved: null, _mode: 'edit' }),
+    snapshotFn:   argTemplateSnapshot,
+    validateItem: item => !!item.id && !!item.key,
+    addItemLabel: '+ Add Arg Template',
+    allowGroups:  false,
+    getDeleteInfo: item => {
+      const refs = [];
+      flattenItems(state.scripts).forEach(s => { (s.args || []).forEach(a => { if (a.arg_ref === item.id) refs.push(s.name || s.id || '—'); }); });
+      return {
+        title: 'Remove arg template "' + (item.id || '—') + '"?',
+        lines: refs.length ? ['Referenced by ' + refs.length + ' script' + (refs.length !== 1 ? 's' : '') + ' via arg_ref:', ...refs.map(r => '  • ' + r)] : [],
+      };
+    },
+    onReRender: () => {
+      const n = countSectionItems(state.argTemplates, true);
+      argTplTitleEl.textContent = n ? 'Arg Templates (' + n + ' item' + (n !== 1 ? 's' : '') + ')' : 'Arg Templates';
+    },
+  });
+  sections.push(argTemplatesTree);
+  argTemplatesTree.mount(atb);
+  argTemplatesTree.reRender();
+  wrap.append(argTplSec);
 
   // Actions
   const { sec: actSec, body: ab } = makeSection('actions', 'Actions');
