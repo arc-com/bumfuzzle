@@ -46,11 +46,15 @@ _urule_process_rule() {
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else
-        fail "$_label: command exited $_ec" "$_sev"
+        # print instruction/output before fail(), since fail() exits immediately
+        # for severity: hard-stop and would otherwise swallow both.
+        # flush the section header first so it still appears before them.
+        _flush_header
         _urule_instruction "$_path"
         if [[ "$VERBOSE" == true && -n "$_out" ]]; then
           printf '%s\n' "$_out" | sed 's/^/    /' >&2
         fi
+        fail "$_label: command exited $_ec" "$_sev"
       fi
       ;;
 
@@ -62,13 +66,25 @@ _urule_process_rule() {
       is_blank "$_script_cmd" && { fail "$_label: reusable script '$_script_id' not found or has no command" error; return; }
 
       # unset all vars declared by this script so optional args not provided by the
-      # rule don't inherit stale values from a previous rule execution
-      local _all_skeys _sk
-      _all_skeys=$(yq ".scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \"$_script_id\") | .args[].key" "$PREFLIGHT_FILE" 2>/dev/null || true)
-      while IFS= read -r _sk; do
+      # rule don't inherit stale values from a previous rule execution.
+      # each args[] entry has either an inline 'key' or an 'arg_ref' pointing at
+      # arg-templates: (see bumfuzzle-template.yml), so resolve arg_ref before unsetting.
+      local _script_base="\"$_script_id\" as \$sid | .scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$sid)"
+      local _arg_count _idx _sk _ref
+      _arg_count=$(yq "${_script_base} | .args | length" "$PREFLIGHT_FILE" 2>/dev/null || echo 0)
+      is_blank "$_arg_count" && _arg_count=0
+      for _idx in $(seq 0 $((_arg_count - 1)) 2>/dev/null || true); do
+        [[ -z "$_idx" ]] && continue
+        _sk=$(yq "${_script_base} | .args[$_idx].key // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+        if is_blank "$_sk"; then
+          _ref=$(yq "${_script_base} | .args[$_idx].arg_ref // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+          if ! is_blank "$_ref"; then
+            _sk=$(yq ".\"arg-templates\"[] | select(.id == \"$_ref\") | .key // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+          fi
+        fi
         is_blank "$_sk" && continue
         unset "$_sk" 2>/dev/null || true
-      done <<< "$_all_skeys"
+      done
 
       # export each arg provided by the rule as an env var; arrays are joined space-separated
       local _arg_keys _ak _av _av_type
@@ -89,11 +105,15 @@ _urule_process_rule() {
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else
-        fail "$_label: command exited $_ec" "$_sev"
+        # print instruction/output before fail(), since fail() exits immediately
+        # for severity: hard-stop and would otherwise swallow both.
+        # flush the section header first so it still appears before them.
+        _flush_header
         _urule_instruction "$_path"
         if [[ "$VERBOSE" == true && -n "$_out" ]]; then
           printf '%s\n' "$_out" | sed 's/^/    /' >&2
         fi
+        fail "$_label: command exited $_ec" "$_sev"
       fi
       ;;
   esac
