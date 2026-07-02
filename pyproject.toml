@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bumfuzzle"
+dynamic = ["version"]
+description = "Project scaffolding and validation"
+requires-python = ">=3.8"
+
+[project.scripts]
+bumfuzzle = "bumfuzzle_cli:main"
+bfz = "bumfuzzle_cli:main"
+
+[tool.setuptools.dynamic]
+version = { file = "VERSION" }
+
+[tool.setuptools]
+packages = ["bumfuzzle_cli"]
+include-package-data = true
+
+[tool.setuptools.package-dir]
+bumfuzzle_cli = "."
+
+[tool.setuptools.package-data]
+bumfuzzle_cli = [
+    "bumfuzzle.sh",
+    "index.html",
+    "settings.yml",
+    "VERSION",
+    "domains/**",
+    "presets/**",
+    "templates/**",
+    "scripts/**",
+]

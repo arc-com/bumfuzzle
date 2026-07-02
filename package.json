@@ -1,0 +1,29 @@
+{
+  "name": "bumfuzzle",
+  "version": "0.0.0",
+  "description": "Project scaffolding and validation",
+  "bin": {
+    "preflight": "./preflight.sh",
+    "kickstart": "./kickstart.sh",
+    "bumfuzzle": "./bumfuzzle.sh",
+    "bfz": "./bumfuzzle.sh"
+  },
+  "files": [
+    "preflight.sh",
+    "kickstart.sh",
+    "bumfuzzle.sh",
+    "index.html",
+    "settings.yml",
+    "domains/",
+    "presets/",
+    "templates/",
+    "scripts/",
+    "VERSION"
+  ],
+  "scripts": {
+    "prepack": "npm pkg set version=$(cat VERSION)"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
