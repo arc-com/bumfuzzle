@@ -547,6 +547,8 @@ function generateYaml() {
         if (item.enabled === true) lines.push(indent + '  enabled: true');
         if (item.script)      lines.push(indent + '  script: '      + JSON.stringify(item.script));
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
+        if (item.requires)    lines.push(indent + '  requires: '    + JSON.stringify(item.requires));
+        if (item.on_missing)  lines.push(indent + '  on_missing: '  + item.on_missing);
         if (item.severity && item.severity !== 'error')
                               lines.push(indent + '  severity: '    + item.severity);
         if (item.instruction) lines.push(indent + '  instruction: ' + JSON.stringify(item.instruction));
@@ -568,6 +570,8 @@ function generateYaml() {
         if (item.enabled === true) lines.push(indent + '  enabled: true');
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
         if (item.command)     lines.push(indent + '  command: '     + JSON.stringify(item.command));
+        if (item.requires)    lines.push(indent + '  requires: '    + JSON.stringify(item.requires));
+        if (item.on_missing)  lines.push(indent + '  on_missing: '  + item.on_missing);
         if (item.severity && item.severity !== 'error')
                               lines.push(indent + '  severity: '    + item.severity);
         if (item.instruction) lines.push(indent + '  instruction: ' + JSON.stringify(item.instruction));

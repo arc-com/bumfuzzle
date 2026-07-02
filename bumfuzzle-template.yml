@@ -3,25 +3,28 @@ scripts:
     scripts:
       - id: permission-mode
         name: "Permission mode"
-        description: "Checks that permissions.defaultMode in .claude/settings.json matches the expected value"
+        description: "Checks that permissions.defaultMode in the selected Claude settings file (default .claude/settings.json) matches the expected value"
         command: |
-          [ ! -f .claude/settings.json ] && exit 1
-          jq -e --arg m "$MODE" '.permissions.defaultMode == $m' .claude/settings.json > /dev/null
+          _f="${SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          jq -e --arg m "$MODE" '.permissions.defaultMode == $m' "$_f" > /dev/null
         args:
           - key: MODE
             label: "Expected permission mode"
             type: enum
             required: true
             enum_ref: claude-permission-mode
+          - arg_ref: claude-settings-file
 
       - id: permission-entry
         name: "Permission entry"
-        description: "Checks that .claude/settings.json contains a specific deny/allow/ask entry for a given tool and optional pattern"
+        description: "Checks that the selected Claude settings file (default .claude/settings.json) contains a specific deny/allow/ask entry for a given tool and optional pattern"
         command: |
-          [ ! -f .claude/settings.json ] && exit 1
+          _f="${SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
           _entry="$TOOL"
           [ -n "${PATTERN:-}" ] && _entry="${TOOL}(${PATTERN})"
-          jq -e --arg r "$RULE" --arg e "$_entry" '(.permissions[$r] // []) | index($e) != null' .claude/settings.json > /dev/null
+          jq -e --arg r "$RULE" --arg e "$_entry" '(.permissions[$r] // []) | index($e) != null' "$_f" > /dev/null
         args:
           - key: RULE
             label: "Rule type"
@@ -38,6 +41,101 @@ scripts:
             type: string
             required: false
             placeholder: "curl *"
+          - arg_ref: claude-settings-file
+
+      - id: claude-setting-value
+        name: "Claude setting value"
+        description: "Checks that a settings.json key (dot-separated path, picked from the curated catalog of project-enforceable Claude Code settings) equals VALUE (JSON-encoded, e.g. \"sonnet\", 30, true) in the selected settings file. Set EXPECT: no_match to forbid the value instead."
+        command: |
+          _f="${SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [[ "$SETTING" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'SETTING contains invalid characters\n'; exit 1; }
+          jq empty <<<"$VALUE" > /dev/null 2>&1 || { printf 'VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          _ok=false
+          jq -e --argjson v "$VALUE" ".${SETTING} == \$v" "$_f" > /dev/null 2>&1 && _ok=true
+          if [[ "${EXPECT:-match}" == "match" ]]; then
+            [[ "$_ok" == "true" ]] || { printf 'FAIL: %s is not %s in %s\n' "$SETTING" "$VALUE" "$_f"; exit 1; }
+          else
+            [[ "$_ok" == "false" ]] || { printf 'FAIL: %s is set to forbidden value %s in %s\n' "$SETTING" "$VALUE" "$_f"; exit 1; }
+          fi
+        args:
+          - key: SETTING
+            label: "Setting"
+            type: enum
+            required: true
+            enum_ref: claude-setting-key
+          - key: VALUE
+            label: "Expected value (JSON-encoded)"
+            type: string
+            required: true
+            placeholder: "true"
+          - arg_ref: expect
+          - arg_ref: claude-settings-file
+
+      - id: claude-model
+        name: "Claude model"
+        description: "Checks that the model key in the selected Claude settings file is pinned to the expected model alias"
+        command: |
+          _f="${SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          jq -e --arg m "$MODEL" '.model == $m' "$_f" > /dev/null || { printf 'FAIL: model is not %s in %s\n' "$MODEL" "$_f"; exit 1; }
+        args:
+          - key: MODEL
+            label: "Expected model"
+            type: enum
+            required: true
+            enum_ref: claude-model
+          - arg_ref: claude-settings-file
+
+      - id: claude-env-var
+        name: "Claude env var"
+        description: "Checks that the env map in the selected Claude settings file declares KEY with exactly VALUE — these variables are injected into every command and hook Claude runs"
+        command: |
+          _f="${SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [[ "$KEY" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { printf 'KEY contains invalid characters\n'; exit 1; }
+          jq -e --arg k "$KEY" --arg v "$VALUE" '.env[$k] == $v' "$_f" > /dev/null || { printf 'FAIL: env.%s is not "%s" in %s\n' "$KEY" "$VALUE" "$_f"; exit 1; }
+        args:
+          - key: KEY
+            label: "Variable name"
+            type: string
+            required: true
+            placeholder: "NODE_ENV"
+          - key: VALUE
+            label: "Expected value"
+            type: string
+            required: true
+            placeholder: "development"
+          - arg_ref: claude-settings-file
+
+      - id: claude-hook-command
+        name: "Claude hook command"
+        description: "Checks that some command hook registered for EVENT in the selected Claude settings file matches PATTERN (regex). Uses the current nested hooks format: hooks.<Event>[].hooks[].command. Set EXPECT: no_match to forbid matching hooks instead."
+        command: |
+          _f="${SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          _found=false
+          jq -e --arg ev "$EVENT" --arg p "$PATTERN" \
+            '[.hooks[$ev] // [] | .[] | (.hooks // [])[] | select(.type == "command") | .command // ""] | map(test($p)) | any' \
+            "$_f" > /dev/null 2>&1 && _found=true
+          if [[ "${EXPECT:-match}" == "match" ]]; then
+            [[ "$_found" == "true" ]] || { printf 'FAIL: no %s hook command matches %s in %s\n' "$EVENT" "$PATTERN" "$_f"; exit 1; }
+          else
+            [[ "$_found" == "false" ]] || { printf 'FAIL: a %s hook command matches forbidden pattern %s in %s\n' "$EVENT" "$PATTERN" "$_f"; exit 1; }
+          fi
+        args:
+          - key: EVENT
+            label: "Hook event"
+            type: enum
+            required: true
+            enum_ref: claude-hook-event
+          - key: PATTERN
+            label: "Command pattern (regex)"
+            type: regex
+            required: true
+            placeholder: "git pull"
+          - arg_ref: expect
+          - arg_ref: claude-settings-file
 
   - group: "File Meta Checks"
     scripts:
@@ -152,76 +250,54 @@ scripts:
             type: path
             required: true
             placeholder: "scripts/deploy.sh"
-      - id: file-names-match
-        name: "File names match"
-        description: "Checks that all file basenames matching includeFilesGlob (and not matching excludeFilesGlob) satisfy the checkPattern regex. Searches under 'from' up to 'depth' levels deep. depth 1 means files directly inside 'from'; omit for unlimited depth. excludeFilesGlob matches on filename only, not full path."
-        command: |
-          [[ "$FROM" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
-          _depth_arg=""
-          if [[ -n "$DEPTH" && "$DEPTH" -ge 1 ]]; then
-            _depth_arg="-maxdepth $DEPTH"
-          fi
-          _from="${FROM:-.}"
-          _exclude_args=""
-          if [[ -n "$EXCLUDE_FILES_GLOB" ]]; then
-            _exclude_args="-not -name $EXCLUDE_FILES_GLOB"
-          fi
-          _failed=false
-          while IFS= read -r _f; do
-            _base=$(basename "$_f")
-            if ! echo "$_base" | grep -qE "$CHECK_PATTERN"; then
-              printf 'FAIL: %s does not match %s\n' "$_f" "$CHECK_PATTERN"
-              _failed=true
-            fi
-          done < <(find "$_from" $_depth_arg -name "$INCLUDE_FILES_GLOB" $_exclude_args -type f 2>/dev/null)
-          [[ "$_failed" == "false" ]]
-        args:
-          - arg_ref: search-from
-          - arg_ref: search-depth
-          - arg_ref: include-files-glob
-          - arg_ref: exclude-files-glob
-          - key: CHECK_PATTERN
-            label: "Check pattern"
-            type: string
-            required: true
-            placeholder: "^[A-Z][a-zA-Z0-9]+\\.java$"
-            description: "Regex applied to each matched file's basename. Files not matching will fail the check."
-
       - id: file-naming-convention-check
         name: "File naming convention check"
-        description: "Checks that all file basenames matching includeFilesGlob (and not matching excludeFilesGlob) comply with the selected naming convention (or don't, if EXPECT: no_match). Searches under 'from' up to 'depth' levels deep. depth 1 means files directly inside 'from'; omit for unlimited depth. excludeFilesGlob matches on filename only, not full path. Every matched file must comply. ON_NO_MATCH controls whether zero matches is a fail (default) or a pass."
+        description: "Checks that all file basenames matching includeFilesGlob (and not matching excludeFilesGlob; both accept YAML lists) comply with the selected naming convention CASE or a CUSTOM_PATTERN regex (or don't, if EXPECT: no_match). The final extension is stripped before matching, so PascalCase matches Header.tsx. Searches under 'from' up to 'depth' levels deep; .git, node_modules, .venv and .claude are always skipped. ON_NO_MATCH controls whether zero matches is a fail (default) or a pass."
         command: |
-          [[ "$FROM" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
+          [[ "${FROM:-}" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
+          [[ -z "${CASE:-}" && -z "${CUSTOM_PATTERN:-}" ]] && { printf 'Provide CASE or CUSTOM_PATTERN\n'; exit 1; }
+          _pattern="${CUSTOM_PATTERN:-${CASE:-}}"
           _depth_arg=""
-          if [[ -n "$DEPTH" && "$DEPTH" -ge 1 ]]; then
+          if [[ -n "${DEPTH:-}" && "$DEPTH" -ge 1 ]]; then
             _depth_arg="-maxdepth $DEPTH"
           fi
           _from="${FROM:-.}"
-          _exclude_args=""
-          if [[ -n "$EXCLUDE_FILES_GLOB" ]]; then
-            _exclude_args="-not -name $EXCLUDE_FILES_GLOB"
-          fi
+          _inc_args=""
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _inc_args="${_inc_args:+$_inc_args -o }-name $_g"
+          done <<< "${INCLUDE_FILES_GLOB:-}"
+          [[ -z "$_inc_args" ]] && { printf 'INCLUDE_FILES_GLOB is required\n'; exit 1; }
+          _ex_args=""
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _ex_args="$_ex_args -not -name $_g"
+          done <<< "${EXCLUDE_FILES_GLOB:-}"
           _failed=false
           _any=false
+          set -f
           while IFS= read -r _f; do
             _any=true
             _base=$(basename "$_f")
+            _stem="${_base%.*}"
+            [[ -z "$_stem" ]] && _stem="$_base"
             _match=false
-            echo "$_base" | grep -qE "$CASE" && _match=true
+            echo "$_stem" | grep -qE "$_pattern" && _match=true
             if [[ "${EXPECT:-match}" == "match" ]]; then
               if [[ "$_match" == "false" ]]; then
-                printf 'FAIL: %s does not match naming convention %s\n' "$_f" "$CASE"
+                printf 'FAIL: %s does not match naming convention %s\n' "$_f" "$_pattern"
                 _failed=true
               fi
             else
               if [[ "$_match" == "true" ]]; then
-                printf 'FAIL: %s unexpectedly matches naming convention %s\n' "$_f" "$CASE"
+                printf 'FAIL: %s unexpectedly matches naming convention %s\n' "$_f" "$_pattern"
                 _failed=true
               fi
             fi
-          done < <(find "$_from" $_depth_arg -name "$INCLUDE_FILES_GLOB" $_exclude_args -type f 2>/dev/null)
+          done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
+          set +f
           if [[ "$_any" == "false" && "${ON_NO_MATCH:-fail}" == "fail" ]]; then
-            printf 'FAIL: no files matched %s under %s\n' "$INCLUDE_FILES_GLOB" "$_from"
+            printf 'FAIL: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
             _failed=true
           fi
           [[ "$_failed" == "false" ]]
@@ -233,10 +309,216 @@ scripts:
           - key: CASE
             label: "Naming convention"
             type: enum
-            required: true
+            required: false
             enum_ref: file-naming-convention
+          - key: CUSTOM_PATTERN
+            label: "Custom pattern (overrides convention)"
+            type: regex
+            required: false
+            placeholder: "^[A-Z][a-zA-Z0-9]+$"
+            description: "Custom regex applied to each matched file's basename (extension stripped) instead of a predefined naming convention. Provide CASE or CUSTOM_PATTERN."
           - arg_ref: expect
           - arg_ref: on-no-match
+
+      - id: dir-naming-convention-check
+        name: "Directory naming convention check"
+        description: "Checks that all directory names under 'from' (up to 'depth' levels) comply with the selected naming convention CASE or a CUSTOM_PATTERN regex. Hidden directories and node_modules are always skipped; EXCLUDE_DIRS (accepts a YAML list of basename globs) skips more."
+        command: |
+          _from="${FROM:-.}"
+          [[ "$_from" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
+          [[ -z "${CASE:-}" && -z "${CUSTOM_PATTERN:-}" ]] && { printf 'Provide CASE or CUSTOM_PATTERN\n'; exit 1; }
+          _pattern="${CUSTOM_PATTERN:-${CASE:-}}"
+          _depth_arg=""
+          if [[ -n "${DEPTH:-}" && "$DEPTH" -ge 1 ]]; then
+            _depth_arg="-maxdepth $DEPTH"
+          fi
+          _failed=false
+          while IFS= read -r _d; do
+            [[ -z "$_d" ]] && continue
+            _base=$(basename "$_d")
+            _skip=false
+            while IFS= read -r _e; do
+              [[ -z "$_e" ]] && continue
+              [[ "$_base" == $_e ]] && _skip=true
+            done <<< "${EXCLUDE_DIRS:-}"
+            [[ "$_skip" == "true" ]] && continue
+            if ! echo "$_base" | grep -qE "$_pattern"; then
+              printf 'FAIL: directory %s does not match naming convention %s\n' "$_d" "$_pattern"
+              _failed=true
+            fi
+          done < <(find "$_from" $_depth_arg -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o -type d -print 2>/dev/null)
+          [[ "$_failed" == "false" ]]
+        args:
+          - arg_ref: search-from
+          - arg_ref: search-depth
+          - key: CASE
+            label: "Naming convention"
+            type: enum
+            required: false
+            enum_ref: file-naming-convention
+          - key: CUSTOM_PATTERN
+            label: "Custom pattern (overrides convention)"
+            type: regex
+            required: false
+            placeholder: "^[a-z0-9]+$"
+            description: "Custom regex applied to each directory basename instead of a predefined naming convention. Provide CASE or CUSTOM_PATTERN."
+          - key: EXCLUDE_DIRS
+            label: "Exclude directories"
+            type: glob
+            required: false
+            placeholder: "Export"
+            description: "Directory basename globs to skip. Provide a YAML list for multiple."
+
+      - id: no-large-files
+        name: "No large files"
+        description: "Checks that no file in the project exceeds AMOUNT UNIT. .git and node_modules are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips additional basename globs."
+        command: |
+          _threshold=$((10#$AMOUNT * UNIT))
+          _ex_args=""
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _ex_args="$_ex_args -not -name $_g"
+          done <<< "${EXCLUDE_FILES_GLOB:-}"
+          _failed=false
+          set -f
+          while IFS= read -r _f; do
+            [[ -z "$_f" ]] && continue
+            printf 'FAIL: %s exceeds %s bytes\n' "$_f" "$_threshold"
+            _failed=true
+          done < <(find . \( -name .git -o -name node_modules \) -prune -o -type f -size +"${_threshold}"c $_ex_args -print 2>/dev/null)
+          set +f
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: AMOUNT
+            label: "Amount"
+            type: integer
+            required: true
+            placeholder: "5"
+          - key: UNIT
+            label: "Unit"
+            type: enum
+            required: true
+            enum_ref: size-unit
+          - arg_ref: exclude-files-glob
+
+      - id: symlinks-valid
+        name: "Symlinks valid"
+        description: "Checks that every symlink under FROM resolves to an existing target, and that absolute targets stay inside the project root."
+        command: |
+          _from="${FROM:-.}"
+          [[ "$_from" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
+          _failed=false
+          while IFS= read -r _l; do
+            [[ -z "$_l" ]] && continue
+            _t=$(readlink "$_l")
+            if [[ ! -e "$_l" ]]; then
+              printf 'FAIL: broken symlink %s -> %s\n' "$_l" "$_t"
+              _failed=true
+            elif [[ "$_t" == /* && "$_t" != "$PWD"/* ]]; then
+              printf 'FAIL: symlink %s points outside the project (%s)\n' "$_l" "$_t"
+              _failed=true
+            fi
+          done < <(find "$_from" -name .git -prune -o -type l -print 2>/dev/null)
+          [[ "$_failed" == "false" ]]
+        args:
+          - arg_ref: search-from
+
+      - id: yaml-no-empty-values
+        name: "YAML no empty values"
+        description: "Checks that no key in files matching FILE_PATH (glob-capable) resolves to an empty string or null. Every matched file must pass; no matches is a pass."
+        command: |
+          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
+          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
+          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          _failed=false
+          while IFS= read -r _f; do
+            [[ -z "$_f" ]] && continue
+            while IFS= read -r _p; do
+              [[ -z "$_p" ]] && continue
+              printf 'FAIL: %s has empty value at %s\n' "$_f" "$_p"
+              _failed=true
+            done < <(yq '.. | select(tag == "!!null" or (tag == "!!str" and . == "")) | path | join(".")' "$_f" 2>/dev/null | grep -v '^$')
+          done < <(
+            if [[ "$FILE_PATH" == *"**/"* ]]; then
+              _root="${FILE_PATH%%\*\*/*}"
+              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" -type f 2>/dev/null
+            elif [[ "$FILE_PATH" == */* ]]; then
+              find "." -path "./$FILE_PATH" -type f 2>/dev/null
+            else
+              find "." -name "$FILE_PATH" -type f 2>/dev/null
+            fi
+          )
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: FILE_PATH
+            label: "YAML file path or glob"
+            type: path
+            required: true
+            placeholder: "config.yml"
+
+      - id: yaml-no-duplicate-keys
+        name: "YAML no duplicate keys"
+        description: "Checks that no mapping in files matching FILE_PATH (glob-capable) declares the same key twice — YAML parsers silently keep only one. Indentation-based heuristic: block scalars and list items are handled; flow style and quoted keys are not inspected."
+        command: |
+          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
+          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
+          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          _failed=false
+          while IFS= read -r _f; do
+            [[ -z "$_f" ]] && continue
+            _dups=$(awk '
+              /^[ \t]*#/ { next }
+              /^[ \t]*$/ { next }
+              skip == 1 {
+                n = match($0, /[^ ]/)
+                if (n == 0 || n - 1 > skip_ind) next
+                skip = 0
+              }
+              {
+                n = match($0, /[^ ]/); ind = n - 1
+              }
+              /^ *- / {
+                for (d in cur) if (d + 0 >= ind) delete cur[d]
+                last = ind
+                next
+              }
+              {
+                if (match($0, /^ *[A-Za-z0-9_.$-]+ *:/) == 0) next
+                key = $0
+                sub(/^ */, "", key)
+                sub(/ *:.*$/, "", key)
+                if (!(ind in cur) || last < ind) { bid++; cur[ind] = bid }
+                for (d in cur) if (d + 0 > ind) delete cur[d]
+                k = cur[ind] SUBSEP key
+                if (k in seen) printf "line %d: duplicate key %s\n", NR, key
+                seen[k] = 1
+                last = ind
+                if ($0 ~ /: *[|>][+-]?[0-9]* *$/) { skip = 1; skip_ind = ind }
+              }
+            ' "$_f")
+            if [[ -n "$_dups" ]]; then
+              while IFS= read -r _l; do
+                printf 'FAIL: %s %s\n' "$_f" "$_l"
+              done <<< "$_dups"
+              _failed=true
+            fi
+          done < <(
+            if [[ "$FILE_PATH" == *"**/"* ]]; then
+              _root="${FILE_PATH%%\*\*/*}"
+              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" -type f 2>/dev/null
+            elif [[ "$FILE_PATH" == */* ]]; then
+              find "." -path "./$FILE_PATH" -type f 2>/dev/null
+            else
+              find "." -name "$FILE_PATH" -type f 2>/dev/null
+            fi
+          )
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: FILE_PATH
+            label: "YAML file path or glob"
+            type: path
+            required: true
+            placeholder: "config.yml"
 
       - id: file-or-dir-size-compare
         name: "File or directory size"
@@ -391,6 +673,84 @@ scripts:
             placeholder: '"foo"'
           - arg_ref: expect
 
+      - id: json-array-contains
+        name: "JSON array contains"
+        description: "Checks that the array at a dot-separated key path in a JSON file contains VALUE (JSON-encoded, e.g. \"foo\", 42). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set EXPECT: no_match to invert."
+        command: |
+          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
+          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
+          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          [[ "$JSON_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'JSON_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
+          jq empty <<<"$VALUE" > /dev/null 2>&1 || { printf 'VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          _found=false
+          while IFS= read -r _f; do
+            [[ -z "$_f" ]] && continue
+            jq -e --argjson v "$VALUE" ".${JSON_PATH} // [] | index(\$v) != null" "$_f" > /dev/null 2>&1 && _found=true && break
+          done < <(
+            if [[ "$FILE_PATH" == *"**/"* ]]; then
+              _root="${FILE_PATH%%\*\*/*}"
+              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" -type f 2>/dev/null
+            elif [[ "$FILE_PATH" == */* ]]; then
+              find "." -path "./$FILE_PATH" -type f 2>/dev/null
+            else
+              find "." -name "$FILE_PATH" -type f 2>/dev/null
+            fi
+          )
+          if [[ "${EXPECT:-match}" == "match" ]]; then $_found; else ! $_found; fi
+        args:
+          - key: FILE_PATH
+            label: "JSON file path or glob"
+            type: path
+            required: true
+            placeholder: "package.json"
+          - key: JSON_PATH
+            label: "Array key path (dot-separated)"
+            type: string
+            required: true
+            placeholder: "a.b.c"
+          - key: VALUE
+            label: "Expected element (JSON-encoded)"
+            type: string
+            required: true
+            placeholder: '"foo"'
+          - arg_ref: expect
+
+      - id: json-path-exists
+        name: "JSON path exists"
+        description: "Checks that a dot-separated key path resolves to a non-null value in a JSON file. EXPECT: present passes if at least one file matching FILE_PATH (glob-capable) has it; absent requires it in none."
+        command: |
+          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
+          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
+          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          [[ "$JSON_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'JSON_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
+          _found=false
+          while IFS= read -r _f; do
+            [[ -z "$_f" ]] && continue
+            jq -e ".${JSON_PATH} != null" "$_f" > /dev/null 2>&1 && _found=true && break
+          done < <(
+            if [[ "$FILE_PATH" == *"**/"* ]]; then
+              _root="${FILE_PATH%%\*\*/*}"
+              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" -type f 2>/dev/null
+            elif [[ "$FILE_PATH" == */* ]]; then
+              find "." -path "./$FILE_PATH" -type f 2>/dev/null
+            else
+              find "." -name "$FILE_PATH" -type f 2>/dev/null
+            fi
+          )
+          if [[ "$EXPECT" == "present" ]]; then $_found; else ! $_found; fi
+        args:
+          - key: FILE_PATH
+            label: "JSON file path or glob"
+            type: path
+            required: true
+            placeholder: "package.json"
+          - key: JSON_PATH
+            label: "Key path (dot-separated)"
+            type: string
+            required: true
+            placeholder: "a.b.c"
+          - arg_ref: expect-presence
+
   - group: "File Content Checks"
     scripts:
       - id: file-line-contains
@@ -533,6 +893,86 @@ scripts:
             placeholder: '(?s)Copyright.*\d{4}'
           - arg_ref: expect
 
+      - id: files-content-scan
+        name: "Files content scan"
+        description: "Greps every file matching INCLUDE_FILES_GLOB (basename globs; accepts a YAML list) under FROM for one or more ERE PATTERNS (accepts a YAML list). EXPECT: match passes when any pattern matches anywhere; no_match fails listing every offending file per pattern. .git, node_modules, .claude and bumfuzzle.yml are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more."
+        command: |
+          _from="${FROM:-.}"
+          [[ "$_from" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
+          set -f
+          _inc_args=""
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _inc_args="$_inc_args --include=$_g"
+          done <<< "${INCLUDE_FILES_GLOB:-*}"
+          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude=bumfuzzle.yml"
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _ex_args="$_ex_args --exclude=$_g"
+          done <<< "${EXCLUDE_FILES_GLOB:-}"
+          _found=false
+          _failed=false
+          while IFS= read -r _pat; do
+            [[ -z "$_pat" ]] && continue
+            _hits=$(grep -rlE $_inc_args $_ex_args -e "$_pat" "$_from" 2>/dev/null || true)
+            if [[ -n "$_hits" ]]; then
+              _found=true
+              if [[ "${EXPECT:-match}" == "no_match" ]]; then
+                while IFS= read -r _h; do
+                  printf 'FAIL: %s matches forbidden pattern %s\n' "$_h" "$_pat"
+                done <<< "$_hits"
+                _failed=true
+              fi
+            fi
+          done <<< "$PATTERNS"
+          set +f
+          if [[ "${EXPECT:-match}" == "match" ]]; then
+            [[ "$_found" == "true" ]] || { printf 'FAIL: no file matched any required pattern\n'; exit 1; }
+          else
+            [[ "$_failed" == "false" ]]
+          fi
+        args:
+          - arg_ref: search-from
+          - arg_ref: include-files-glob
+          - arg_ref: exclude-files-glob
+          - key: PATTERNS
+            label: "Patterns (regex)"
+            type: regex
+            required: true
+            placeholder: "TODO|FIXME"
+            description: "ERE patterns grepped against file contents. Provide a YAML list for multiple; entries may contain spaces."
+          - arg_ref: expect
+
+      - id: config-keys-used
+        name: "Config keys used"
+        description: "Checks that every top-level key in a YAML config file is referenced somewhere in the codebase (word-boundary fixed-string grep). The config file itself, bumfuzzle.yml, lockfiles, .git, node_modules and .claude are skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more. The 'extends' key is ignored. Missing config file is a pass — pair with a file existence rule."
+        command: |
+          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
+          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
+          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          [ -f "$FILE_PATH" ] || exit 0
+          _self=$(basename "$FILE_PATH")
+          set -f
+          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude=$_self --exclude=bumfuzzle.yml --exclude=*.lock"
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _ex_args="$_ex_args --exclude=$_g"
+          done <<< "${EXCLUDE_FILES_GLOB:-}"
+          _failed=false
+          while IFS= read -r _k; do
+            [[ -z "$_k" || "$_k" == "extends" ]] && continue
+            grep -rqwF $_ex_args -e "$_k" . 2>/dev/null || { printf 'FAIL: config key %s is not referenced anywhere in the codebase\n' "$_k"; _failed=true; }
+          done < <(yq 'keys | .[]' "$FILE_PATH" 2>/dev/null)
+          set +f
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: FILE_PATH
+            label: "Config file path"
+            type: path
+            required: true
+            placeholder: "config.yml"
+          - arg_ref: exclude-files-glob
+
 rules:
   - group: Bumfuzzle
     rules:
@@ -553,35 +993,6 @@ rules:
         instruction: "Fix YAML syntax errors in bumfuzzle.yml"
         args:
           FILE_PATH: bumfuzzle.yml
-      - type: script_clean
-        name: "bumfuzzle.yml validation rules are well-formed"
-        description: "Every rule under .validation.* has a boolean enabled (if set), a valid severity (if set), only lists for sequence fields, and selected_hints that reference existing hint keys"
-        command: |
-          ok=true
-          while IFS= read -r rule; do
-            [[ -z "${rule// }" || "$rule" == "null" ]] && continue
-            enabled_type=$(yq ".validation.\"${rule}\".enabled | type" bumfuzzle.yml 2>/dev/null)
-            if [[ "$enabled_type" != "null" && "$enabled_type" != "!!null" && "$enabled_type" != "!!bool" ]]; then
-              echo "validation.$rule.enabled must be a boolean, got $enabled_type"
-              ok=false
-            fi
-            sev=$(yq ".validation.\"${rule}\".severity // \"\"" bumfuzzle.yml 2>/dev/null || true)
-            if [[ -n "$sev" && "$sev" != "null" ]]; then
-              case "$sev" in warn|error|hard-stop) ;;
-                *) echo "validation.$rule.severity '$sev' is invalid (valid: warn, error, hard-stop)"; ok=false ;;
-              esac
-            fi
-            for field in selected_hints files dirs patterns checks; do
-              field_type=$(yq ".validation.\"${rule}\".\"${field}\" | type" bumfuzzle.yml 2>/dev/null)
-              if [[ "$field_type" != "null" && "$field_type" != "!!null" && "$field_type" != "!!seq" ]]; then
-                echo "validation.$rule.$field must be a list, got $field_type"
-                ok=false
-              fi
-            done
-          done < <(yq '.validation | keys | .[]' bumfuzzle.yml 2>/dev/null || true)
-          [[ "$ok" == true ]]
-        severity: hard-stop
-        instruction: "Fix the reported validation rule fields in bumfuzzle.yml"
       - type: script_clean
         name: "bumfuzzle.yml env.vars is a list"
         description: "If env.vars is defined in bumfuzzle.yml it must be a YAML sequence, not a scalar or map"
@@ -608,9 +1019,79 @@ rules:
         command: "test $(find . -maxdepth 1 \\( -name 'package.json' -o -name 'Cargo.toml' -o -name 'pom.xml' -o -name 'go.mod' -o -name 'pyproject.toml' \\) | wc -l | tr -d ' ') -le 1"
         severity: warn
         instruction: "Remove duplicate manifest files from the project root"
+      - type: script_reusable
+        name: "No oversized files"
+        description: "No file in the project exceeds 5 MiB — large binaries belong in artifact storage or Git LFS, not the repository"
+        script: no-large-files
+        severity: warn
+        instruction: "Remove or gitignore the listed files, or raise AMOUNT if they are intentional"
+        args:
+          AMOUNT: 5
+          UNIT: 1048576
+      - type: script_reusable
+        name: "All symlinks valid"
+        description: "Every symlink in the project resolves to an existing target inside the project — no broken or escaping links"
+        script: symlinks-valid
+        severity: error
+        instruction: "Fix or remove the broken symlinks listed"
+      - type: script_reusable
+        name: "No destructive commands"
+        description: "Shell scripts and build files contain no destructive commands (rm -rf, git push --force, git reset --hard, git clean -f, mkfs, truncate -s 0)"
+        script: files-content-scan
+        severity: warn
+        instruction: "Remove the destructive command, or add the file to EXCLUDE_FILES_GLOB if it is intentional"
+        args:
+          INCLUDE_FILES_GLOB:
+            - "*.sh"
+            - "*.bash"
+            - "*.zsh"
+            - "Makefile"
+            - "Justfile"
+          PATTERNS:
+            - 'rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f'
+            - 'git[[:space:]]+push[^|;&]*(--force|[[:space:]]-f)([[:space:]]|$)'
+            - 'git[[:space:]]+reset[[:space:]]+--hard'
+            - 'git[[:space:]]+clean[[:space:]]+-[a-zA-Z]*f'
+            - '\bmkfs\b'
+            - '\btruncate[[:space:]]+-s[[:space:]]+0\b'
+          EXPECT: no_match
+      - type: script_reusable
+        name: "VERSION file present"
+        description: "A VERSION file exists at the project root — the single source of truth for the project version"
+        script: file-or-dir-existence
+        severity: error
+        instruction: "Create a VERSION file at the project root containing the semver version"
+        args:
+          FILE_PATH: VERSION
+          EXPECT: present
+      - type: script_reusable
+        name: "VERSION is valid semver"
+        description: "The VERSION file contains a valid semantic version line (MAJOR.MINOR.PATCH with optional pre-release/build metadata)"
+        script: file-line-match
+        severity: error
+        instruction: "Set the VERSION file content to a semver string like 1.4.2"
+        args:
+          FILE_PATH: VERSION
+          PATTERN: '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?'
 
   - group: Git
     rules:
+      - group: Commit Message
+        rules:
+          - type: script_clean
+            name: "commitlint on last commit"
+            description: "The last commit message satisfies commitlint (Conventional Commits structure). Needs a commitlint config in the repo."
+            command: "commitlint --last"
+            requires: commitlint
+            severity: warn
+            instruction: "Rewrite the last commit message to satisfy commitlint: git commit --amend"
+          - type: script_clean
+            name: "gitlint on last commit"
+            description: "The last commit message satisfies gitlint formatting rules (line lengths, structure). Alternative to commitlint."
+            command: "gitlint"
+            requires: gitlint
+            severity: warn
+            instruction: "Rewrite the last commit message to satisfy gitlint: git commit --amend"
       - group: Versioning
         rules:
           - type: script_clean
@@ -708,6 +1189,21 @@ rules:
             command: "! git ls-files | grep -E '^\\.env\\.' | grep -v '^\\.env\\.template$' | grep -q ."
             severity: error
             instruction: "Run: git rm --cached <file> for each tracked .env.* file, then ensure .env.* is in .gitignore"
+          - type: script_clean
+            name: "No contradicting .gitignore patterns"
+            description: "No duplicate lines and no pattern that is both ignored and re-included (pat and !pat) in .gitignore"
+            command: |
+              [ ! -f .gitignore ] && exit 0
+              rc=0
+              dups=$(grep -vE '^(#|$)' .gitignore | sort | uniq -d)
+              [ -n "$dups" ] && printf 'Duplicate patterns:\n%s\n' "$dups" && rc=1
+              while IFS= read -r neg; do
+                [ -z "$neg" ] && continue
+                grep -qxF "${neg#!}" .gitignore && { printf 'Contradiction: both %s and %s present\n' "${neg#!}" "$neg"; rc=1; }
+              done < <(grep '^!' .gitignore || true)
+              exit $rc
+            severity: warn
+            instruction: "Remove the duplicate or contradicting patterns from .gitignore"
           - group: Ignore Patterns
             rules:
               - type: script_reusable
@@ -776,6 +1272,24 @@ rules:
 
   - group: Environment Variables
     rules:
+      - type: script_reusable
+        name: ".env present"
+        description: ".env exists at the project root — base configuration loaded for everything, lowest override priority"
+        script: file-or-dir-existence
+        severity: warn
+        instruction: "Create .env at the project root with the base configuration"
+        args:
+          FILE_PATH: .env
+          EXPECT: present
+      - type: script_reusable
+        name: ".env.local present"
+        description: ".env.local exists at the project root for machine-local overrides"
+        script: file-or-dir-existence
+        severity: warn
+        instruction: "Create .env.local at the project root for machine-local overrides"
+        args:
+          FILE_PATH: .env.local
+          EXPECT: present
       - type: script_reusable
         name: ".env.template present"
         description: ".env.template exists at the project root and declares all required environment variable keys"
@@ -862,6 +1376,15 @@ rules:
         args:
           FILE_PATH: Dockerfile
           EXPECT: present
+      - type: script_reusable
+        name: "Compose file present"
+        description: "A docker-compose*.yml file exists at the project root"
+        script: file-or-dir-existence
+        severity: warn
+        instruction: "Create docker-compose.yml at the project root"
+        args:
+          FILE_PATH: 'docker-compose*.yml'
+          EXPECT: present
       - type: script_clean
         name: "Compose files render without errors"
         description: "All docker-compose*.yml files in the project pass docker compose config — no unresolved variables or syntax errors"
@@ -946,6 +1469,442 @@ rules:
           exit $rc
         severity: error
         instruction: "Ensure the extends target file exists at the path specified relative to the config file"
+      - type: script_reusable
+        name: "No empty values in config"
+        description: "No key in config.yml resolves to an empty string or null — blank values indicate missing configuration"
+        script: yaml-no-empty-values
+        severity: error
+        instruction: "Set a value for every empty key in config.yml, or remove the key"
+        args:
+          FILE_PATH: config.yml
+      - type: script_reusable
+        name: "No duplicate keys in config"
+        description: "No mapping in config.yml declares the same key twice — parsers silently keep only one, hiding the other value"
+        script: yaml-no-duplicate-keys
+        severity: error
+        instruction: "Remove the duplicate key declarations from config.yml"
+        args:
+          FILE_PATH: config.yml
+      - type: script_reusable
+        name: "All config keys referenced in codebase"
+        description: "Every top-level key in config.yml is referenced somewhere in the codebase — no dead configuration"
+        script: config-keys-used
+        severity: warn
+        instruction: "Remove unused keys from config.yml, or reference them in code"
+        args:
+          FILE_PATH: config.yml
+
+  - group: Security
+    rules:
+      - type: script_reusable
+        name: "No AWS credentials"
+        description: "No file contains an AWS access key ID (AKIA…) — leaked cloud credentials are the most exploited secret type"
+        script: files-content-scan
+        severity: error
+        instruction: "Remove the AWS credentials, rotate them immediately, and load them from the environment instead"
+        args:
+          INCLUDE_FILES_GLOB: "*"
+          PATTERNS:
+            - 'AKIA[0-9A-Z]{16}'
+          EXPECT: no_match
+      - type: script_reusable
+        name: "No private key blocks"
+        description: "No file contains an unencrypted private key signature block (-----BEGIN … PRIVATE KEY-----)"
+        script: files-content-scan
+        severity: error
+        instruction: "Remove the private key from the repository, rotate it, and reference it from a secret store instead"
+        args:
+          INCLUDE_FILES_GLOB: "*"
+          PATTERNS:
+            - '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+          EXPECT: no_match
+      - type: script_reusable
+        name: "No hardcoded API keys"
+        description: "No file contains known API-key signatures (OpenAI sk-, GitHub ghp_/github_pat_, Google AIza, Slack xox, GitLab glpat-) or generic quoted api_key/secret/token assignments. Extend PATTERNS and EXCLUDE_FILES_GLOB per project."
+        script: files-content-scan
+        severity: error
+        instruction: "Remove the hardcoded key, rotate it, and load it from the environment instead; extend EXCLUDE_FILES_GLOB for false positives"
+        args:
+          INCLUDE_FILES_GLOB: "*"
+          EXCLUDE_FILES_GLOB:
+            - ".env.*"
+            - "*.lock"
+            - "*.min.js"
+          PATTERNS:
+            - 'sk-[A-Za-z0-9]{20,}'
+            - 'ghp_[A-Za-z0-9]{36}'
+            - 'github_pat_[A-Za-z0-9_]{22,}'
+            - 'AIza[0-9A-Za-z_-]{35}'
+            - 'xox[baprs]-[0-9A-Za-z-]{10,}'
+            - 'glpat-[0-9A-Za-z_-]{20}'
+            - "(api_key|apikey|api_token|secret)[[:space:]]*[:=][[:space:]]*[\"'][A-Za-z0-9_/+-]{16,}[\"']"
+          EXPECT: no_match
+      - type: script_clean
+        name: "gitleaks scan"
+        description: "gitleaks finds no hardcoded secrets, API keys, passwords, or tokens in the working tree (recommended scanner; the native pattern rules above are the zero-dependency fallback)"
+        command: "gitleaks detect --redact --no-banner"
+        requires: gitleaks
+        severity: error
+        instruction: "Remove and rotate the secrets gitleaks reports; add false positives to .gitleaksignore"
+      - type: script_clean
+        name: "semgrep scan"
+        description: "semgrep static analysis finds no bugs or security vulnerabilities using its auto-configured community rules"
+        command: "semgrep scan --config auto --error --quiet"
+        requires: semgrep
+        severity: warn
+        instruction: "Fix the findings semgrep reports, or suppress false positives with a # nosemgrep comment"
+
+  - group: Naming Conventions
+    rules:
+      - type: script_reusable
+        name: "Config-style files are kebab-case"
+        description: "All .yml, .yaml, .xml and .properties file names are kebab-case"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed files to kebab-case"
+        args:
+          INCLUDE_FILES_GLOB:
+            - "*.yml"
+            - "*.yaml"
+            - "*.xml"
+            - "*.properties"
+          CASE: '^[a-z0-9]+([-.][a-z0-9]+)*$'
+          ON_NO_MATCH: pass
+      - type: script_reusable
+        name: "Directories are flat lowercase"
+        description: "All directory names are flat lowercase (no separators). Hidden directories and node_modules are skipped; Export/ and Logs/ are excluded to match the Scaffolding rules"
+        script: dir-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed directories to flat lowercase, or add them to EXCLUDE_DIRS"
+        args:
+          CASE: '^[a-z0-9]+$'
+          EXCLUDE_DIRS:
+            - Export
+            - Logs
+
+  - group: Docs & SQL
+    rules:
+      - type: script_clean
+        name: "No typos in source"
+        description: "The typos spell-checker finds no structural typos in source code and docs"
+        command: "typos"
+        requires: typos
+        severity: warn
+        instruction: "Run: typos --write-changes to fix, or add false positives to _typos.toml"
+      - type: script_clean
+        name: "Prose lint on docs"
+        description: "proselint finds no poor phrasing, cliches, or spelling irregularities in Markdown docs"
+        command: |
+          _files=$(find . \( -name .git -o -name node_modules \) -prune -o -name '*.md' -type f -print 2>/dev/null)
+          [ -z "$_files" ] && exit 0
+          proselint $_files
+        requires: proselint
+        severity: warn
+        instruction: "Fix the phrasing issues proselint reports in the listed Markdown files"
+      - type: script_clean
+        name: "SQL files pass sqlfluff"
+        description: "All .sql files pass sqlfluff linting (ANSI dialect by default — set your dialect in .sqlfluff)"
+        command: |
+          _files=$(find . \( -name .git -o -name node_modules \) -prune -o -name '*.sql' -type f -print 2>/dev/null)
+          [ -z "$_files" ] && exit 0
+          sqlfluff lint --dialect ansi $_files
+        requires: sqlfluff
+        severity: warn
+        instruction: "Run: sqlfluff fix --dialect ansi <file>, or configure your dialect in .sqlfluff"
+
+  - group: Python
+    rules:
+      - type: script_reusable
+        name: "Python files are snake_case"
+        description: "All .py file names are snake_case"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed Python files to snake_case"
+        args:
+          INCLUDE_FILES_GLOB: "*.py"
+          CASE: '^[a-z0-9]+([_.][a-z0-9]+)*$'
+          ON_NO_MATCH: pass
+      - type: script_reusable
+        name: "TOML files are flat lowercase"
+        description: "All .toml file names are flat lowercase (dots allowed via the stripped extension)"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed .toml files to flat lowercase"
+        args:
+          INCLUDE_FILES_GLOB: "*.toml"
+          CASE: '^[a-z0-9]+$'
+          ON_NO_MATCH: pass
+      - type: script_clean
+        name: "Python files parse"
+        description: "Every .py file parses into a valid abstract syntax tree (read-only equivalent of check-ast)"
+        command: |
+          _failed=false
+          while IFS= read -r _f; do
+            [ -z "$_f" ] && continue
+            python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$_f" 2>/dev/null || { printf 'FAIL: %s has syntax errors\n' "$_f"; _failed=true; }
+          done < <(find . \( -name .git -o -name node_modules -o -name .venv \) -prune -o -name '*.py' -type f -print 2>/dev/null)
+          [ "$_failed" = "false" ]
+        requires: python3
+        severity: error
+        instruction: "Fix the Python syntax errors in the listed files"
+      - type: script_reusable
+        name: "No Python debug statements"
+        description: "No .py file contains forgotten debug statements (breakpoint(), pdb.set_trace, import pdb)"
+        script: files-content-scan
+        severity: error
+        instruction: "Remove the debug statements from the listed files"
+        args:
+          INCLUDE_FILES_GLOB: "*.py"
+          PATTERNS:
+            - '\bbreakpoint\(\)'
+            - 'pdb\.set_trace'
+            - '(^|[[:space:]])import[[:space:]]+pdb\b'
+          EXPECT: no_match
+      - type: script_clean
+        name: "ruff lint"
+        description: "ruff finds no lint errors (recommended: subsumes flake8 and isort, and most style checks)"
+        command: "ruff check --no-cache ."
+        requires: ruff
+        severity: error
+        instruction: "Run: ruff check --fix ."
+      - type: script_clean
+        name: "ruff format check"
+        description: "All Python files are formatted per ruff-format (black-aligned; recommended over black)"
+        command: "ruff format --check --no-cache ."
+        requires: ruff
+        severity: warn
+        instruction: "Run: ruff format ."
+      - type: script_clean
+        name: "mypy type check"
+        description: "mypy static type checks pass against the project's type hints"
+        command: "mypy --cache-dir=/dev/null ."
+        requires: mypy
+        severity: warn
+        instruction: "Fix the type errors mypy reports"
+      - type: script_clean
+        name: "flake8 lint"
+        description: "flake8 finds no PEP 8 or logical errors. Legacy alternative — prefer ruff, which subsumes it"
+        command: "flake8 ."
+        requires: flake8
+        severity: warn
+        instruction: "Fix the style violations flake8 reports"
+      - type: script_clean
+        name: "black format check"
+        description: "All Python files are formatted per black. Legacy alternative — prefer ruff format"
+        command: "black --check ."
+        requires: black
+        severity: warn
+        instruction: "Run: black ."
+      - type: script_clean
+        name: "isort import order check"
+        description: "Python import statements are sorted per isort. Legacy alternative — prefer ruff, which subsumes it"
+        command: "isort --check-only ."
+        requires: isort
+        severity: warn
+        instruction: "Run: isort ."
+      - type: script_clean
+        name: "Docstring coverage"
+        description: "interrogate reports sufficient docstring coverage on functions and classes"
+        command: "interrogate -q ."
+        requires: interrogate
+        severity: warn
+        instruction: "Add docstrings to the undocumented functions/classes: interrogate -v ."
+      - type: script_clean
+        name: "bandit security scan"
+        description: "bandit finds no common Python security vulnerabilities (eval, unvalidated subprocess, etc.)"
+        command: "bandit -q -r ."
+        requires: bandit
+        severity: warn
+        instruction: "Fix the issues bandit reports, or mark accepted ones with # nosec"
+
+  - group: JavaScript & Web
+    rules:
+      - type: script_reusable
+        name: "Script files are kebab-case"
+        description: "All .js and .ts file names are kebab-case"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed files to kebab-case"
+        args:
+          INCLUDE_FILES_GLOB:
+            - "*.js"
+            - "*.ts"
+          CASE: '^[a-z0-9]+([-.][a-z0-9]+)*$'
+          ON_NO_MATCH: pass
+      - type: script_reusable
+        name: "Component files are PascalCase"
+        description: "All .jsx, .tsx, .vue and .svelte component file names are PascalCase"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed component files to PascalCase"
+        args:
+          INCLUDE_FILES_GLOB:
+            - "*.jsx"
+            - "*.tsx"
+            - "*.vue"
+            - "*.svelte"
+          CASE: '^([A-Z][a-z0-9]*)+$'
+          ON_NO_MATCH: pass
+      - type: script_clean
+        name: "ESLint passes"
+        description: "eslint finds no code-quality violations"
+        command: "eslint ."
+        requires: eslint
+        severity: error
+        instruction: "Run: eslint --fix ."
+      - type: script_clean
+        name: "Prettier format check"
+        description: "All supported files are formatted per Prettier"
+        command: "prettier --check ."
+        requires: prettier
+        severity: warn
+        instruction: "Run: prettier --write ."
+      - type: script_clean
+        name: "Biome check"
+        description: "biome linting and formatting pass. Alternative to ESLint + Prettier — enable one or the other"
+        command: "biome ci ."
+        requires: biome
+        severity: warn
+        instruction: "Run: biome check --write ."
+      - type: script_clean
+        name: "pnpm CI pipeline"
+        description: "The project's custom pnpm ci script exits cleanly (requires a ci script in package.json)"
+        command: "pnpm run ci"
+        requires: pnpm
+        severity: error
+        instruction: "Fix the failures reported by: pnpm run ci"
+      - type: script_clean
+        name: "Lockfile integrity"
+        description: "pnpm-lock.yaml is in sync with package.json — no drifted or missing lockfile records. Runs against a temp copy so the working tree is never written to"
+        command: |
+          _tmp=$(mktemp -d)
+          cp package.json "$_tmp"/ 2>/dev/null || { rm -rf "$_tmp"; printf 'package.json not found\n'; exit 1; }
+          [ -f pnpm-lock.yaml ] && cp pnpm-lock.yaml "$_tmp"/
+          [ -f .npmrc ] && cp .npmrc "$_tmp"/
+          _ec=0
+          (cd "$_tmp" && pnpm install --frozen-lockfile --lockfile-only --ignore-scripts) > /dev/null 2>&1 || _ec=1
+          rm -rf "$_tmp"
+          [ "$_ec" -eq 0 ] || printf 'pnpm-lock.yaml is missing or out of sync with package.json\n'
+          exit $_ec
+        requires: pnpm
+        severity: error
+        instruction: "Run: pnpm install to update the lockfile, then commit it"
+      - type: script_clean
+        name: "Dependency audit"
+        description: "pnpm audit finds no high or critical vulnerabilities in dependencies"
+        command: "pnpm audit --audit-level=high"
+        requires: pnpm
+        severity: warn
+        instruction: "Run: pnpm audit --fix, or update the vulnerable dependencies"
+      - type: script_clean
+        name: "Next.js production build"
+        description: "next build exits cleanly — the production build is not broken (slow; enable when build breakage must block commits)"
+        command: "pnpm exec next build"
+        requires: pnpm
+        severity: error
+        instruction: "Fix the build errors reported by: pnpm exec next build"
+      - type: script_reusable
+        name: "No oversized JS chunks"
+        description: "No single built JS chunk in .next/static exceeds 500 KiB"
+        script: file-or-dir-size-compare
+        severity: warn
+        instruction: "Split the oversized chunk (dynamic imports) or trim its dependencies"
+        args:
+          FILE_PATH: '.next/static/**/*.js'
+          OPERATOR: le
+          AMOUNT: 500
+          UNIT: 1024
+          ON_NO_MATCH: pass
+      - type: script_reusable
+        name: "Total static JS under limit"
+        description: "The total size of .next/static stays under 3 MiB"
+        script: file-or-dir-size-compare
+        severity: warn
+        instruction: "Reduce the total bundle size: analyze with ANALYZE=true next build"
+        args:
+          FILE_PATH: '.next/static'
+          OPERATOR: le
+          AMOUNT: 3
+          UNIT: 1048576
+          ON_NO_MATCH: pass
+      - type: script_clean
+        name: "Knip dead export detection"
+        description: "No unused exported symbols, files, or dependencies (requires a check:dead script running knip in package.json)"
+        command: "pnpm run check:dead"
+        requires: pnpm
+        severity: warn
+        instruction: "Remove the unused exports/files/dependencies knip reports"
+
+  - group: Java & Kotlin
+    rules:
+      - type: script_reusable
+        name: "Java files are PascalCase"
+        description: "All .java file names are PascalCase"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed Java files to PascalCase"
+        args:
+          INCLUDE_FILES_GLOB: "*.java"
+          CASE: '^([A-Z][a-z0-9]*)+$'
+          ON_NO_MATCH: pass
+      - type: script_reusable
+        name: "Kotlin files are PascalCase"
+        description: "All .kt file names are PascalCase"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed Kotlin files to PascalCase"
+        args:
+          INCLUDE_FILES_GLOB: "*.kt"
+          CASE: '^([A-Z][a-z0-9]*)+$'
+          ON_NO_MATCH: pass
+      - type: script_clean
+        name: "Maven project compiles"
+        description: "mvn compile -q exits cleanly"
+        command: "mvn compile -q"
+        requires: mvn
+        severity: error
+        instruction: "Fix the compilation errors reported by: mvn compile"
+      - type: script_reusable
+        name: "Gradle wrapper present"
+        description: "The gradlew wrapper script exists — builds must not depend on a locally installed gradle"
+        script: file-or-dir-existence
+        severity: error
+        instruction: "Run: gradle wrapper, and commit the generated files"
+        args:
+          FILE_PATH: gradlew
+          EXPECT: present
+      - type: script_clean
+        name: "Gradle project builds"
+        description: "./gradlew build exits cleanly"
+        command: |
+          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+          ./gradlew build -q --no-daemon
+        severity: error
+        instruction: "Fix the build errors reported by: ./gradlew build"
+      - type: script_clean
+        name: "Gradle tests pass"
+        description: "./gradlew test --no-daemon exits cleanly"
+        command: |
+          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+          ./gradlew test --no-daemon
+        severity: error
+        instruction: "Fix the failing tests reported by: ./gradlew test"
+      - type: script_reusable
+        name: "No bare gradle invocations"
+        description: "Scripts and CI files invoke ./gradlew, never a bare gradle binary"
+        script: files-content-scan
+        severity: warn
+        instruction: "Replace bare gradle invocations with ./gradlew"
+        args:
+          INCLUDE_FILES_GLOB:
+            - "*.sh"
+            - "*.yml"
+            - "*.yaml"
+            - "Makefile"
+            - "Justfile"
+          PATTERNS:
+            - '(^|[[:space:]])gradle[[:space:]]'
+          EXPECT: no_match
 
   - group: Scaffolding
     rules:
@@ -999,63 +1958,264 @@ rules:
             args:
               FILE_PATH: .claude/settings.json
               EXPECT: present
-          - type: script_reusable
-            name: "Permission mode is set to bypassPermissions"
-            description: "permissions.defaultMode in .claude/settings.json is set to bypassPermissions"
-            script: permission-mode
-            severity: error
-            instruction: "Set permissions.defaultMode to bypassPermissions in .claude/settings.json"
-            args:
-              MODE: bypassPermissions
-          - type: script_reusable
-            name: "Deny all curl commands"
-            description: ".claude/settings.json denies Bash(curl *) — curl is blocked from Claude tools"
-            script: permission-entry
-            severity: error
-            instruction: "Add 'Bash(curl *)' to permissions.deny in .claude/settings.json"
-            args:
-              RULE: deny
-              TOOL: Bash
-              PATTERN: "curl *"
-          - type: script_reusable
-            name: "Deny all wget commands"
-            description: ".claude/settings.json denies Bash(wget *) — wget is blocked from Claude tools"
-            script: permission-entry
-            severity: error
-            instruction: "Add 'Bash(wget *)' to permissions.deny in .claude/settings.json"
-            args:
-              RULE: deny
-              TOOL: Bash
-              PATTERN: "wget *"
-          - type: script_reusable
-            name: "Forbid 'Agent' skill usage"
-            description: "'Agent' tool responsible for spawning new sub-agents is denied in .claude/settings.json"
-            script: permission-entry
-            severity: error
-            instruction: "Add 'Agent' to permissions.deny in .claude/settings.json"
-            args:
-              RULE: deny
-              TOOL: Agent
-          - type: script_reusable
-            name: "Forbid 'Skill' skill usage"
-            description: "'Skill' tool responsible for invoking and proposing skills is denied in .claude/settings.json"
-            script: permission-entry
-            severity: error
-            instruction: "Add 'Skill' to permissions.deny in .claude/settings.json"
-            args:
-              RULE: deny
-              TOOL: Skill
-      - group: Local Settings
-        rules:
-          - type: script_reusable
-            name: "Local Claude settings present"
-            description: ".claude/settings.local.json exists — machine-local Claude Code settings are configured"
-            script: file-or-dir-existence
-            severity: warn
-            instruction: "Create .claude/settings.local.json with machine-specific Claude Code configuration"
-            args:
-              FILE_PATH: .claude/settings.local.json
-              EXPECT: present
+          - group: Model & Thinking
+            rules:
+              - type: script_reusable
+                name: "Model pinned to sonnet"
+                description: "The model key in .claude/settings.json pins the default model to sonnet"
+                script: claude-model
+                severity: warn
+                instruction: "Set \"model\": \"sonnet\" in .claude/settings.json"
+                args:
+                  MODEL: sonnet
+              - type: script_reusable
+                name: "Always thinking enabled"
+                description: "alwaysThinkingEnabled in .claude/settings.json is true — extended thinking is on by default for every session"
+                script: claude-setting-value
+                severity: warn
+                instruction: "Set \"alwaysThinkingEnabled\": true in .claude/settings.json"
+                args:
+                  SETTING: alwaysThinkingEnabled
+                  VALUE: "true"
+              - type: script_reusable
+                name: "Effort level is high"
+                description: "effortLevel in .claude/settings.json is high — thinking depth persists across sessions"
+                script: claude-setting-value
+                severity: warn
+                instruction: "Set \"effortLevel\": \"high\" in .claude/settings.json"
+                args:
+                  SETTING: effortLevel
+                  VALUE: '"high"'
+              - type: script_reusable
+                name: "sonnet in the model allowlist"
+                description: "availableModels in .claude/settings.json lists sonnet — the pinned default model is also offered in the model picker"
+                script: json-array-contains
+                severity: warn
+                instruction: "Add \"sonnet\" to availableModels in .claude/settings.json"
+                args:
+                  FILE_PATH: .claude/settings.json
+                  JSON_PATH: availableModels
+                  VALUE: '"sonnet"'
+          - group: Permissions & Security
+            rules:
+              - type: script_reusable
+                name: "Permission mode is set to bypassPermissions"
+                description: "permissions.defaultMode in .claude/settings.json is set to bypassPermissions"
+                script: permission-mode
+                severity: error
+                instruction: "Set permissions.defaultMode to bypassPermissions in .claude/settings.json"
+                args:
+                  MODE: bypassPermissions
+              - type: script_reusable
+                name: "Deny all curl commands"
+                description: ".claude/settings.json denies Bash(curl *) — curl is blocked from Claude tools"
+                script: permission-entry
+                severity: error
+                instruction: "Add 'Bash(curl *)' to permissions.deny in .claude/settings.json"
+                args:
+                  RULE: deny
+                  TOOL: Bash
+                  PATTERN: "curl *"
+              - type: script_reusable
+                name: "Deny all wget commands"
+                description: ".claude/settings.json denies Bash(wget *) — wget is blocked from Claude tools"
+                script: permission-entry
+                severity: error
+                instruction: "Add 'Bash(wget *)' to permissions.deny in .claude/settings.json"
+                args:
+                  RULE: deny
+                  TOOL: Bash
+                  PATTERN: "wget *"
+              - type: script_reusable
+                name: "Forbid 'Agent' skill usage"
+                description: "'Agent' tool responsible for spawning new sub-agents is denied in .claude/settings.json"
+                script: permission-entry
+                severity: error
+                instruction: "Add 'Agent' to permissions.deny in .claude/settings.json"
+                args:
+                  RULE: deny
+                  TOOL: Agent
+              - type: script_reusable
+                name: "Forbid 'Skill' skill usage"
+                description: "'Skill' tool responsible for invoking and proposing skills is denied in .claude/settings.json"
+                script: permission-entry
+                severity: error
+                instruction: "Add 'Skill' to permissions.deny in .claude/settings.json"
+                args:
+                  RULE: deny
+                  TOOL: Skill
+              - type: script_reusable
+                name: "No additional directories granted"
+                description: "permissions.additionalDirectories is absent from .claude/settings.json — file access stays confined to the project root"
+                script: json-path-exists
+                severity: warn
+                instruction: "Remove permissions.additionalDirectories from .claude/settings.json"
+                args:
+                  FILE_PATH: .claude/settings.json
+                  JSON_PATH: permissions.additionalDirectories
+                  EXPECT: absent
+          - group: Hooks
+            rules:
+              - type: script_reusable
+                name: "Hooks not globally disabled"
+                description: "disableAllHooks in .claude/settings.json is not true — lifecycle hooks and the custom status line stay active"
+                script: claude-setting-value
+                severity: error
+                instruction: "Remove \"disableAllHooks\": true from .claude/settings.json"
+                args:
+                  SETTING: disableAllHooks
+                  VALUE: "true"
+                  EXPECT: no_match
+              - type: script_reusable
+                name: "SessionStart syncs the repo"
+                description: "A SessionStart command hook in .claude/settings.json runs git pull so every session starts from the latest code"
+                script: claude-hook-command
+                severity: warn
+                instruction: "Add a SessionStart hook running 'git pull' to hooks in .claude/settings.json"
+                args:
+                  EVENT: SessionStart
+                  PATTERN: "git pull"
+              - type: script_reusable
+                name: "Custom status line configured"
+                description: "statusLine.command in .claude/settings.json is set — the project renders its own status line in every session"
+                script: json-path-exists
+                severity: warn
+                instruction: "Set statusLine to {\"type\": \"command\", \"command\": \"<script>\"} in .claude/settings.json"
+                args:
+                  FILE_PATH: .claude/settings.json
+                  JSON_PATH: statusLine.command
+                  EXPECT: present
+          - group: Environment
+            rules:
+              - type: script_reusable
+                name: "NODE_ENV injected as development"
+                description: "env.NODE_ENV in .claude/settings.json is development — every command and hook Claude runs inherits it"
+                script: claude-env-var
+                severity: warn
+                instruction: "Set env.NODE_ENV to development in .claude/settings.json"
+                args:
+                  KEY: NODE_ENV
+                  VALUE: development
+          - group: Sandbox & Network
+            rules:
+              - type: script_reusable
+                name: "Sandbox enabled"
+                description: "sandbox.enabled in .claude/settings.json is true — Bash commands run with OS-level filesystem and network isolation"
+                script: claude-setting-value
+                severity: error
+                instruction: "Set sandbox.enabled to true in .claude/settings.json"
+                args:
+                  SETTING: sandbox.enabled
+                  VALUE: "true"
+              - type: script_reusable
+                name: "Sandboxed commands auto-allowed"
+                description: "sandbox.autoAllowBashIfSandboxed in .claude/settings.json is true — isolated commands skip permission prompts"
+                script: claude-setting-value
+                severity: warn
+                instruction: "Set sandbox.autoAllowBashIfSandboxed to true in .claude/settings.json"
+                args:
+                  SETTING: sandbox.autoAllowBashIfSandboxed
+                  VALUE: "true"
+              - type: script_reusable
+                name: "git excluded from the sandbox"
+                description: "sandbox.excludedCommands in .claude/settings.json lists git — git runs outside the sandbox boundary"
+                script: json-array-contains
+                severity: warn
+                instruction: "Add \"git\" to sandbox.excludedCommands in .claude/settings.json"
+                args:
+                  FILE_PATH: .claude/settings.json
+                  JSON_PATH: sandbox.excludedCommands
+                  VALUE: '"git"'
+              - type: script_reusable
+                name: "github.com reachable from the sandbox"
+                description: "sandbox.network.allowedDomains in .claude/settings.json lists github.com — git-over-HTTPS and the gh CLI keep working inside the sandbox"
+                script: json-array-contains
+                severity: warn
+                instruction: "Add \"github.com\" to sandbox.network.allowedDomains in .claude/settings.json"
+                args:
+                  FILE_PATH: .claude/settings.json
+                  JSON_PATH: sandbox.network.allowedDomains
+                  VALUE: '"github.com"'
+          - group: Git Integration
+            rules:
+              - type: script_reusable
+                name: "Git instructions included"
+                description: "includeGitInstructions in .claude/settings.json is true — the built-in git workflow rules stay in the system prompt"
+                script: claude-setting-value
+                severity: warn
+                instruction: "Set \"includeGitInstructions\": true in .claude/settings.json"
+                args:
+                  SETTING: includeGitInstructions
+                  VALUE: "true"
+              - type: script_reusable
+                name: "Commit attribution is the Alan trailer"
+                description: "attribution.commit in .claude/settings.json is the project's mandated trailer, replacing the default Claude co-author line"
+                script: claude-setting-value
+                severity: error
+                instruction: "Set attribution.commit to \"Co-Authored-By: Alan <noreply@archicode.ai>\" in .claude/settings.json"
+                args:
+                  SETTING: attribution.commit
+                  VALUE: '"Co-Authored-By: Alan <noreply@archicode.ai>"'
+          - group: Memory & Retention
+            rules:
+              - type: script_reusable
+                name: "Auto memory enabled"
+                description: "autoMemoryEnabled in .claude/settings.json is true — Claude persists learned project context across sessions"
+                script: claude-setting-value
+                severity: warn
+                instruction: "Set \"autoMemoryEnabled\": true in .claude/settings.json"
+                args:
+                  SETTING: autoMemoryEnabled
+                  VALUE: "true"
+              - type: script_reusable
+                name: "Transcript retention is 30 days"
+                description: "cleanupPeriodDays in .claude/settings.json is 30 — session transcripts are kept 30 days before startup cleanup"
+                script: claude-setting-value
+                severity: warn
+                instruction: "Set \"cleanupPeriodDays\": 30 in .claude/settings.json"
+                args:
+                  SETTING: cleanupPeriodDays
+                  VALUE: "30"
+              - type: script_reusable
+                name: "File checkpointing enabled"
+                description: "fileCheckpointingEnabled in .claude/settings.json is true — files are snapshotted before edits so /rewind can restore them"
+                script: claude-setting-value
+                severity: warn
+                instruction: "Set \"fileCheckpointingEnabled\": true in .claude/settings.json"
+                args:
+                  SETTING: fileCheckpointingEnabled
+                  VALUE: "true"
+              - type: script_reusable
+                name: "Vendored CLAUDE.md files excluded"
+                description: "claudeMdExcludes in .claude/settings.json lists node_modules/** — CLAUDE.md files shipped inside installed dependencies never load into context"
+                script: json-array-contains
+                severity: warn
+                instruction: "Add \"node_modules/**\" to claudeMdExcludes in .claude/settings.json"
+                args:
+                  FILE_PATH: .claude/settings.json
+                  JSON_PATH: claudeMdExcludes
+                  VALUE: '"node_modules/**"'
+          - group: MCP & Plugins
+            rules:
+              - type: script_reusable
+                name: "Project MCP servers auto-approved"
+                description: "enableAllProjectMcpServers in .claude/settings.json is true — servers declared in .mcp.json connect without prompting"
+                script: claude-setting-value
+                severity: warn
+                instruction: "Set \"enableAllProjectMcpServers\": true in .claude/settings.json"
+                args:
+                  SETTING: enableAllProjectMcpServers
+                  VALUE: "true"
+              - type: script_reusable
+                name: "github MCP server allowlisted"
+                description: "enabledMcpjsonServers in .claude/settings.json lists github — the .mcp.json server named github is approved explicitly by name"
+                script: json-array-contains
+                severity: warn
+                instruction: "Add \"github\" to enabledMcpjsonServers in .claude/settings.json"
+                args:
+                  FILE_PATH: .claude/settings.json
+                  JSON_PATH: enabledMcpjsonServers
+                  VALUE: '"github"'
 
 arg-templates:
   - id: expect-presence
@@ -1096,14 +2256,21 @@ arg-templates:
     type: string
     required: true
     placeholder: "*.java"
-    description: "Glob pattern matched against file basenames to include (e.g. *.java, *Controller*)."
+    description: "Glob pattern matched against file basenames to include (e.g. *.java, *Controller*). Provide a YAML list to match multiple globs."
   - id: exclude-files-glob
     key: EXCLUDE_FILES_GLOB
     label: "Exclude files glob"
     type: string
     required: false
     placeholder: "*Test.java"
-    description: "Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path."
+    description: "Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs."
+  - id: claude-settings-file
+    key: SETTINGS_FILE
+    label: "Settings file"
+    type: enum
+    required: false
+    enum_ref: claude-settings-file
+    description: "Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted."
 
 enums:
   - id: file-naming-convention
@@ -1336,39 +2503,209 @@ enums:
             description: "Matches invocations of named slash-command skills"
       - id: claude-default-shell
         name: "Claude default shell"
-        description: "Default command-line shell that Claude will use to execute terminal commands"
+        description: "Valid values for the defaultShell key — the shell used for input-box ! commands (only these two are documented)"
         values:
-          - name: zsh
-            value: zsh
-            description: "Default for modern macOS"
           - name: bash
             value: bash
-            description: "Common for Linux and older macOS"
-          - name: sh
-            value: sh
-            description: "Standard POSIX shell"
-          - name: cmd
-            value: cmd
-            description: "Windows Command Prompt"
+            description: "Bash — default on macOS and Linux"
           - name: powershell
             value: powershell
             description: "Windows PowerShell"
       - id: claude-editor-mode
         name: "Claude editor mode"
-        description: "Controls the visual layout when Claude opens or modifies files in an editor view"
+        description: "Valid values for the editorMode key — key binding mode for the input prompt"
         values:
-          - name: Fullscreen
-            value: fullscreen
-            description: "The editor takes up the entire interface area for maximum visibility"
-          - name: Split
-            value: split
-            description: "Displays the editor next to the chat window so you can see both simultaneously. Also known as side-by-side."
-          - name: Compact
-            value: compact
-            description: "A smaller, minimized editor view"
+          - name: Normal
+            value: normal
+            description: "Standard readline-style key bindings"
+          - name: Vim
+            value: vim
+            description: "Vim-style modal key bindings in the input prompt"
+      - id: claude-settings-file
+        name: "Claude settings file"
+        description: "Project-scope Claude Code settings files that rules can target"
+        values:
+          - name: Shared
+            value: .claude/settings.json
+            description: "Project settings shared with the team (committed to git)"
+          - name: Local
+            value: .claude/settings.local.json
+            description: "Machine-local project settings (not committed)"
+      - id: claude-model
+        name: "Claude model"
+        description: "Model aliases accepted by the model key in settings.json (a full model ID is also valid but not offered here)"
+        values:
+          - name: Sonnet
+            value: sonnet
+            description: "Latest Sonnet model — balanced capability and speed, the recommended default"
+          - name: Opus
+            value: opus
+            description: "Latest Opus model — most capable, slower and more expensive"
+          - name: Haiku
+            value: haiku
+            description: "Latest Haiku model — fastest and cheapest, for lightweight tasks"
+          - name: "Sonnet 1M"
+            value: "sonnet[1m]"
+            description: "Sonnet with the 1-million-token context window"
+          - name: "Opus plan mode"
+            value: opusplan
+            description: "Opus for plan mode, Sonnet for execution"
+      - id: claude-hook-event
+        name: "Claude hook event"
+        description: "Lifecycle events that hooks in settings.json can register on (hooks.<Event>[].hooks[].command)"
+        values:
+          - name: PreToolUse
+            value: PreToolUse
+            description: "Runs before a tool call executes; can block or approve it"
+          - name: PostToolUse
+            value: PostToolUse
+            description: "Runs after a tool call completes (e.g. format a file right after Claude edits it)"
+          - name: UserPromptSubmit
+            value: UserPromptSubmit
+            description: "Runs when the user submits a prompt, before Claude processes it"
+          - name: Notification
+            value: Notification
+            description: "Runs when Claude Code sends a notification (input needed, permission request)"
+          - name: Stop
+            value: Stop
+            description: "Runs when the main agent finishes responding"
+          - name: SubagentStop
+            value: SubagentStop
+            description: "Runs when a subagent finishes responding"
+          - name: PreCompact
+            value: PreCompact
+            description: "Runs before the conversation context is compacted"
+          - name: SessionStart
+            value: SessionStart
+            description: "Runs when a session starts or resumes (e.g. git pull to sync the repo)"
+          - name: SessionEnd
+            value: SessionEnd
+            description: "Runs when a session ends"
+      - id: claude-setting-key
+        name: "Claude setting key"
+        description: "Curated catalog of project-enforceable settings.json keys (scalar-valued, usable with the claude-setting-value script; array-valued keys like availableModels, sandbox.excludedCommands or sandbox.network.allowedDomains are checked with json-array-contains instead)"
+        values:
+          - name: "Model"
+            value: model
+            description: "Overrides the default model — an alias like sonnet/opus/haiku or a full model ID (string)"
+          - name: "Advisor model"
+            value: advisorModel
+            description: "Secondary model used for the server-side advisor tool (string)"
+          - name: "Enforce available models"
+            value: enforceAvailableModels
+            description: "Extends the availableModels allowlist to also constrain the default model (boolean)"
+          - name: "Always thinking"
+            value: alwaysThinkingEnabled
+            description: "Enables extended thinking by default for all sessions (boolean)"
+          - name: "Effort level"
+            value: effortLevel
+            description: "Persists thinking effort across sessions: \"low\", \"medium\", \"high\" or \"xhigh\" (string)"
+          - name: "Fast mode per-session opt-in"
+            value: fastModePerSessionOptIn
+            description: "Requires opting into fast mode each session instead of persisting it (boolean)"
+          - name: "Disable auto mode"
+            value: disableAutoMode
+            description: "Set to \"disable\" to remove auto mode from the permission-mode cycle (string)"
+          - name: "Output style"
+            value: outputStyle
+            description: "Adjusts the system prompt with a configured output style, e.g. \"Explanatory\" (string)"
+          - name: "Language"
+            value: language
+            description: "Preferred response language for Claude, e.g. \"english\", \"japanese\" (string)"
+          - name: "Permission default mode"
+            value: permissions.defaultMode
+            description: "Default permission mode — see the Claude permission mode enum for valid values (string)"
+          - name: "Disable bypass permissions"
+            value: permissions.disableBypassPermissionsMode
+            description: "Set to \"disable\" to prevent bypassPermissions mode from being used (string)"
+          - name: "Disable all hooks"
+            value: disableAllHooks
+            description: "Safety toggle that turns off all hooks and the custom status line (boolean)"
+          - name: "Default shell"
+            value: defaultShell
+            description: "Shell for input-box ! commands: \"bash\" or \"powershell\" (string)"
+          - name: "Include git instructions"
+            value: includeGitInstructions
+            description: "Includes the built-in git workflow instructions in the system prompt (boolean)"
+          - name: "Commit attribution"
+            value: attribution.commit
+            description: "Custom attribution text for git commits, replacing the default Claude co-author line; \"\" removes it (string)"
+          - name: "PR attribution"
+            value: attribution.pr
+            description: "Custom attribution text for pull requests; \"\" removes it (string)"
+          - name: "Sandbox enabled"
+            value: sandbox.enabled
+            description: "Runs Bash commands with OS-level filesystem and network isolation (boolean)"
+          - name: "Auto-allow sandboxed bash"
+            value: sandbox.autoAllowBashIfSandboxed
+            description: "Skips permission prompts for commands running inside the sandbox (boolean)"
+          - name: "Allow unsandboxed fallback"
+            value: sandbox.allowUnsandboxedCommands
+            description: "Allows retrying commands outside the sandbox when they fail under it; false enforces strict sandbox mode (boolean)"
+          - name: "Sandbox fail if unavailable"
+            value: sandbox.failIfUnavailable
+            description: "Refuses to start when sandbox dependencies are missing instead of falling back to unsandboxed execution (boolean)"
+          - name: "Sandbox HTTP proxy port"
+            value: sandbox.network.httpProxyPort
+            description: "Routes sandboxed HTTP traffic through a custom proxy on this port (number)"
+          - name: "Sandbox SOCKS proxy port"
+            value: sandbox.network.socksProxyPort
+            description: "Routes sandboxed traffic through a custom SOCKS proxy on this port (number)"
+          - name: "Auto memory enabled"
+            value: autoMemoryEnabled
+            description: "Lets Claude persist learned project context into automated memory files (boolean)"
+          - name: "Auto memory directory"
+            value: autoMemoryDirectory
+            description: "Custom directory for auto memory storage (string path)"
+          - name: "Cleanup period days"
+            value: cleanupPeriodDays
+            description: "Days session transcripts and temporary worktrees are kept before startup cleanup; default 30 (number)"
+          - name: "File checkpointing"
+            value: fileCheckpointingEnabled
+            description: "Snapshots files before edits so /rewind can restore them (boolean)"
+          - name: "Auto compact"
+            value: autoCompactEnabled
+            description: "Automatically compacts the conversation when context approaches its limit (boolean)"
+          - name: "Temp file cleanup interval"
+            value: temporaryFileCleanupInterval
+            description: "Minutes between temporary-file cleanup runs (number)"
+          - name: "Auto-updates channel"
+            value: autoUpdatesChannel
+            description: "Release track for auto-updates: \"stable\" or \"latest\" (string)"
+          - name: "Minimum version"
+            value: minimumVersion
+            description: "Floor preventing the auto-updater from going below this version (string)"
+          - name: "Enable all project MCP servers"
+            value: enableAllProjectMcpServers
+            description: "Auto-approves every MCP server declared in the project's .mcp.json (boolean)"
+          - name: "Editor mode"
+            value: editorMode
+            description: "Key binding mode for the input prompt: \"normal\" or \"vim\" (string)"
+          - name: "Spinner tips"
+            value: spinnerTipsEnabled
+            description: "Shows context-aware tips while the spinner is loading (boolean)"
+          - name: "Reduced motion"
+            value: prefersReducedMotion
+            description: "Reduces or disables UI animations for accessibility (boolean)"
+          - name: "Verbose"
+            value: verbose
+            description: "Enables verbose logging output (boolean)"
 
   - group: Internals
     enums:
+      - id: missing-tool-policy
+        name: "Missing tool policy"
+        description: "Rule field `on_missing:` — behavior when the binary named in a rule's `requires:` field is not installed. Defaults to warn when omitted."
+        values:
+          - name: Skip
+            value: skip
+            description: "Skip the rule silently (shown as [SKIP] in verbose mode)"
+          - name: Warn
+            value: warn
+            description: "Record a warning that the rule was skipped because the tool is missing"
+          - name: Fail
+            value: fail
+            description: "Fail the rule with its configured severity"
       - id: types
         name: "Types"
         description: "Reference catalog of param `type:` values used throughout this file's `args:` definitions"

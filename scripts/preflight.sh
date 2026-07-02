@@ -85,6 +85,7 @@ PREFLIGHT_FILE="$(pwd)/$PREFLIGHT_FILE"
 
 . "$BUMFUZZLE_ROOT/eval-rules.sh"
 
+config_lint_check
 user_rules_check
 
 printf '%s\n' '-----------------------------------------------------------------------'

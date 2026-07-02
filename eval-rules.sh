@@ -38,6 +38,32 @@ _urule_process_rule() {
 
   local _label="${_name:-${_desc:-${_path} ($_type)}}"
 
+  # requires: <binary> gates the rule on an external tool being installed;
+  # on_missing decides what happens when it is not: skip | warn (default) | fail
+  local _requires
+  _requires=$(yq "${_path}.requires // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+  if ! is_blank "$_requires" && ! command -v "$_requires" &>/dev/null; then
+    local _on_missing
+    _on_missing=$(yq "${_path}.on_missing // \"warn\"" "$PREFLIGHT_FILE" 2>/dev/null || echo warn)
+    case "$_on_missing" in
+      skip)
+        if [[ "$VERBOSE" == true ]]; then
+          _flush_header
+          printf '[SKIP] %s (%s not installed)\n' "$_label" "$_requires"
+        fi
+        ;;
+      fail)
+        _flush_header
+        _urule_instruction "$_path"
+        fail "$_label: required tool '$_requires' is not installed" "$_sev"
+        ;;
+      *)
+        fail "$_label: skipped — required tool '$_requires' is not installed" warn
+        ;;
+    esac
+    return
+  fi
+
   case "$_type" in
     script_clean)
       is_blank "$_command" && { fail "$_label: 'command' is required" error; return; }
@@ -86,14 +112,16 @@ _urule_process_rule() {
         unset "$_sk" 2>/dev/null || true
       done
 
-      # export each arg provided by the rule as an env var; arrays are joined space-separated
+      # export each arg provided by the rule as an env var; arrays are joined
+      # newline-separated so entries (e.g. regexes) may contain spaces —
+      # scripts consume them with `while IFS= read -r`.
       local _arg_keys _ak _av _av_type
       _arg_keys=$(yq "${_path}.args | keys | .[]" "$PREFLIGHT_FILE" 2>/dev/null || true)
       while IFS= read -r _ak; do
         is_blank "$_ak" && continue
         _av_type=$(yq "${_path}.args.${_ak} | tag" "$PREFLIGHT_FILE" 2>/dev/null || true)
         if [[ "$_av_type" == "!!seq" ]]; then
-          _av=$(yq "${_path}.args.${_ak}[]" "$PREFLIGHT_FILE" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+          _av=$(yq "${_path}.args.${_ak}[]" "$PREFLIGHT_FILE" 2>/dev/null || true)
         else
           _av=$(yq "${_path}.args.${_ak} // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
         fi
@@ -147,4 +175,195 @@ user_rules_check() {
 
   section '-- Rules ----------------------------------------------------------------'
   _urule_walk '.rules'
+}
+
+# config lint — validate the structure of bumfuzzle.yml itself before any rule
+# runs. Structural problems (broken references, malformed rules) make rule
+# evaluation unreliable, so they abort preflight after all of them are printed.
+
+_LINT_STRUCTURAL=0
+
+_lint_yq() { yq "$1" "$PREFLIGHT_FILE" 2>/dev/null || true; }
+
+_lint_structural_fail() {
+  _flush_header
+  printf '[FAIL] %s\n' "$1"
+  _LINT_STRUCTURAL=$((_LINT_STRUCTURAL + 1))
+}
+
+_lint_sha256() { command -v sha256sum &>/dev/null && sha256sum "$@" || shasum -a 256 "$@"; }
+
+_lint_duplicate_ids() {
+  local _ns _list _d
+  for _ns in scripts arg-templates enums; do
+    _list=$(_lint_yq ".\"${_ns}\" | .. | select(type == \"!!map\") | select(has(\"id\")) | .id")
+    while IFS= read -r _d; do
+      [[ -z "$_d" ]] && continue
+      fail "duplicate id '$_d' in ${_ns}:" error
+    done < <(printf '%s\n' "$_list" | grep -v '^$' | sort | uniq -d)
+  done
+}
+
+_lint_reference_integrity() {
+  local _miss
+  while IFS= read -r _miss; do
+    [[ -z "$_miss" ]] && continue
+    _lint_structural_fail "rule references unknown script '$_miss'"
+  done < <(comm -23 \
+    <(_lint_yq '.rules | .. | select(type == "!!map") | select(.type == "script_reusable") | .script // ""' | grep -v '^$' | sort -u) \
+    <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("id")) | .id' | sort -u))
+
+  while IFS= read -r _miss; do
+    [[ -z "$_miss" ]] && continue
+    _lint_structural_fail "script arg references unknown arg-template '$_miss'"
+  done < <(comm -23 \
+    <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("arg_ref")) | .arg_ref' | grep -v '^$' | sort -u) \
+    <(_lint_yq '."arg-templates"[] | .id' | sort -u))
+
+  # enum refs don't affect rule execution (wizard-only), so broken ones are
+  # errors rather than structural aborts
+  while IFS= read -r _miss; do
+    [[ -z "$_miss" ]] && continue
+    fail "unknown enum_ref '$_miss'" error
+  done < <(comm -23 \
+    <(_lint_yq '.. | select(type == "!!map") | select(has("enum_ref")) | .enum_ref' | grep -v '^$' | sort -u) \
+    <(_lint_yq '.enums | .. | select(type == "!!map") | select(has("id")) | .id' | sort -u))
+
+  while IFS= read -r _miss; do
+    [[ -z "$_miss" ]] && continue
+    fail "arg-template '$_miss' is not referenced by any script" warn
+  done < <(comm -23 \
+    <(_lint_yq '."arg-templates"[] | .id' | grep -v '^$' | sort -u) \
+    <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("arg_ref")) | .arg_ref' | sort -u))
+}
+
+_lint_rule_fields() {
+  local _p _msg
+  while IFS= read -r _p; do
+    [[ -z "$_p" ]] && continue
+    _lint_structural_fail "rules entry at .$_p has neither 'group' nor 'type'"
+  done < <(_lint_yq '.rules | .. | select(type == "!!map") | select((has("group") or has("type")) | not) | path | join(".")' | grep -v 'args$')
+
+  while IFS= read -r _msg; do
+    [[ -z "$_msg" ]] && continue
+    _lint_structural_fail "$_msg"
+  done < <(_lint_yq '.rules | .. | select(type == "!!map") | select(has("type")) | select(.type != "script_clean" and .type != "script_reusable") | "rule " + (.name // "?") + " has unknown type " + (.type | tostring)')
+
+  while IFS= read -r _msg; do
+    [[ -z "$_msg" ]] && continue
+    _lint_structural_fail "$_msg"
+  done < <(_lint_yq '.rules | .. | select(type == "!!map") | select(.type == "script_clean") | select(has("command") | not) | "script_clean rule " + (.name // "?") + " is missing required field: command"')
+
+  while IFS= read -r _msg; do
+    [[ -z "$_msg" ]] && continue
+    _lint_structural_fail "$_msg"
+  done < <(_lint_yq '.rules | .. | select(type == "!!map") | select(.type == "script_reusable") | select(has("script") | not) | "script_reusable rule " + (.name // "?") + " is missing required field: script"')
+
+  while IFS= read -r _p; do
+    [[ -z "$_p" ]] && continue
+    fail "rule at .$_p is missing required field: name" error
+  done < <(_lint_yq '.rules | .. | select(type == "!!map") | select(has("type")) | select(has("name") | not) | path | join(".")')
+}
+
+_lint_script_args() {
+  local _argt_meta _rule_lines _sid
+  # arg-template metadata as "id key required" lines, for resolving arg_refs
+  _argt_meta=$(_lint_yq '."arg-templates"[] | .id + " " + (.key // "?") + " " + ((.required // false) | tostring)')
+  # every script_reusable rule as "script|name|ARG1,ARG2" lines
+  _rule_lines=$(_lint_yq '.rules | .. | select(type == "!!map") | select(.type == "script_reusable") | (.script // "") + "|" + (.name // "unnamed") + "|" + ((.args // {}) | keys | join(","))')
+
+  while IFS= read -r _sid; do
+    [[ -z "$_sid" ]] && continue
+    local _script_args _declared="" _required=""
+    _script_args=$(_lint_yq "\"$_sid\" as \$sid | .scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$sid) | .args[] | (.key // (\"@\" + .arg_ref)) + \" \" + ((.required // false) | tostring)")
+    local _al _ak _areq _meta
+    while IFS= read -r _al; do
+      [[ -z "$_al" ]] && continue
+      _ak="${_al%% *}"
+      _areq="${_al##* }"
+      if [[ "$_ak" == @* ]]; then
+        _meta=$(printf '%s\n' "$_argt_meta" | grep "^${_ak#@} " | head -1 || true)
+        [[ -z "$_meta" ]] && continue # unresolvable arg_ref is reported separately
+        _ak=$(printf '%s' "$_meta" | awk '{print $2}')
+        _areq=$(printf '%s' "$_meta" | awk '{print $3}')
+      fi
+      _declared="$_declared $_ak"
+      [[ "$_areq" == "true" ]] && _required="$_required $_ak"
+    done <<< "$_script_args"
+
+    local _rs _rn _rkeys _req _rk
+    while IFS='|' read -r _rs _rn _rkeys; do
+      [[ "$_rs" == "$_sid" ]] || continue
+      for _req in $_required; do
+        case ",$_rkeys," in
+          *",$_req,"*) ;;
+          *) fail "rule '$_rn' is missing required arg '$_req' of script '$_sid'" error ;;
+        esac
+      done
+      for _rk in ${_rkeys//,/ }; do
+        case " $_declared " in
+          *" $_rk "*) ;;
+          *) fail "rule '$_rn' passes arg '$_rk' not declared by script '$_sid'" error ;;
+        esac
+      done
+    done <<< "$_rule_lines"
+  done < <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("id")) | .id' | sort -u)
+}
+
+_lint_script_commands() {
+  local _sid _cmd _sha _seen=""
+  while IFS= read -r _sid; do
+    [[ -z "$_sid" ]] && continue
+    _cmd=$(_lint_yq "\"$_sid\" as \$sid | .scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$sid) | .command // \"\"")
+    if is_blank "$_cmd"; then
+      _lint_structural_fail "script '$_sid' has no command"
+      continue
+    fi
+    if ! printf '%s\n' "$_cmd" | bash -n 2>/dev/null; then
+      fail "script '$_sid' has bash syntax errors" error
+    fi
+    _sha=$(printf '%s' "$_cmd" | _lint_sha256 | awk '{print $1}')
+    local _prev
+    _prev=$(printf '%s\n' "$_seen" | grep "^$_sha " | head -1 | awk '{print $2}' || true)
+    if [[ -n "$_prev" ]]; then
+      fail "scripts '$_prev' and '$_sid' have identical commands" warn
+    else
+      _seen="${_seen}${_sha} ${_sid}"$'\n'
+    fi
+  done < <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("id")) | .id' | sort -u)
+
+  local _rc_count _ri _rcmd _rname
+  _rc_count=$(_lint_yq '[.rules | .. | select(type == "!!map") | select(.type == "script_clean")] | length')
+  is_blank "$_rc_count" && _rc_count=0
+  if [[ "$_rc_count" -gt 0 ]]; then
+    for _ri in $(seq 0 $((_rc_count - 1))); do
+      _rcmd=$(_lint_yq "[.rules | .. | select(type == \"!!map\") | select(.type == \"script_clean\")] | .[$_ri].command // \"\"")
+      is_blank "$_rcmd" && continue # missing command is reported separately
+      if ! printf '%s\n' "$_rcmd" | bash -n 2>/dev/null; then
+        _rname=$(_lint_yq "[.rules | .. | select(type == \"!!map\") | select(.type == \"script_clean\")] | .[$_ri].name // \"?\"")
+        fail "script_clean rule '$_rname' has bash syntax errors" error
+      fi
+    done
+  fi
+}
+
+config_lint_check() {
+  section '-- Config Lint ----------------------------------------------------------'
+  _LINT_STRUCTURAL=0
+
+  if ! yq '.' "$PREFLIGHT_FILE" > /dev/null 2>&1; then
+    fail "$PREFLIGHT_FILE is not parseable YAML" hard-stop
+  fi
+  pass "$PREFLIGHT_FILE parses as YAML"
+
+  _lint_duplicate_ids
+  _lint_reference_integrity
+  _lint_rule_fields
+  _lint_script_args
+  _lint_script_commands
+
+  if [[ "$_LINT_STRUCTURAL" -gt 0 ]]; then
+    fail "config lint found $_LINT_STRUCTURAL structural error(s) in $PREFLIGHT_FILE — rules were not evaluated" hard-stop
+  fi
+  pass "config lint"
 }
