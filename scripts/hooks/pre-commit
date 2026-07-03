@@ -45,4 +45,7 @@ require_approval "Markdown"    "DOCS_APPROVED"   '(^|/)[^/]+\.md$'
 require_approval "dotenv"      "ENV_APPROVED"    '(^|/)\.env($|[._-][^/]+$)'
 require_approval "Scripts"     "SCRIPT_APPROVED" '(^|/)scripts/[^/]+'
 
-exec scripts/preflight.sh
+# bumfuzzle's own repo has no bumfuzzle.yml to validate; gate on the Go
+# checks instead.
+go vet ./...
+exec go test ./...
