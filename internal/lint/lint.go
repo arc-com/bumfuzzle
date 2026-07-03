@@ -37,6 +37,7 @@ func Run(cfg *config.Config, rep *report.Reporter) bool {
 	l.ruleFields()
 	l.scriptArgs()
 	l.scriptCommands()
+	l.valueHardening()
 
 	if l.structural > 0 {
 		_ = rep.Fail(fmt.Sprintf("config lint found %d structural error(s) in bumfuzzle.yml — rules were not evaluated", l.structural), report.SevHardStop)
@@ -258,6 +259,90 @@ func (l *linter) scriptCommands() {
 			_ = l.rep.Fail(fmt.Sprintf("script_clean rule '%s' has bash syntax errors", name), report.SevError)
 		}
 	})
+}
+
+// valueHardening rejects values that would be silently misinterpreted at
+// runtime: non-boolean enabled:, unknown severity/on_missing, non-map args,
+// arg keys that are not safe environment variable names, and ids that could
+// break out of quoted contexts.
+func (l *linter) valueHardening() {
+	err := func(format string, a ...any) {
+		_ = l.rep.Fail(fmt.Sprintf(format, a...), report.SevError)
+	}
+
+	walkRules(l.cfg.Rules, ".rules", func(r *config.Rule, path string) {
+		if r.IsGroup() {
+			return
+		}
+		name := r.Name
+		if name == "" {
+			name = path
+		}
+		if r.Enabled.Set && !r.Enabled.Valid {
+			err("rule '%s' has invalid 'enabled' value '%s' (must be true or false)", name, r.Enabled.Raw)
+		}
+		switch r.Severity {
+		case "", "warn", "error", "hard-stop":
+		default:
+			err("rule '%s' has unknown severity '%s'", name, r.Severity)
+		}
+		switch r.OnMissing {
+		case "", "skip", "warn", "fail":
+		default:
+			err("rule '%s' has unknown on_missing '%s' (must be skip, warn, or fail)", name, r.OnMissing)
+		}
+		if r.Args.Set && !r.Args.Valid {
+			err("rule '%s' args must be a map of KEY: value", name)
+		}
+		var keys []string
+		for k := range r.Args.Map {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if !config.ArgKeyPattern.MatchString(k) {
+				err("rule '%s' arg key '%s' is not a valid environment variable name", name, k)
+			} else if config.ReservedEnvKey(k) {
+				err("rule '%s' arg key '%s' is reserved and cannot be set by a rule", name, k)
+			}
+			if !r.Args.Map[k].Valid {
+				err("rule '%s' arg '%s' must be a scalar or a list of scalars", name, k)
+			}
+		}
+	})
+
+	for _, s := range l.cfg.FlatScripts() {
+		if s.ID != "" && !config.IDPattern.MatchString(s.ID) {
+			err("script id '%s' must match %s", s.ID, config.IDPattern.String())
+		}
+		for _, a := range s.Args {
+			if a.Key == "" {
+				continue
+			}
+			if !config.ArgKeyPattern.MatchString(a.Key) {
+				err("script '%s' declares arg key '%s' which is not a valid environment variable name", s.ID, a.Key)
+			} else if config.ReservedEnvKey(a.Key) {
+				err("script '%s' declares reserved arg key '%s'", s.ID, a.Key)
+			}
+		}
+	}
+	for _, t := range l.cfg.ArgTemplates {
+		if t.ID != "" && !config.IDPattern.MatchString(t.ID) {
+			err("arg-template id '%s' must match %s", t.ID, config.IDPattern.String())
+		}
+		if t.Key != "" {
+			if !config.ArgKeyPattern.MatchString(t.Key) {
+				err("arg-template '%s' key '%s' is not a valid environment variable name", t.ID, t.Key)
+			} else if config.ReservedEnvKey(t.Key) {
+				err("arg-template '%s' declares reserved key '%s'", t.ID, t.Key)
+			}
+		}
+	}
+	for _, id := range sortedUnique(l.idsUnder("enums")) {
+		if !config.IDPattern.MatchString(id) {
+			err("enum id '%s' must match %s", id, config.IDPattern.String())
+		}
+	}
 }
 
 func bashSyntaxOK(command string) bool {

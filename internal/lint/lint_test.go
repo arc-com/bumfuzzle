@@ -238,6 +238,45 @@ rules:
 	}
 }
 
+func TestValueHardening(t *testing.T) {
+	r := lint(t, `
+scripts:
+  - id: "Bad ID"
+    name: "bad id"
+    command: "true"
+    args:
+      - key: LD_PRELOAD
+arg-templates:
+  - id: tmpl
+    key: "not an env var"
+rules:
+  - type: script_clean
+    name: "bad values"
+    command: "true"
+    enabled: ture
+    severity: fatal
+    on_missing: explode
+    args:
+      "a b": x
+      PATH: /evil
+`)
+	joined := strings.Join(r.rep.Errors, "\n")
+	for _, want := range []string{
+		"rule 'bad values' has invalid 'enabled' value 'ture'",
+		"rule 'bad values' has unknown severity 'fatal'",
+		"rule 'bad values' has unknown on_missing 'explode'",
+		"rule 'bad values' arg key 'a b' is not a valid environment variable name",
+		"rule 'bad values' arg key 'PATH' is reserved",
+		"script id 'Bad ID' must match",
+		"script 'Bad ID' declares reserved arg key 'LD_PRELOAD'",
+		"arg-template 'tmpl' key 'not an env var' is not a valid environment variable name",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q in errors:\n%s", want, joined)
+		}
+	}
+}
+
 func TestDecodeErrIsStructural(t *testing.T) {
 	r := lint(t, "rules:\n  key: value\n")
 	if !r.aborted || !strings.Contains(r.out, "bumfuzzle.yml has invalid structure") {
