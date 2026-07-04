@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  release:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +34,15 @@ jobs:
       - name: go test
         run: go test ./...
 
+  github-release:
+    needs: verify
+    runs-on: ubuntu-latest
+    outputs:
+      sha256: ${{ steps.sha.outputs.sha256 }}
+      url: ${{ steps.sha.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -47,8 +56,11 @@ jobs:
           echo "sha256=$(shasum -a 256 /tmp/bumfuzzle-src.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
-      # publish to npm/PyPI is intentionally omitted here until NPM_TOKEN /
-      # PYPI_API_TOKEN secrets exist on this repo.
+  homebrew-bump:
+    needs: github-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Bump Homebrew formula
         env:
@@ -56,8 +68,8 @@ jobs:
         run: |
           BRANCH="formula-bump-${{ github.ref_name }}"
           git checkout -b "$BRANCH"
-          sed -i "s|^  url \".*\"|  url \"${{ steps.sha.outputs.url }}\"|" Formula/bumfuzzle.rb
-          sed -i "s|^  sha256 \".*\"|  sha256 \"${{ steps.sha.outputs.sha256 }}\"|" Formula/bumfuzzle.rb
+          sed -i "s|^  url \".*\"|  url \"${{ needs.github-release.outputs.url }}\"|" Formula/bumfuzzle.rb
+          sed -i "s|^  sha256 \".*\"|  sha256 \"${{ needs.github-release.outputs.sha256 }}\"|" Formula/bumfuzzle.rb
           git config user.name "bumfuzzle-bot"
           git config user.email "noreply@archicode.ai"
           git add Formula/bumfuzzle.rb
@@ -68,3 +80,38 @@ jobs:
           gh pr create --title "chore(formula): bump to ${{ github.ref_name }}" \
             --body "Automated formula bump for ${{ github.ref_name }}." \
             --base main --head "$BRANCH"
+
+  npm-publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+  pypi-publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build and publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          pip install build twine
+          python -m build
+          twine upload dist/*
