@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>EXFOLIATE! EXFOLIATE!</strong>
+  <strong>Complete Rules Engine for enforcing conventions.</strong>
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
 ---
 
 > [!CAUTION]
-> Now you can bash the soul out of your coding agent.
+> Now you can bash the soul out of your coding agent.<br>
 > And it will never break a rule again.
 
 ---
