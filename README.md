@@ -78,6 +78,7 @@ When a check fails, preflight prints exactly what broke and how to fix it. The a
 
 ```bash
 # Homebrew
+brew tap arc-com/bumfuzzle
 brew install bumfuzzle
 
 # Package managers
@@ -91,7 +92,7 @@ poetry add --group dev bumfuzzle
 
 # From source
 git clone https://github.com/arc-com/bumfuzzle ~/.local/share/bumfuzzle
-bash ~/.local/share/bumfuzzle/setup.sh
+bash ~/.local/share/bumfuzzle/install-global.sh
 ```
 
 Installing from source adds `kickstart`, `bumfuzzle`, and `preflight` to `~/.local/bin`.

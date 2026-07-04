@@ -26,10 +26,8 @@ bumfuzzle_cli = "."
 bumfuzzle_cli = [
     "bumfuzzle.sh",
     "index.html",
-    "settings.yml",
+    "bumfuzzle-template.yml",
+    "eval-rules.sh",
     "VERSION",
-    "domains/**",
-    "presets/**",
-    "templates/**",
     "scripts/**",
 ]

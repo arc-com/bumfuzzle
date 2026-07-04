@@ -1,23 +1,18 @@
 {
   "name": "bumfuzzle",
-  "version": "0.0.0",
+  "version": "1.2",
   "description": "Project scaffolding and validation",
   "bin": {
-    "preflight": "./preflight.sh",
-    "kickstart": "./kickstart.sh",
     "bumfuzzle": "./bumfuzzle.sh",
     "bfz": "./bumfuzzle.sh"
   },
   "files": [
-    "preflight.sh",
-    "kickstart.sh",
     "bumfuzzle.sh",
-    "index.html",
-    "settings.yml",
-    "domains/",
-    "presets/",
-    "templates/",
     "scripts/",
+    "index.html",
+    "bumfuzzle-template.yml",
+    "eval-rules.sh",
+    "install-global.sh",
     "VERSION"
   ],
   "scripts": {
