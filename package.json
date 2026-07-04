@@ -1,6 +1,6 @@
 {
   "name": "bumfuzzle",
-  "version": "1.2",
+  "version": "1.2.2",
   "description": "Project scaffolding and validation",
   "bin": {
     "bumfuzzle": "./bumfuzzle.sh",
@@ -11,8 +11,11 @@
     "scripts/",
     "index.html",
     "bumfuzzle-template.yml",
-    "eval-rules.sh",
     "install-global.sh",
+    "cmd/",
+    "internal/",
+    "go.mod",
+    "go.sum",
     "VERSION"
   ],
   "scripts": {
