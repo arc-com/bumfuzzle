@@ -1,3 +1,66 @@
+scaffold:
+  steps:
+    - id: git_init
+      label: "Initialize git repository"
+      description: "Runs git init if the project is not already a git repository"
+      enabled: true
+    - id: gitignore
+      label: "Create .gitignore"
+      description: "Creates a starter .gitignore if one does not already exist"
+      enabled: true
+    - id: githooks
+      label: "Install git hooks"
+      description: "Copies pre-commit and commit-msg into .githooks/, installs them into .git/hooks/, and copies the reinstaller to scripts/hooks.sh"
+      enabled: true
+    - id: directories
+      label: "Scaffold directories"
+      description: "Creates the listed directories if they don't already exist"
+      enabled: true
+      args:
+        DIRS:
+          - tmp
+          - Export
+          - Logs
+    - id: env_files
+      label: "Environment files"
+      description: "Creates empty .env.<environment> files for each listed environment"
+      enabled: false
+      args:
+        ENVIRONMENTS:
+          - dev
+          - prod
+    - id: vscode_settings
+      label: "VS Code settings"
+      description: "Reserved for future scaffolding of .vscode/settings.json — not yet implemented"
+      enabled: false
+    - id: claude_settings
+      label: "Claude Code settings"
+      description: "Reserved for future scaffolding of .claude/settings.json — not yet implemented"
+      enabled: false
+    - id: dependencies
+      label: "Install dependencies"
+      description: "Reserved for future dependency bootstrap (npm install, pip install, etc.) — not yet implemented"
+      enabled: false
+    - id: docker_compose
+      label: "Docker Compose"
+      description: "Reserved for future docker-compose.yml scaffolding — not yet implemented"
+      enabled: false
+
+hooks:
+  approval_gates:
+    - label: "Config/YAML"
+      env_var: CONFIG_APPROVED
+      pattern: '(^|/)[^/]+\.ya?ml$'
+    - label: "Markdown"
+      env_var: DOCS_APPROVED
+      pattern: '(^|/)[^/]+\.md$'
+    - label: "dotenv"
+      env_var: ENV_APPROVED
+      pattern: '(^|/)\.env($|[._-][^/]+$)'
+    - label: "Scripts"
+      env_var: SCRIPT_APPROVED
+      pattern: '(^|/)scripts/[^/]+'
+
 scripts:
   - group: "Claude Settings"
     scripts:

@@ -281,6 +281,68 @@ function isAncestorOf(ancestor, item) {
   return check(ancestor.rules);
 }
 
+// ── Kickstart steps ───────────────────────────────────────────────────────────
+// Canonical catalog, mirroring bumfuzzle-template.yml's scaffold.steps. Kept
+// here (not just read from the loaded config) so the panel still shows every
+// known step — with sensible labels/descriptions — even against an older
+// bumfuzzle.yml that predates a given step.
+
+const KICKSTART_STEPS = [
+  { id: 'git_init',        label: 'Initialize git repository', description: 'Runs git init if the project is not already a git repository' },
+  { id: 'gitignore',       label: 'Create .gitignore',         description: 'Creates a starter .gitignore if one does not already exist' },
+  { id: 'githooks',        label: 'Install git hooks',         description: 'Copies pre-commit and commit-msg into .githooks/, installs them into .git/hooks/, and copies the reinstaller to scripts/hooks.sh' },
+  { id: 'directories',     label: 'Scaffold directories',      description: "Creates the listed directories if they don't already exist", argsKey: 'DIRS' },
+  { id: 'env_files',       label: 'Environment files',         description: 'Creates empty .env.<environment> files for each listed environment', argsKey: 'ENVIRONMENTS' },
+  { id: 'vscode_settings', label: 'VS Code settings',          description: 'Reserved for future scaffolding of .vscode/settings.json — not yet implemented' },
+  { id: 'claude_settings', label: 'Claude Code settings',      description: 'Reserved for future scaffolding of .claude/settings.json — not yet implemented' },
+  { id: 'dependencies',    label: 'Install dependencies',      description: 'Reserved for future dependency bootstrap (npm install, pip install, etc.) — not yet implemented' },
+  { id: 'docker_compose',  label: 'Docker Compose',            description: 'Reserved for future docker-compose.yml scaffolding — not yet implemented' },
+];
+
+function normalizeScaffoldSteps(loaded) {
+  const byId = {};
+  (loaded || []).forEach(s => { if (s && s.id) byId[s.id] = s; });
+  const merged = KICKSTART_STEPS.map(def => {
+    const saved = byId[def.id] || {};
+    delete byId[def.id];
+    const item = {
+      id: def.id,
+      label: saved.label || def.label,
+      description: saved.description || def.description,
+      enabled: saved.enabled === true,
+      args: {},
+    };
+    if (def.argsKey) {
+      const list = (saved.args && Array.isArray(saved.args[def.argsKey])) ? saved.args[def.argsKey] : [];
+      item.args[def.argsKey] = list.slice();
+    }
+    return item;
+  });
+  // preserve any unrecognized steps a user added directly in YAML
+  Object.keys(byId).forEach(id => merged.push(JSON.parse(JSON.stringify(byId[id]))));
+  return merged;
+}
+
+// ── Approval gates ────────────────────────────────────────────────────────────
+// Unlike KICKSTART_STEPS there's no fixed catalog — these are freely
+// user-defined. When bumfuzzle.yml has none yet, seed the panel with the same
+// four gates bumfuzzle-template.yml ships, so the wizard reflects the actual
+// default a fresh kickstart run would deploy.
+
+const DEFAULT_APPROVAL_GATES = [
+  { label: 'Config/YAML', env_var: 'CONFIG_APPROVED', pattern: '(^|/)[^/]+\\.ya?ml$' },
+  { label: 'Markdown',    env_var: 'DOCS_APPROVED',   pattern: '(^|/)[^/]+\\.md$' },
+  { label: 'dotenv',      env_var: 'ENV_APPROVED',    pattern: '(^|/)\\.env($|[._-][^/]+$)' },
+  { label: 'Scripts',     env_var: 'SCRIPT_APPROVED', pattern: '(^|/)scripts/[^/]+' },
+];
+
+function normalizeApprovalGates(loaded) {
+  if (Array.isArray(loaded) && loaded.length) {
+    return loaded.map(g => ({ label: g.label || '', env_var: g.env_var || '', pattern: g.pattern || '' }));
+  }
+  return DEFAULT_APPROVAL_GATES.map(g => ({ ...g }));
+}
+
 // ── Data init ─────────────────────────────────────────────────────────────────
 
 function initData() {
@@ -289,12 +351,16 @@ function initData() {
   const cEnums        = C && C.enums;
   const cScripts      = C && C.scripts;
   const cArgTemplates = C && C['arg-templates'];
+  const cScaffoldSteps = C && C.scaffold && C.scaffold.steps;
+  const cApprovalGates = C && C.hooks && C.hooks.approval_gates;
   state = {
     rules:        JSON.parse(JSON.stringify(cRules   || sRules   || [])),
     enums:        JSON.parse(JSON.stringify(cEnums)),
     scripts:      JSON.parse(JSON.stringify(cScripts || [])),
     argTemplates: JSON.parse(JSON.stringify(cArgTemplates || [])),
-    sections: { rules: true, enums: true, scripts: true, argTemplates: true, actions: true },
+    scaffold:     { steps: normalizeScaffoldSteps(cScaffoldSteps) },
+    hooks:        { approvalGates: normalizeApprovalGates(cApprovalGates) },
+    sections: { rules: true, enums: true, scripts: true, argTemplates: true, scaffold: true, hooks: true, actions: true },
     filters:  { rules: 'all' },
   };
   annotate(state.rules);
@@ -611,6 +677,45 @@ function generateYaml() {
       lines.push('    type: '  + (t.type || 'string'));
       writeScriptArgConstraints(t, '    ');
     });
+  }
+
+  function writeScaffoldSteps(items) {
+    items.forEach(item => {
+      lines.push('    - id: ' + JSON.stringify(item.id || ''));
+      if (item.label)       lines.push('      label: '       + JSON.stringify(item.label));
+      if (item.description) lines.push('      description: ' + JSON.stringify(item.description));
+      lines.push('      enabled: ' + (item.enabled === true ? 'true' : 'false'));
+      const def = KICKSTART_STEPS.find(d => d.id === item.id);
+      const argsKey = def && def.argsKey;
+      const argsList = argsKey && item.args && Array.isArray(item.args[argsKey]) ? item.args[argsKey] : null;
+      if (argsList && argsList.length) {
+        lines.push('      args:');
+        lines.push('        ' + argsKey + ':');
+        argsList.forEach(v => lines.push('          - ' + JSON.stringify(v)));
+      }
+    });
+  }
+
+  if (state.scaffold && state.scaffold.steps && state.scaffold.steps.length) {
+    lines.push('scaffold:');
+    lines.push('  steps:');
+    writeScaffoldSteps(state.scaffold.steps);
+    lines.push('');
+  }
+
+  function writeApprovalGates(items) {
+    items.forEach(item => {
+      lines.push('    - label: '   + JSON.stringify(item.label || ''));
+      lines.push('      env_var: ' + JSON.stringify(item.env_var || ''));
+      lines.push('      pattern: ' + JSON.stringify(item.pattern || ''));
+    });
+  }
+
+  if (state.hooks && state.hooks.approvalGates && state.hooks.approvalGates.length) {
+    lines.push('hooks:');
+    lines.push('  approval_gates:');
+    writeApprovalGates(state.hooks.approvalGates);
+    lines.push('');
   }
 
   if (state.scripts && state.scripts.length) { lines.push('scripts:'); writeScriptItems(state.scripts, '  '); }
@@ -1119,6 +1224,80 @@ function ruleRequiredArgsFilled(item) {
     const v = item.args?.[a.key];
     return v !== undefined && v !== '' && !(Array.isArray(v) && !v.length);
   });
+}
+
+function buildScaffoldStepRow(item, onChange) {
+  const row = el('div', { class: 'rt-row', style: 'align-items:flex-start;flex-direction:column;gap:8px;cursor:default' });
+
+  const top  = el('div', { style: 'display:flex;align-items:center;gap:8px;width:100%' });
+  const info = el('div', { style: 'flex:1;min-width:0' },
+    el('div', { style: 'font-weight:600' }, item.label),
+    el('div', { style: 'font-size:12px;color:var(--tm)' }, item.description),
+  );
+  const en0 = item.enabled === true;
+  const tog = el('button', { class: 'rt-tog' + (en0 ? '' : ' off'), title: en0 ? 'Disable' : 'Enable' }, en0 ? 'on' : 'off');
+  tog.addEventListener('click', () => {
+    item.enabled = item.enabled !== true;
+    scheduleSave();
+    onChange();
+  });
+  top.append(info, tog);
+  row.append(top);
+
+  const def = KICKSTART_STEPS.find(d => d.id === item.id);
+  if (def && def.argsKey) {
+    if (!item.args || !Array.isArray(item.args[def.argsKey])) item.args = { ...item.args, [def.argsKey]: [] };
+    const list = item.args[def.argsKey];
+
+    const chipsEl = el('div', { class: 'chips' });
+    function refreshChips() {
+      chipsEl.innerHTML = '';
+      if (!list.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
+      list.forEach((v, i) => {
+        const x = el('button', { class: 'chip-x' }, '\xd7');
+        x.addEventListener('click', () => { list.splice(i, 1); refreshChips(); scheduleSave(); onChange(); });
+        chipsEl.append(el('span', { class: 'chip' }, v, x));
+      });
+    }
+    refreshChips();
+
+    const placeholder = def.argsKey === 'DIRS' ? 'directory…' : 'environment…';
+    const inp = el('input', { class: 'add-inp', type: 'text', placeholder });
+    const btn = el('button', { class: 'add-btn' }, '+ add');
+    const addOne = () => {
+      const v = inp.value.trim();
+      if (v && !list.includes(v)) { list.push(v); inp.value = ''; refreshChips(); scheduleSave(); onChange(); }
+    };
+    btn.addEventListener('click', addOne);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') addOne(); });
+
+    row.append(el('div', { style: 'width:100%;padding-left:2px' }, chipsEl, el('div', { class: 'add-row' }, inp, btn)));
+  }
+
+  return row;
+}
+
+function buildApprovalGateRow(item, list, onChange) {
+  const row = el('div', { class: 'rt-row', style: 'align-items:center;gap:8px;cursor:default' });
+
+  const labelInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'label', value: item.label || '' });
+  const envInp   = el('input', { class: 'add-inp', type: 'text', placeholder: 'ENV_VAR', value: item.env_var || '' });
+  const patInp   = el('input', { class: 'add-inp', type: 'text', placeholder: 'regex pattern', style: 'flex:1;min-width:0', value: item.pattern || '' });
+
+  labelInp.addEventListener('input', () => { item.label = labelInp.value; scheduleSave(); });
+  envInp.addEventListener('input',   () => { item.env_var = envInp.value; scheduleSave(); });
+  patInp.addEventListener('input',   () => { item.pattern = patInp.value; scheduleSave(); });
+
+  const x = el('button', { class: 'chip-x', title: 'Remove gate' }, '\xd7');
+  x.addEventListener('click', () => {
+    const i = list.indexOf(item);
+    if (i >= 0) list.splice(i, 1);
+    scheduleSave();
+    onChange();
+  });
+
+  row.append(labelInp, envInp, patInp, x);
+  return row;
 }
 
 function buildRuleFields(rule, reRender, inModal = false) {
@@ -2411,6 +2590,45 @@ function renderPage() {
   const wrap = el('div', { class: 'wrap' });
 
   sections = [];
+
+  // Kickstart Steps — a fixed catalog (see KICKSTART_STEPS), not a
+  // user-extensible tree like Rules/Scripts/Enums, so it gets a bespoke
+  // toggle-list panel instead of createTreeSection.
+  const { sec: scaffoldSec, body: kb, titleEl: scaffoldTitleEl } = makeSection('scaffold', 'Kickstart Steps');
+  kb.style.display = 'flex';
+  kb.style.flexDirection = 'column';
+  kb.style.gap = '14px';
+  function renderScaffoldRows() {
+    kb.innerHTML = '';
+    const steps = state.scaffold.steps;
+    const onCount = steps.filter(s => s.enabled === true).length;
+    scaffoldTitleEl.textContent = 'Kickstart Steps (' + onCount + '/' + steps.length + ' on)';
+    steps.forEach(item => kb.append(buildScaffoldStepRow(item, renderScaffoldRows)));
+  }
+  renderScaffoldRows();
+  wrap.append(scaffoldSec);
+
+  // Approval Gates — free-form list (no fixed catalog like KICKSTART_STEPS),
+  // deployed verbatim by kickstart's githooks step into the pre-commit hook.
+  const { sec: gatesSec, body: gb, titleEl: gatesTitleEl } = makeSection('hooks', 'Approval Gates');
+  gb.style.display = 'flex';
+  gb.style.flexDirection = 'column';
+  gb.style.gap = '8px';
+  function renderGateRows() {
+    gb.innerHTML = '';
+    const gates = state.hooks.approvalGates;
+    gatesTitleEl.textContent = 'Approval Gates (' + gates.length + ')';
+    gates.forEach(item => gb.append(buildApprovalGateRow(item, gates, renderGateRows)));
+    const addBtn = el('button', { class: 'add-btn' }, '+ add gate');
+    addBtn.addEventListener('click', () => {
+      gates.push({ label: '', env_var: '', pattern: '' });
+      scheduleSave();
+      renderGateRows();
+    });
+    gb.append(addBtn);
+  }
+  renderGateRows();
+  wrap.append(gatesSec);
 
   // Rules
   const { sec: rulesSec, body: rb, hdr: rulesHdr, titleEl: rulesTitleEl } = makeSection('rules', 'Rules');

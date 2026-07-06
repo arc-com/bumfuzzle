@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Generic pre-commit hook deployed by kickstart into downstream projects.
+# Distinct from scripts/hooks/pre-commit, which is bumfuzzle's own dev hook.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -40,9 +42,15 @@ require_approval() {
   exit 1
 }
 
-require_approval "Config/YAML" "CONFIG_APPROVED" '(^|/)[^/]+\.ya?ml$'
-require_approval "Markdown"    "DOCS_APPROVED"   '(^|/)[^/]+\.md$'
-require_approval "dotenv"      "ENV_APPROVED"    '(^|/)\.env($|[._-][^/]+$)'
-require_approval "Scripts"     "SCRIPT_APPROVED" '(^|/)scripts/[^/]+'
+# The line below is substituted by kickstart.sh's step_githooks with one
+# require_approval call per entry in hooks.approval_gates (bumfuzzle.yml) —
+# do not hand-edit call sites here, edit the config instead.
+# __APPROVAL_GATES__
 
-exec scripts/preflight.sh
+if command -v bumfuzzle &>/dev/null; then
+  exec bumfuzzle preflight
+elif [[ -x "./bumfuzzle.sh" ]]; then
+  exec ./bumfuzzle.sh preflight
+else
+  echo "bumfuzzle: 'bumfuzzle' not found on PATH — skipping preflight" >&2
+fi

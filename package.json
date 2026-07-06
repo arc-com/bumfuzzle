@@ -11,11 +11,8 @@
     "scripts/",
     "index.html",
     "bumfuzzle-template.yml",
+    "eval-rules.sh",
     "install-global.sh",
-    "cmd/",
-    "internal/",
-    "go.mod",
-    "go.sum",
     "VERSION"
   ],
   "scripts": {
