@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   verify:
@@ -45,31 +44,6 @@ jobs:
           curl -sL "$URL" -o /tmp/bumfuzzle-src.tar.gz
           echo "sha256=$(shasum -a 256 /tmp/bumfuzzle-src.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
-
-  homebrew-bump:
-    needs: github-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Bump Homebrew formula
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          BRANCH="formula-bump-${{ github.ref_name }}"
-          git checkout -b "$BRANCH"
-          sed -i "s|^  url \".*\"|  url \"${{ needs.github-release.outputs.url }}\"|" Formula/bumfuzzle.rb
-          sed -i "s|^  sha256 \".*\"|  sha256 \"${{ needs.github-release.outputs.sha256 }}\"|" Formula/bumfuzzle.rb
-          git config user.name "bumfuzzle-bot"
-          git config user.email "noreply@archicode.ai"
-          git add Formula/bumfuzzle.rb
-          git commit -m "chore(formula): bump to ${{ github.ref_name }}
-
-          Co-Authored-By: Alan <noreply@archicode.ai>"
-          git push origin "$BRANCH"
-          gh pr create --title "chore(formula): bump to ${{ github.ref_name }}" \
-            --body "Automated formula bump for ${{ github.ref_name }}." \
-            --base main --head "$BRANCH"
 
   npm-publish:
     needs: verify
