@@ -7,17 +7,17 @@ rules:
         command: |
           [ -s VERSION ]
       - type: script_clean
-        name: "bfz entry point declared in pyproject.toml"
+        name: "bf entry point declared in pyproject.toml"
         enabled: true
         command: |
-          grep -q '^bfz = ' pyproject.toml
+          grep -q '^bf = ' pyproject.toml
       - type: script_clean
-        name: "bfz entry point declared in package.json"
+        name: "bf entry point declared in package.json"
         enabled: true
         command: |
-          grep -q '"bfz"' package.json
+          grep -q '"bf"' package.json
       - type: script_clean
-        name: "bfz symlink declared in Homebrew formula"
+        name: "bf symlink declared in Homebrew formula"
         enabled: true
         command: |
-          grep -q 'install_symlink.*=> "bfz"' Formula/bumfuzzle.rb
+          grep -q 'install_symlink.*=> "bf"' Formula/bumfuzzle.rb

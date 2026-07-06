@@ -4,7 +4,7 @@
   "description": "Project scaffolding and validation",
   "bin": {
     "bumfuzzle": "./bumfuzzle.sh",
-    "bfz": "./bumfuzzle.sh"
+    "bf": "./bumfuzzle.sh"
   },
   "files": [
     "bumfuzzle.sh",

@@ -35,7 +35,7 @@ NPM_WORK="$(mktemp -d)"
 (cd "$NPM_WORK" && npm init -y > /dev/null 2>&1 && npm install --no-audit --no-fund "bumfuzzle@$VERSION" > /dev/null 2>&1) \
   || fail "npm install bumfuzzle@$VERSION failed"
 assert_help "npm bumfuzzle" "$("$NPM_WORK/node_modules/.bin/bumfuzzle" --help 2>&1)"
-assert_help "npm bfz" "$("$NPM_WORK/node_modules/.bin/bfz" --help 2>&1)"
+assert_help "npm bf" "$("$NPM_WORK/node_modules/.bin/bf" --help 2>&1)"
 echo "OK npm serves v$VERSION"
 
 # -- PyPI -----------------------------------------------------------------
@@ -47,7 +47,7 @@ PYPI_WORK="$(mktemp -d)"
 python3 -m venv "$PYPI_WORK/venv"
 "$PYPI_WORK/venv/bin/pip" install --quiet "bumfuzzle==$VERSION" || fail "pip install bumfuzzle==$VERSION failed"
 assert_help "pip bumfuzzle" "$("$PYPI_WORK/venv/bin/bumfuzzle" --help 2>&1)"
-assert_help "pip bfz" "$("$PYPI_WORK/venv/bin/bfz" --help 2>&1)"
+assert_help "pip bf" "$("$PYPI_WORK/venv/bin/bf" --help 2>&1)"
 echo "OK PyPI serves v$VERSION"
 
 # -- Homebrew ---------------------------------------------------------------
@@ -61,7 +61,7 @@ brew_output="$(docker run --rm --platform linux/amd64 -e HOMEBREW_NO_AUTO_UPDATE
   brew tap $REPO >/dev/null 2>&1
   brew install bumfuzzle >/dev/null 2>&1
   bumfuzzle --help
-  bfz --help
+  bf --help
 " 2>&1)" || fail "brew tap/install/help failed: $brew_output"
 assert_help "brew bumfuzzle" "$brew_output"
 echo "OK Homebrew tap serves v$VERSION"

@@ -10,7 +10,7 @@ requires-python = ">=3.8"
 
 [project.scripts]
 bumfuzzle = "bumfuzzle_cli:main"
-bfz = "bumfuzzle_cli:main"
+bf = "bumfuzzle_cli:main"
 
 [tool.setuptools.dynamic]
 version = { file = "VERSION" }

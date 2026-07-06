@@ -12,7 +12,7 @@ class Bumfuzzle < Formula
   def install
     libexec.install "bumfuzzle.sh", "eval-rules.sh", "bumfuzzle-template.yml", "index.html", "scripts", "VERSION"
     bin.install_symlink libexec/"bumfuzzle.sh" => "bumfuzzle"
-    bin.install_symlink libexec/"bumfuzzle.sh" => "bfz"
+    bin.install_symlink libexec/"bumfuzzle.sh" => "bf"
   end
 
   test do
