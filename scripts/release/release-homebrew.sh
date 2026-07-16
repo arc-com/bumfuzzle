@@ -1,24 +1,37 @@
 #!/usr/bin/env bash
-# Atomic step: release the Homebrew channel for VERSION - bump the formula
-# in homebrew-tools, then sync the tap to it. Safe to run standalone to
-# retry the whole channel after a partial release.
-#
-# Delegates to the two finer sub-steps below, each of which is also safe to
-# run standalone on its own to retry just that half:
-#   release-homebrew-formula.sh - bump homebrew-tools' formula to VERSION
-#   release-homebrew-tap.sh     - push the current formula to the tap
-#
-# --sync-tap: skip the formula bump and just re-push homebrew-tools'
-# already-correct formula to the tap for the current VERSION, without
-# cutting a new release. Use it to correct tap drift without republishing
-# to npm/PyPI.
+# Atomic step: release the Homebrew channel for VERSION - bump the canonical
+# Formula/bumfuzzle.rb (kept in the sibling arc-com/homebrew-tools repo, which
+# customers tap directly as arc-com/tools - there is no separate public tap),
+# commit, and push. Safe to run standalone to retry after a partial release.
 set -euo pipefail
-RELEASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
-if [[ "${1:-}" == "--sync-tap" ]]; then
-  "$RELEASE_DIR/release-homebrew-tap.sh"
+require_homebrew_tools_dir
+FORMULA="$HOMEBREW_TOOLS_DIR/Formula/bumfuzzle.rb"
+
+VERSION="$(current_version)"
+require_tag_matches_head "$VERSION"
+require_on_main_synced "$HOMEBREW_TOOLS_DIR"
+require_clean_worktree "$HOMEBREW_TOOLS_DIR"
+
+URL="https://github.com/$REPO/archive/refs/tags/v$VERSION.tar.gz"
+if grep -q "url \"$URL\"" "$FORMULA"; then
+  echo "==> $FORMULA already points at v$VERSION"
   exit 0
 fi
 
-"$RELEASE_DIR/release-homebrew-formula.sh"
-"$RELEASE_DIR/release-homebrew-tap.sh"
+echo "==> Computing release tarball sha256 for v$VERSION"
+SHA256="$(tarball_sha256 "$VERSION")"
+
+echo "==> Updating $FORMULA to v$VERSION"
+sed -i '' "s|^  url \".*\"|  url \"$URL\"|" "$FORMULA"
+sed -i '' "s|^  sha256 \".*\"|  sha256 \"$SHA256\"|" "$FORMULA"
+git -C "$HOMEBREW_TOOLS_DIR" add Formula/bumfuzzle.rb
+git -C "$HOMEBREW_TOOLS_DIR" commit -m "$(cat <<EOF
+chore(formula): bump to v$VERSION
+
+Co-Authored-By: Alan <noreply@archicode.ai>
+EOF
+)"
+git -C "$HOMEBREW_TOOLS_DIR" push origin main
+echo "==> $FORMULA bumped to v$VERSION and pushed - arc-com/tools now serves it"

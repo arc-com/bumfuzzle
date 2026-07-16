@@ -4,10 +4,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPO="arc-com/bumfuzzle"
-TAP_REPO="arc-com/homebrew-bumfuzzle"
 
 # Formula/bumfuzzle.rb lives in the sibling arc-com/homebrew-tools repo, not
 # in this repo - extracted so other project formulas can live alongside it.
+# Customers tap that repo directly as arc-com/tools; there is no separate
+# per-project tap.
 HOMEBREW_TOOLS_DIR="$(cd "$ROOT/../homebrew-tools" 2> /dev/null && pwd || true)"
 
 fail() { echo "error: $*" >&2; exit 1; }

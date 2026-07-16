@@ -78,7 +78,7 @@ When a check fails, preflight prints exactly what broke and how to fix it. The a
 
 ```bash
 # Homebrew
-brew tap arc-com/bumfuzzle
+brew tap arc-com/tools
 brew install bumfuzzle
 
 # Package managers

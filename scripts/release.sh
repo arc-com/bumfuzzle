@@ -6,10 +6,6 @@
 #
 # Each release-*.sh step is also safe to run standalone (e.g. to retry one
 # channel after a partial failure) - it re-checks its own preconditions.
-#
-# --sync-tap: re-push homebrew-tools' already-correct Formula/bumfuzzle.rb to
-# the Homebrew tap for the current VERSION, without cutting a new release.
-# Use it to correct tap drift without republishing to npm/PyPI.
 set -euo pipefail
 
 RELEASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/release" && pwd)"
@@ -17,14 +13,7 @@ source "$RELEASE_DIR/lib.sh"
 
 usage() {
   printf 'Usage: %s <new-version>\n  e.g. %s 1.2.3\n' "$(basename "$0")" "$(basename "$0")"
-  printf '       %s --sync-tap\n  Re-push the current VERSION formula to the tap without a new release\n' "$(basename "$0")"
 }
-
-if [[ "${1:-}" == "--sync-tap" ]]; then
-  "$RELEASE_DIR/release-homebrew.sh" --sync-tap
-  "$ROOT/tests/release/test_release.sh"
-  exit 0
-fi
 
 [[ $# -eq 1 ]] || { usage >&2; exit 1; }
 NEW_VERSION="$1"
