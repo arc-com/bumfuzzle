@@ -39,9 +39,11 @@ assert_help "npm bf" "$("$NPM_WORK/node_modules/.bin/bf" --help 2>&1)"
 echo "OK npm serves v$VERSION"
 
 # -- PyPI -----------------------------------------------------------------
-pypi_live="$(curl -sf https://pypi.org/pypi/bumfuzzle/json | python3 -c 'import json, sys; print(json.load(sys.stdin)["info"]["version"])')" \
-  || fail "could not read live version from pypi.org"
-[[ "$pypi_live" == "$VERSION" ]] || fail "PyPI serves v$pypi_live, VERSION is v$VERSION"
+# Checks the version-specific endpoint, not the aggregate .../bumfuzzle/json
+# one - the aggregate "latest" metadata can lag behind a fresh upload by a
+# short window even after pip can already install the version fine.
+curl -sf "https://pypi.org/pypi/bumfuzzle/$VERSION/json" > /dev/null \
+  || fail "PyPI does not yet serve bumfuzzle==$VERSION"
 
 PYPI_WORK="$(mktemp -d)"
 python3 -m venv "$PYPI_WORK/venv"
