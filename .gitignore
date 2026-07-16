@@ -4,3 +4,4 @@ config.js
 .bumfuzzle-out
 package.json
 tmp/
+*.egg-info/

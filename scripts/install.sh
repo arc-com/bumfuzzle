@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-global.sh — install bumfuzzle globally on this machine
+# install.sh — install bumfuzzle globally on this machine
 #
 # EXCEPTION: this script is the sole file in the repo permitted to write outside
 # $PROJECT_DIR. It installs symlinks into $HOME/.local/bin by design.

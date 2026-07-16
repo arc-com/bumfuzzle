@@ -56,9 +56,11 @@ docker info > /dev/null 2>&1 || fail "docker daemon is not running (start Docker
 
 # linux/amd64 is explicit: homebrew/brew has no native arm64 image, and Docker
 # transparently emulates it on Apple Silicon.
-brew_output="$(docker run --rm --platform linux/amd64 -e HOMEBREW_NO_AUTO_UPDATE=1 homebrew/brew:latest bash -c "
+brew_output="$(docker run --rm --platform linux/amd64 homebrew/brew:latest bash -c "
   set -e
+  brew update >/dev/null 2>&1
   brew tap $REPO >/dev/null 2>&1
+  brew trust $REPO >/dev/null 2>&1
   brew install bumfuzzle >/dev/null 2>&1
   bumfuzzle --help
   bf --help

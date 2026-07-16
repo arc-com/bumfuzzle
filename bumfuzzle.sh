@@ -23,9 +23,6 @@ usage() {
   printf '  preflight            Validate bumfuzzle.yml in the current directory\n'
   printf '    -v, --verbose        Show passing checks\n'
   printf '\n'
-  printf 'Install:\n'
-  printf '  bash %s/install-global.sh\n' "$BUMFUZZLE_ROOT"
-  printf '\n'
 }
 
 cmd="${1:-}"
