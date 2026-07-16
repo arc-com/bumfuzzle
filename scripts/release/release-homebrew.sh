@@ -15,13 +15,17 @@ require_on_main_synced "$HOMEBREW_TOOLS_DIR"
 require_clean_worktree "$HOMEBREW_TOOLS_DIR"
 
 URL="https://github.com/$REPO/archive/refs/tags/v$VERSION.tar.gz"
-if grep -q "url \"$URL\"" "$FORMULA"; then
-  echo "==> $FORMULA already points at v$VERSION"
-  exit 0
-fi
 
 echo "==> Computing release tarball sha256 for v$VERSION"
 SHA256="$(tarball_sha256 "$VERSION")"
+
+# Checks both url and sha256, not just url - a tag's tarball can change out
+# from under an unchanged url (e.g. a history rewrite moving the tag), which
+# would otherwise leave a stale sha256 silently uncaught.
+if grep -q "url \"$URL\"" "$FORMULA" && grep -q "sha256 \"$SHA256\"" "$FORMULA"; then
+  echo "==> $FORMULA already points at v$VERSION with the correct sha256"
+  exit 0
+fi
 
 echo "==> Updating $FORMULA to v$VERSION"
 sed -i '' "s|^  url \".*\"|  url \"$URL\"|" "$FORMULA"
