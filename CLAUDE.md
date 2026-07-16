@@ -1,1 +1,1 @@
-/Users/johndoe/Projects/archicode/instruct/MASTER_RULESET.md
+/Users/johndoe/Projects/arc/instruct/CLAUDE.md

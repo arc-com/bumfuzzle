@@ -20,4 +20,4 @@ rules:
         name: "bf symlink declared in Homebrew formula"
         enabled: true
         command: |
-          grep -q 'install_symlink.*=> "bf"' Formula/bumfuzzle.rb
+          grep -q 'install_symlink.*=> "bf"' ../homebrew-tools/Formula/bumfuzzle.rb

@@ -92,7 +92,7 @@ poetry add --group dev bumfuzzle
 
 # From source
 git clone https://github.com/arc-com/bumfuzzle ~/.local/share/bumfuzzle
-bash ~/.local/share/bumfuzzle/install-global.sh
+bash ~/.local/share/bumfuzzle/scripts/install.sh
 ```
 
 Installing from source adds `kickstart`, `bumfuzzle`, and `preflight` to `~/.local/bin`.
