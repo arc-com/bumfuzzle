@@ -78,8 +78,7 @@ When a check fails, preflight prints exactly what broke and how to fix it. The a
 
 ```bash
 # Homebrew
-brew tap arc-com/tools
-brew install bumfuzzle
+brew install arc-com/tools/bumfuzzle
 
 # Package managers
 pnpm add -D bumfuzzle
@@ -95,7 +94,7 @@ git clone https://github.com/arc-com/bumfuzzle ~/.local/share/bumfuzzle
 bash ~/.local/share/bumfuzzle/scripts/install.sh
 ```
 
-Installing from source adds `kickstart`, `bumfuzzle`, and `preflight` to `~/.local/bin`.
+Installing from source adds `bumfuzzle` and `bf` to `~/.local/bin`. Run `scripts/uninstall.sh` to remove them.
 
 ---
 

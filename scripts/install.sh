@@ -7,8 +7,11 @@
 set -euo pipefail
 
 SOURCE="${BASH_SOURCE[0]}"
-while [[ -L "$SOURCE" ]]; do SOURCE="$(readlink "$SOURCE")"; done
-REPO="$(cd "$(dirname "$SOURCE")" && pwd)"
+while [[ -L "$SOURCE" ]]; do
+  target="$(readlink "$SOURCE")"
+  SOURCE="$(cd "$(dirname "$SOURCE")" && cd "$(dirname "$target")" && pwd)/$(basename "$target")"
+done
+REPO="$(cd "$(dirname "$SOURCE")/.." && pwd)"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 VERSION="$(cat "$REPO/VERSION" 2>/dev/null || printf 'unknown')"
 
@@ -41,4 +44,4 @@ else
   printf '[ok]     %s is on your PATH\n' "$BIN_DIR"
 fi
 
-printf '\nDone. Run: bumfuzzle --help\n\n'
+printf '\nDone. Run: bumfuzzle --help (or bf --help)\n\n'
