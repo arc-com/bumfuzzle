@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 # Cuts a release end to end, entirely locally: bumps VERSION, tags, then runs
 # each atomic scripts/release/release-*.sh step (GitHub release, npm, PyPI,
-# Homebrew), then re-verifies all four channels against VERSION. No GitHub
-# Actions workflow is involved in publishing.
+# Homebrew) in parallel. Does not verify the channels itself - run
+# tests/release/test_release.sh afterward for that. No GitHub Actions
+# workflow is involved in publishing.
+#
+# The four publish steps only depend on the tag already existing - not on
+# each other - so they run concurrently as background jobs. A failure in one
+# doesn't stop the others: each job's exit status is collected after all
+# finish, and every failing step is reported together (cumulative fail), not
+# just the first one hit.
 #
 # Each release-*.sh step is also safe to run standalone (e.g. to retry one
 # channel after a partial failure) - it re-checks its own preconditions.
@@ -37,12 +44,32 @@ git -C "$ROOT" tag "v$NEW_VERSION"
 git -C "$ROOT" push origin main
 git -C "$ROOT" push origin "v$NEW_VERSION"
 
-"$RELEASE_DIR/release-github.sh"
-"$RELEASE_DIR/release-npm.sh"
-"$RELEASE_DIR/release-pypi.sh"
-"$RELEASE_DIR/release-homebrew.sh"
+echo "==> Publishing to GitHub, npm, PyPI, and Homebrew in parallel"
+PUBLISH_LOG_DIR="$(mktemp -d)"
+trap 'rm -rf "$PUBLISH_LOG_DIR"' EXIT
 
-echo "==> Verifying all channels now serve v$NEW_VERSION"
-"$ROOT/tests/release/test_release.sh"
+PUBLISH_STEPS=(release-github release-npm release-pypi release-homebrew)
+declare -A PUBLISH_PIDS
 
-echo "==> Release v$NEW_VERSION shipped and verified."
+for step in "${PUBLISH_STEPS[@]}"; do
+  "$RELEASE_DIR/$step.sh" > "$PUBLISH_LOG_DIR/$step.log" 2>&1 &
+  PUBLISH_PIDS[$step]=$!
+done
+
+PUBLISH_FAILED=()
+for step in "${PUBLISH_STEPS[@]}"; do
+  if wait "${PUBLISH_PIDS[$step]}"; then
+    echo "==> $step succeeded"
+  else
+    PUBLISH_FAILED+=("$step")
+    echo "==> $step FAILED"
+  fi
+  printf -- '---- %s output ----\n' "$step"
+  cat "$PUBLISH_LOG_DIR/$step.log"
+done
+
+[[ ${#PUBLISH_FAILED[@]} -eq 0 ]] || fail "publish steps failed: ${PUBLISH_FAILED[*]} (each is safe to re-run standalone)"
+
+echo "==> Release v$NEW_VERSION published to all four channels."
+echo "==> Next step: verify it. Run:"
+echo "      tests/release/test_release.sh"

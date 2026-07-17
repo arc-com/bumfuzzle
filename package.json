@@ -1,6 +1,6 @@
 {
   "name": "bumfuzzle",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Project scaffolding and validation",
   "bin": {
     "bumfuzzle": "./bumfuzzle.sh",

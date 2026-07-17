@@ -6,7 +6,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 VERSION="$(cat "$ROOT/VERSION")"
-HOMEBREW_TAP="arc-com/tools"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -53,21 +52,7 @@ assert_help "pip bf" "$("$PYPI_WORK/venv/bin/bf" --help 2>&1)"
 echo "OK PyPI serves v$VERSION"
 
 # -- Homebrew ---------------------------------------------------------------
-command -v docker > /dev/null 2>&1 || fail "docker is required to verify the Homebrew tap (not installed)"
-docker info > /dev/null 2>&1 || fail "docker daemon is not running (start Docker Desktop and retry)"
-
-# linux/amd64 is explicit: homebrew/brew has no native arm64 image, and Docker
-# transparently emulates it on Apple Silicon.
-brew_output="$(docker run --rm --platform linux/amd64 homebrew/brew:latest bash -c "
-  set -e
-  brew update >/dev/null 2>&1
-  brew tap $HOMEBREW_TAP >/dev/null 2>&1
-  brew trust $HOMEBREW_TAP >/dev/null 2>&1
-  brew install bumfuzzle >/dev/null 2>&1
-  bumfuzzle --help
-  bf --help
-" 2>&1)" || fail "brew tap/install/help failed: $brew_output"
-assert_help "brew bumfuzzle" "$brew_output"
-echo "OK Homebrew tap serves v$VERSION"
+"$(dirname "$0")/test-release-brew-shallow.sh"
+"$(dirname "$0")/test-release-brew-deep.sh"
 
 echo "OK $(basename "$0")"
