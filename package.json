@@ -3,16 +3,13 @@
   "version": "1.2.7",
   "description": "Project scaffolding and validation",
   "bin": {
-    "bumfuzzle": "./bumfuzzle.sh",
-    "bf": "./bumfuzzle.sh"
+    "bumfuzzle": "./scripts/bumfuzzle.sh",
+    "bf": "./scripts/bumfuzzle.sh"
   },
   "files": [
-    "bumfuzzle.sh",
     "scripts/",
     "index.html",
     "bumfuzzle-template.yml",
-    "eval-rules.sh",
-    "install-global.sh",
     "VERSION"
   ],
   "scripts": {

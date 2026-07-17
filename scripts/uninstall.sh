@@ -31,7 +31,7 @@ unlink_tool() {
 
 printf '\nbumfuzzle v%s — global uninstall\n\n' "$VERSION"
 
-unlink_tool bumfuzzle "$REPO/bumfuzzle.sh"
-unlink_tool bf "$REPO/bumfuzzle.sh"
+unlink_tool bumfuzzle "$REPO/scripts/bumfuzzle.sh"
+unlink_tool bf "$REPO/scripts/bumfuzzle.sh"
 
 printf '\nDone.\n\n'

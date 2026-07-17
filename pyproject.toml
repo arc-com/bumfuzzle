@@ -24,8 +24,6 @@ bumfuzzle_cli = "."
 
 [tool.setuptools.package-data]
 bumfuzzle_cli = [
-    "bumfuzzle.sh",
-    "eval-rules.sh",
     "index.html",
     "bumfuzzle-template.yml",
     "VERSION",

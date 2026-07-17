@@ -6,7 +6,7 @@ while [[ -L "$SOURCE" ]]; do
   target="$(readlink "$SOURCE")"
   SOURCE="$(cd "$(dirname "$SOURCE")" && cd "$(dirname "$target")" && pwd)/$(basename "$target")"
 done
-export BUMFUZZLE_ROOT="$(cd "$(dirname "$SOURCE")" && pwd)"
+export BUMFUZZLE_ROOT="$(cd "$(dirname "$SOURCE")/.." && pwd)"
 
 BUMFUZZLE_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
 
