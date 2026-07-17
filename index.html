@@ -323,26 +323,6 @@ function normalizeScaffoldSteps(loaded) {
   return merged;
 }
 
-// ── Approval gates ────────────────────────────────────────────────────────────
-// Unlike KICKSTART_STEPS there's no fixed catalog — these are freely
-// user-defined. When bumfuzzle.yml has none yet, seed the panel with the same
-// four gates bumfuzzle-template.yml ships, so the wizard reflects the actual
-// default a fresh kickstart run would deploy.
-
-const DEFAULT_APPROVAL_GATES = [
-  { label: 'Config/YAML', env_var: 'CONFIG_APPROVED', pattern: '(^|/)[^/]+\\.ya?ml$' },
-  { label: 'Markdown',    env_var: 'DOCS_APPROVED',   pattern: '(^|/)[^/]+\\.md$' },
-  { label: 'dotenv',      env_var: 'ENV_APPROVED',    pattern: '(^|/)\\.env($|[._-][^/]+$)' },
-  { label: 'Scripts',     env_var: 'SCRIPT_APPROVED', pattern: '(^|/)scripts/[^/]+' },
-];
-
-function normalizeApprovalGates(loaded) {
-  if (Array.isArray(loaded) && loaded.length) {
-    return loaded.map(g => ({ label: g.label || '', env_var: g.env_var || '', pattern: g.pattern || '' }));
-  }
-  return DEFAULT_APPROVAL_GATES.map(g => ({ ...g }));
-}
-
 // ── Data init ─────────────────────────────────────────────────────────────────
 
 function initData() {
@@ -352,15 +332,13 @@ function initData() {
   const cScripts      = C && C.scripts;
   const cArgTemplates = C && C['arg-templates'];
   const cScaffoldSteps = C && C.scaffold && C.scaffold.steps;
-  const cApprovalGates = C && C.hooks && C.hooks.approval_gates;
   state = {
     rules:        JSON.parse(JSON.stringify(cRules   || sRules   || [])),
     enums:        JSON.parse(JSON.stringify(cEnums)),
     scripts:      JSON.parse(JSON.stringify(cScripts || [])),
     argTemplates: JSON.parse(JSON.stringify(cArgTemplates || [])),
     scaffold:     { steps: normalizeScaffoldSteps(cScaffoldSteps) },
-    hooks:        { approvalGates: normalizeApprovalGates(cApprovalGates) },
-    sections: { rules: true, enums: true, scripts: true, argTemplates: true, scaffold: true, hooks: true, actions: true },
+    sections: { rules: true, enums: true, scripts: true, argTemplates: true, scaffold: true, actions: true },
     filters:  { rules: 'all' },
   };
   annotate(state.rules);
@@ -700,21 +678,6 @@ function generateYaml() {
     lines.push('scaffold:');
     lines.push('  steps:');
     writeScaffoldSteps(state.scaffold.steps);
-    lines.push('');
-  }
-
-  function writeApprovalGates(items) {
-    items.forEach(item => {
-      lines.push('    - label: '   + JSON.stringify(item.label || ''));
-      lines.push('      env_var: ' + JSON.stringify(item.env_var || ''));
-      lines.push('      pattern: ' + JSON.stringify(item.pattern || ''));
-    });
-  }
-
-  if (state.hooks && state.hooks.approvalGates && state.hooks.approvalGates.length) {
-    lines.push('hooks:');
-    lines.push('  approval_gates:');
-    writeApprovalGates(state.hooks.approvalGates);
     lines.push('');
   }
 
@@ -1274,29 +1237,6 @@ function buildScaffoldStepRow(item, onChange) {
     row.append(el('div', { style: 'width:100%;padding-left:2px' }, chipsEl, el('div', { class: 'add-row' }, inp, btn)));
   }
 
-  return row;
-}
-
-function buildApprovalGateRow(item, list, onChange) {
-  const row = el('div', { class: 'rt-row', style: 'align-items:center;gap:8px;cursor:default' });
-
-  const labelInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'label', value: item.label || '' });
-  const envInp   = el('input', { class: 'add-inp', type: 'text', placeholder: 'ENV_VAR', value: item.env_var || '' });
-  const patInp   = el('input', { class: 'add-inp', type: 'text', placeholder: 'regex pattern', style: 'flex:1;min-width:0', value: item.pattern || '' });
-
-  labelInp.addEventListener('input', () => { item.label = labelInp.value; scheduleSave(); });
-  envInp.addEventListener('input',   () => { item.env_var = envInp.value; scheduleSave(); });
-  patInp.addEventListener('input',   () => { item.pattern = patInp.value; scheduleSave(); });
-
-  const x = el('button', { class: 'chip-x', title: 'Remove gate' }, '\xd7');
-  x.addEventListener('click', () => {
-    const i = list.indexOf(item);
-    if (i >= 0) list.splice(i, 1);
-    scheduleSave();
-    onChange();
-  });
-
-  row.append(labelInp, envInp, patInp, x);
   return row;
 }
 
@@ -2607,28 +2547,6 @@ function renderPage() {
   }
   renderScaffoldRows();
   wrap.append(scaffoldSec);
-
-  // Approval Gates — free-form list (no fixed catalog like KICKSTART_STEPS),
-  // deployed verbatim by kickstart's githooks step into the pre-commit hook.
-  const { sec: gatesSec, body: gb, titleEl: gatesTitleEl } = makeSection('hooks', 'Approval Gates');
-  gb.style.display = 'flex';
-  gb.style.flexDirection = 'column';
-  gb.style.gap = '8px';
-  function renderGateRows() {
-    gb.innerHTML = '';
-    const gates = state.hooks.approvalGates;
-    gatesTitleEl.textContent = 'Approval Gates (' + gates.length + ')';
-    gates.forEach(item => gb.append(buildApprovalGateRow(item, gates, renderGateRows)));
-    const addBtn = el('button', { class: 'add-btn' }, '+ add gate');
-    addBtn.addEventListener('click', () => {
-      gates.push({ label: '', env_var: '', pattern: '' });
-      scheduleSave();
-      renderGateRows();
-    });
-    gb.append(addBtn);
-  }
-  renderGateRows();
-  wrap.append(gatesSec);
 
   // Rules
   const { sec: rulesSec, body: rb, hdr: rulesHdr, titleEl: rulesTitleEl } = makeSection('rules', 'Rules');

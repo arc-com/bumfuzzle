@@ -4,49 +4,6 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-staged_matches() {
-  local pattern="$1"
-  local status path next
-  git diff --cached --name-status --diff-filter=ACDMRTUXB -z |
-    while IFS= read -r -d '' status; do
-      IFS= read -r -d '' path || break
-      if [[ "$path" =~ $pattern ]]; then
-        printf '%s\n' "$path"
-      fi
-      case "$status" in
-        R*|C*)
-          IFS= read -r -d '' next || break
-          if [[ "$next" =~ $pattern ]]; then
-            printf '%s\n' "$next"
-          fi
-          ;;
-      esac
-    done | sort -u
-}
-
-require_approval() {
-  local label="$1"
-  local flag="$2"
-  local pattern="$3"
-  local matches
-
-  matches="$(staged_matches "$pattern")"
-  if [[ -z "$matches" || "${!flag:-}" == "1" ]]; then
-    return
-  fi
-
-  echo "ERROR: ${label} changes require explicit approval:"
-  echo "$matches" | sed 's/^/  /'
-  echo ""
-  echo "To allow: ${flag}=1 git commit ..."
-  exit 1
-}
-
-# The line below is substituted by kickstart.sh's step_githooks with one
-# require_approval call per entry in hooks.approval_gates (bumfuzzle.yml) —
-# do not hand-edit call sites here, edit the config instead.
-# __APPROVAL_GATES__
-
 if command -v bumfuzzle &>/dev/null; then
   exec bumfuzzle preflight
 elif [[ -x "./bumfuzzle.sh" ]]; then

@@ -46,21 +46,6 @@ scaffold:
       description: "Reserved for future docker-compose.yml scaffolding — not yet implemented"
       enabled: false
 
-hooks:
-  approval_gates:
-    - label: "Config/YAML"
-      env_var: CONFIG_APPROVED
-      pattern: '(^|/)[^/]+\.ya?ml$'
-    - label: "Markdown"
-      env_var: DOCS_APPROVED
-      pattern: '(^|/)[^/]+\.md$'
-    - label: "dotenv"
-      env_var: ENV_APPROVED
-      pattern: '(^|/)\.env($|[._-][^/]+$)'
-    - label: "Scripts"
-      env_var: SCRIPT_APPROVED
-      pattern: '(^|/)scripts/[^/]+'
-
 scripts:
   - group: "Claude Settings"
     scripts:

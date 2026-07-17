@@ -146,40 +146,6 @@ EOF
   fi
 }
 
-# Renders one require_approval call per hooks.approval_gates entry in
-# STEPS_SOURCE, substituted for the __APPROVAL_GATES__ marker line in the
-# pre-commit template. Baked in once at copy time (see maybe_render_pre_commit)
-# since kickstart never rewrites files it already deployed.
-render_approval_gates() {
-  local line label env_var pattern
-  yq '.hooks.approval_gates[] | .label + "\t" + .env_var + "\t" + .pattern' "$STEPS_SOURCE" 2>/dev/null |
-    while IFS=$'\t' read -r label env_var pattern; do
-      is_blank "$label" && continue
-      printf 'require_approval %q %q %q\n' "$label" "$env_var" "$pattern"
-    done
-}
-
-maybe_render_pre_commit() {
-  local src="$1" dest="$2"
-  local label="${dest#"$PROJECT_DIR/"}"
-  if [[ -e "$dest" ]]; then
-    skip "$label exists"
-    return
-  fi
-  log "write $label"
-  if [[ "$DRY_RUN" == false ]]; then
-    local line
-    : > "$dest"
-    while IFS= read -r line; do
-      if [[ "$line" == "# __APPROVAL_GATES__" ]]; then
-        render_approval_gates >> "$dest"
-      else
-        printf '%s\n' "$line" >> "$dest"
-      fi
-    done < "$src"
-  fi
-}
-
 # Deploys the pre-commit/commit-msg hooks and the reinstaller script into the
 # target project, then installs them into .git/hooks/ directly (rather than
 # shelling out to the just-copied scripts/hooks.sh) so a rerun against
@@ -191,11 +157,7 @@ step_githooks() {
   for f in "$BUMFUZZLE_ROOT/scripts/hooks/templates/pre-commit" "$BUMFUZZLE_ROOT/scripts/hooks/commit-msg"; do
     [[ -f "$f" ]] || continue
     name="$(basename "$f")"
-    if [[ "$name" == "pre-commit" ]]; then
-      maybe_render_pre_commit "$f" "$PROJECT_DIR/.githooks/$name"
-    else
-      maybe_copy "$f" "$PROJECT_DIR/.githooks/$name"
-    fi
+    maybe_copy "$f" "$PROJECT_DIR/.githooks/$name"
     [[ "$DRY_RUN" == false ]] && chmod +x "$PROJECT_DIR/.githooks/$name"
   done
 
