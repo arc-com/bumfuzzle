@@ -49,16 +49,17 @@ PUBLISH_LOG_DIR="$(mktemp -d)"
 trap 'rm -rf "$PUBLISH_LOG_DIR"' EXIT
 
 PUBLISH_STEPS=(release-github release-npm release-pypi release-homebrew)
-declare -A PUBLISH_PIDS
+PUBLISH_PIDS=()
 
 for step in "${PUBLISH_STEPS[@]}"; do
   "$RELEASE_DIR/$step.sh" > "$PUBLISH_LOG_DIR/$step.log" 2>&1 &
-  PUBLISH_PIDS[$step]=$!
+  PUBLISH_PIDS+=("$!")
 done
 
 PUBLISH_FAILED=()
-for step in "${PUBLISH_STEPS[@]}"; do
-  if wait "${PUBLISH_PIDS[$step]}"; then
+for i in "${!PUBLISH_STEPS[@]}"; do
+  step="${PUBLISH_STEPS[$i]}"
+  if wait "${PUBLISH_PIDS[$i]}"; then
     echo "==> $step succeeded"
   else
     PUBLISH_FAILED+=("$step")
