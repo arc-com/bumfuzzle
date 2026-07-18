@@ -3,7 +3,7 @@ set -euo pipefail
 
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
-PREFLIGHT_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
+RUN_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
 PREFLIGHT_FILE="bumfuzzle.yml"
 ERRORS=()
 WARNINGS=()
@@ -17,7 +17,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
-      printf 'Usage: bumfuzzle preflight [--verbose|-v]\n'
+      printf 'Usage: bumfuzzle run [--verbose|-v]\n'
       exit 1
       ;;
   esac
@@ -52,7 +52,7 @@ fail() {
     hard-stop)
       _flush_header
       printf '[FAIL] %s\n' "$1"
-      printf '[hard-stop] aborting preflight\n'
+      printf '[hard-stop] aborting run\n'
       exit 1
       ;;
     *)
@@ -79,7 +79,7 @@ fi
 
 pass "yq is installed"
 pass "$PREFLIGHT_FILE is present"
-pass "preflight v$PREFLIGHT_VERSION"
+pass "run v$RUN_VERSION"
 
 PREFLIGHT_FILE="$(pwd)/$PREFLIGHT_FILE"
 

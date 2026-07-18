@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Generic pre-commit hook deployed by kickstart into downstream projects.
+# Generic pre-commit hook template for downstream projects.
 # Distinct from scripts/hooks/pre-commit, which is bumfuzzle's own dev hook.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 if command -v bumfuzzle &>/dev/null; then
-  exec bumfuzzle preflight
+  exec bumfuzzle run
 elif [[ -x "./bumfuzzle.sh" ]]; then
-  exec ./bumfuzzle.sh preflight
+  exec ./bumfuzzle.sh run
 else
-  echo "bumfuzzle: 'bumfuzzle' not found on PATH — skipping preflight" >&2
+  echo "bumfuzzle: 'bumfuzzle' not found on PATH — skipping run" >&2
 fi

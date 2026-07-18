@@ -2,8 +2,7 @@
 set -euo pipefail
 
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-KICKSTART_SH="$BUMFUZZLE_ROOT/scripts/kickstart.sh"
-PREFLIGHT_SH="$BUMFUZZLE_ROOT/scripts/preflight.sh"
+RUN_SH="$BUMFUZZLE_ROOT/scripts/run.sh"
 SETTINGS="$BUMFUZZLE_ROOT/bumfuzzle-template.yml"
 BUMFUZZLE_HTML="$BUMFUZZLE_ROOT/index.html"
 BUMFUZZLE_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
@@ -25,19 +24,17 @@ fi
 PROJECT_DIR="$(pwd)"
 PROJECT_DIR_NAME="$(basename "$PROJECT_DIR")"
 
-# ── Create bumfuzzle.yml with defaults if not present ─────────────────────────
-
-if [[ ! -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-  cp "$SETTINGS" "$PROJECT_DIR/bumfuzzle.yml"
-  printf '  Created bumfuzzle.yml\n'
-fi
-
 # ── Build CONFIG JSON ──────────────────────────────────────────────────────────
+# bumfuzzle.yml is no longer created automatically here — the wizard shows a
+# "Create config" action (POST /reset) that writes it from SETTINGS on demand.
+
+CONFIG_EXISTS=false
+[[ -f "$PROJECT_DIR/bumfuzzle.yml" ]] && CONFIG_EXISTS=true
 
 CURRENT_JSON=$(yq -o=json '.' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || printf '{}')
 
-META_JSON=$(printf '{"projectDir":"%s","projectDirName":"%s","version":"%s"}' \
-  "$PROJECT_DIR" "$PROJECT_DIR_NAME" "$BUMFUZZLE_VERSION")
+META_JSON=$(printf '{"projectDir":"%s","projectDirName":"%s","version":"%s","configExists":%s}' \
+  "$PROJECT_DIR" "$PROJECT_DIR_NAME" "$BUMFUZZLE_VERSION" "$CONFIG_EXISTS")
 
 CONFIG_JSON=$(printf '{"current":%s,"meta":%s}' \
   "$CURRENT_JSON" "$META_JSON")
@@ -48,8 +45,7 @@ SERVER_PY="$BUMFUZZLE_ROOT/scripts/bumfuzzle_server.py"
 
 export BUMFUZZLE_PORT="$PORT"
 export BUMFUZZLE_PROJECT_DIR="$PROJECT_DIR"
-export BUMFUZZLE_KICKSTART_SH="$KICKSTART_SH"
-export BUMFUZZLE_PREFLIGHT_SH="$PREFLIGHT_SH"
+export BUMFUZZLE_RUN_SH="$RUN_SH"
 export BUMFUZZLE_HTML
 export BUMFUZZLE_CONFIG_JSON="$CONFIG_JSON"
 export BUMFUZZLE_SETTINGS="$SETTINGS"

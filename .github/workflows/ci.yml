@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  preflight:
+  run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,12 +17,5 @@ jobs:
           sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
           sudo chmod +x /usr/local/bin/yq
 
-      - name: kickstart test suite
-        run: |
-          for t in tests/kickstart/*.sh; do "$t"; done
-
-      - name: kickstart
-        run: ./scripts/kickstart.sh
-
-      - name: preflight
-        run: ./scripts/preflight.sh --verbose
+      - name: run
+        run: ./scripts/bumfuzzle.sh run --verbose

@@ -35,7 +35,7 @@
 
 - `bumfuzzle` is a single self-contained HTML file served by a lightweight local Python server. It shuts down when you close the tab. Nothing leaves your machine.
 - `bumfuzzle.yml` is the only config file created in your project. One file, all rules.
-- `preflight` only reads, never writes. `kickstart` only creates, never overwrites. They are symmetric: if you declare a file as expected, `kickstart` creates it and `preflight` checks it.
+- `bumfuzzle run` runs every check marked `enabled` in `bumfuzzle.yml`. The file itself is created on demand from the wizard's "Create config" button.
 
 ---
 
@@ -45,7 +45,7 @@ It works perfectly with **Cursor**, **Claude Code**, **Codex**, and many more.
 
 Models: Opus 4.8, Sonnet 5, Fable 5, GPT 5.5, GLM 5.2, and many more.
 
-When a check fails, preflight prints exactly what broke and how to fix it. The agent reads the hint, resolves the issue, and reruns, in a loop, until the board is clean.
+When a check fails, `bumfuzzle run` prints exactly what broke and how to fix it. The agent reads the hint, resolves the issue, and reruns, in a loop, until the board is clean.
 
 ---
 
@@ -103,25 +103,17 @@ Installing from source adds `bumfuzzle` and `bf` to `~/.local/bin`. Run `scripts
 ```bash
 cd my-project
 
-# Path A, visual
 bumfuzzle
-# opens web wizard in browser; configure checks, environments, stacks, rules
-# save, writes bumfuzzle.yml to project root
-
-# Path B, fast
-kickstart
-# detects project type from manifests; scaffolds files and dirs; writes bumfuzzle.yml
-# edit bumfuzzle.yml directly, or run bumfuzzle to open the wizard later
+# opens web wizard in browser
+# click "Create config" to write bumfuzzle.yml from the template
+# configure checks, environments, stacks, rules; autosaves as you edit
 
 # Every subsequent run
-preflight              # run all checks
-preflight --verbose    # show passing checks too
-preflight --env prod   # scope to one environment
+bumfuzzle run              # run every check marked enabled in bumfuzzle.yml
+bumfuzzle run --verbose    # show passing checks too
 ```
 
-`preflight` also runs automatically on every `git commit` via the pre-commit hook installed by `kickstart`.
-
-Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumfuzzle.yml` directly. `kickstart` is safe to rerun, it never deletes or overwrites. `preflight` is read-only. Both are idempotent.
+Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumfuzzle.yml` directly. `bumfuzzle run` never takes a target — it runs whatever is `enabled`. A check may self-label `readonly: true` in `bumfuzzle.yml` as a hint to whoever's reading the config; the framework doesn't verify or enforce it.
 
 ---
 
@@ -131,7 +123,6 @@ Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumf
 - [ ] Fix drag-and-drop crash when dropping a rule into an empty group
 
 ### Planned improvements
-- [ ] Implement the `kickstart` scaffolding script (auto-detect project type, create config and hooks)
 - [ ] Standardize argument-passing and argument-expectation conventions across shared scripts
 - [ ] Support user-defined arguments in custom `command_checks` scripts
 - [ ] Reduce `bumfuzzle.yml` size by extracting reusable rule sets into importable modules

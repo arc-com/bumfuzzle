@@ -215,6 +215,8 @@ select.inp{cursor:pointer}
 .btn.danger:hover:not(:disabled){border-color:var(--rd);background:rgba(248,81,73,.07)}
 .btn-hdr-reset{background:none;border:1px solid rgba(248,81,73,.3);border-radius:4px;color:var(--rd);font-size:11px;font-family:inherit;padding:3px 10px;cursor:pointer;opacity:.65;transition:opacity .1s,border-color .1s}
 .btn-hdr-reset:hover{opacity:1;border-color:var(--rd)}
+.btn-hdr-create{background:none;border:1px solid rgba(63,185,80,.35);border-radius:4px;color:var(--gr);font-size:11px;font-family:inherit;padding:3px 10px;cursor:pointer;opacity:.85;transition:opacity .1s,border-color .1s}
+.btn-hdr-create:hover{opacity:1;border-color:var(--gr)}
 </style>
 </head>
 <body>
@@ -281,48 +283,6 @@ function isAncestorOf(ancestor, item) {
   return check(ancestor.rules);
 }
 
-// ── Kickstart steps ───────────────────────────────────────────────────────────
-// Canonical catalog, mirroring bumfuzzle-template.yml's scaffold.steps. Kept
-// here (not just read from the loaded config) so the panel still shows every
-// known step — with sensible labels/descriptions — even against an older
-// bumfuzzle.yml that predates a given step.
-
-const KICKSTART_STEPS = [
-  { id: 'git_init',        label: 'Initialize git repository', description: 'Runs git init if the project is not already a git repository' },
-  { id: 'gitignore',       label: 'Create .gitignore',         description: 'Creates a starter .gitignore if one does not already exist' },
-  { id: 'githooks',        label: 'Install git hooks',         description: 'Copies pre-commit and commit-msg into .githooks/, installs them into .git/hooks/, and copies the reinstaller to scripts/hooks.sh' },
-  { id: 'directories',     label: 'Scaffold directories',      description: "Creates the listed directories if they don't already exist", argsKey: 'DIRS' },
-  { id: 'env_files',       label: 'Environment files',         description: 'Creates empty .env.<environment> files for each listed environment', argsKey: 'ENVIRONMENTS' },
-  { id: 'vscode_settings', label: 'VS Code settings',          description: 'Reserved for future scaffolding of .vscode/settings.json — not yet implemented' },
-  { id: 'claude_settings', label: 'Claude Code settings',      description: 'Reserved for future scaffolding of .claude/settings.json — not yet implemented' },
-  { id: 'dependencies',    label: 'Install dependencies',      description: 'Reserved for future dependency bootstrap (npm install, pip install, etc.) — not yet implemented' },
-  { id: 'docker_compose',  label: 'Docker Compose',            description: 'Reserved for future docker-compose.yml scaffolding — not yet implemented' },
-];
-
-function normalizeScaffoldSteps(loaded) {
-  const byId = {};
-  (loaded || []).forEach(s => { if (s && s.id) byId[s.id] = s; });
-  const merged = KICKSTART_STEPS.map(def => {
-    const saved = byId[def.id] || {};
-    delete byId[def.id];
-    const item = {
-      id: def.id,
-      label: saved.label || def.label,
-      description: saved.description || def.description,
-      enabled: saved.enabled === true,
-      args: {},
-    };
-    if (def.argsKey) {
-      const list = (saved.args && Array.isArray(saved.args[def.argsKey])) ? saved.args[def.argsKey] : [];
-      item.args[def.argsKey] = list.slice();
-    }
-    return item;
-  });
-  // preserve any unrecognized steps a user added directly in YAML
-  Object.keys(byId).forEach(id => merged.push(JSON.parse(JSON.stringify(byId[id]))));
-  return merged;
-}
-
 // ── Data init ─────────────────────────────────────────────────────────────────
 
 function initData() {
@@ -331,14 +291,12 @@ function initData() {
   const cEnums        = C && C.enums;
   const cScripts      = C && C.scripts;
   const cArgTemplates = C && C['arg-templates'];
-  const cScaffoldSteps = C && C.scaffold && C.scaffold.steps;
   state = {
     rules:        JSON.parse(JSON.stringify(cRules   || sRules   || [])),
     enums:        JSON.parse(JSON.stringify(cEnums)),
     scripts:      JSON.parse(JSON.stringify(cScripts || [])),
     argTemplates: JSON.parse(JSON.stringify(cArgTemplates || [])),
-    scaffold:     { steps: normalizeScaffoldSteps(cScaffoldSteps) },
-    sections: { rules: true, enums: true, scripts: true, argTemplates: true, scaffold: true, actions: true },
+    sections: { rules: true, enums: true, scripts: true, argTemplates: true, actions: true },
     filters:  { rules: 'all' },
   };
   annotate(state.rules);
@@ -493,6 +451,14 @@ async function doReset() {
     if (!res.ok) throw new Error();
     location.reload();
   } catch { showToast('Reset failed'); }
+}
+
+async function doCreate() {
+  try {
+    const res = await fetch('/reset', { method: 'POST' });
+    if (!res.ok) throw new Error();
+    location.reload();
+  } catch { showToast('Create failed'); }
 }
 
 function showResetModal() {
@@ -657,29 +623,6 @@ function generateYaml() {
     });
   }
 
-  function writeScaffoldSteps(items) {
-    items.forEach(item => {
-      lines.push('    - id: ' + JSON.stringify(item.id || ''));
-      if (item.label)       lines.push('      label: '       + JSON.stringify(item.label));
-      if (item.description) lines.push('      description: ' + JSON.stringify(item.description));
-      lines.push('      enabled: ' + (item.enabled === true ? 'true' : 'false'));
-      const def = KICKSTART_STEPS.find(d => d.id === item.id);
-      const argsKey = def && def.argsKey;
-      const argsList = argsKey && item.args && Array.isArray(item.args[argsKey]) ? item.args[argsKey] : null;
-      if (argsList && argsList.length) {
-        lines.push('      args:');
-        lines.push('        ' + argsKey + ':');
-        argsList.forEach(v => lines.push('          - ' + JSON.stringify(v)));
-      }
-    });
-  }
-
-  if (state.scaffold && state.scaffold.steps && state.scaffold.steps.length) {
-    lines.push('scaffold:');
-    lines.push('  steps:');
-    writeScaffoldSteps(state.scaffold.steps);
-    lines.push('');
-  }
 
   if (state.scripts && state.scripts.length) { lines.push('scripts:'); writeScriptItems(state.scripts, '  '); }
 
@@ -1187,57 +1130,6 @@ function ruleRequiredArgsFilled(item) {
     const v = item.args?.[a.key];
     return v !== undefined && v !== '' && !(Array.isArray(v) && !v.length);
   });
-}
-
-function buildScaffoldStepRow(item, onChange) {
-  const row = el('div', { class: 'rt-row', style: 'align-items:flex-start;flex-direction:column;gap:8px;cursor:default' });
-
-  const top  = el('div', { style: 'display:flex;align-items:center;gap:8px;width:100%' });
-  const info = el('div', { style: 'flex:1;min-width:0' },
-    el('div', { style: 'font-weight:600' }, item.label),
-    el('div', { style: 'font-size:12px;color:var(--tm)' }, item.description),
-  );
-  const en0 = item.enabled === true;
-  const tog = el('button', { class: 'rt-tog' + (en0 ? '' : ' off'), title: en0 ? 'Disable' : 'Enable' }, en0 ? 'on' : 'off');
-  tog.addEventListener('click', () => {
-    item.enabled = item.enabled !== true;
-    scheduleSave();
-    onChange();
-  });
-  top.append(info, tog);
-  row.append(top);
-
-  const def = KICKSTART_STEPS.find(d => d.id === item.id);
-  if (def && def.argsKey) {
-    if (!item.args || !Array.isArray(item.args[def.argsKey])) item.args = { ...item.args, [def.argsKey]: [] };
-    const list = item.args[def.argsKey];
-
-    const chipsEl = el('div', { class: 'chips' });
-    function refreshChips() {
-      chipsEl.innerHTML = '';
-      if (!list.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
-      list.forEach((v, i) => {
-        const x = el('button', { class: 'chip-x' }, '\xd7');
-        x.addEventListener('click', () => { list.splice(i, 1); refreshChips(); scheduleSave(); onChange(); });
-        chipsEl.append(el('span', { class: 'chip' }, v, x));
-      });
-    }
-    refreshChips();
-
-    const placeholder = def.argsKey === 'DIRS' ? 'directory…' : 'environment…';
-    const inp = el('input', { class: 'add-inp', type: 'text', placeholder });
-    const btn = el('button', { class: 'add-btn' }, '+ add');
-    const addOne = () => {
-      const v = inp.value.trim();
-      if (v && !list.includes(v)) { list.push(v); inp.value = ''; refreshChips(); scheduleSave(); onChange(); }
-    };
-    btn.addEventListener('click', addOne);
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') addOne(); });
-
-    row.append(el('div', { style: 'width:100%;padding-left:2px' }, chipsEl, el('div', { class: 'add-row' }, inp, btn)));
-  }
-
-  return row;
 }
 
 function buildRuleFields(rule, reRender, inModal = false) {
@@ -2452,12 +2344,12 @@ function createTreeSection(opts) {
 
 // ── Command runner ────────────────────────────────────────────────────────────
 
-let cmdRunning = false, confirmCmd = null;
+let cmdRunning = false, confirmCmd = false;
 let outLogEl = null, outStatusEl = null, outWrapEl = null, actRowEl = null;
 
-async function runCmd(cmd) {
+async function runCmd() {
   try {
-    const res = await fetch('/run/' + cmd, { method: 'POST' });
+    const res = await fetch('/run', { method: 'POST' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = '';
@@ -2489,24 +2381,21 @@ function renderActBtns() {
   actRowEl.innerHTML = '';
   if (confirmCmd) {
     actRowEl.append(
-      el('button', { class: 'btn cancel', onclick: () => { confirmCmd = null; renderActBtns(); } }, 'Cancel'),
+      el('button', { class: 'btn cancel', onclick: () => { confirmCmd = false; renderActBtns(); } }, 'Cancel'),
       el('button', { class: 'btn pri', onclick: () => {
-        const cmd = confirmCmd; confirmCmd = null;
+        confirmCmd = false;
         cmdRunning = true;
         outLogEl.textContent = ''; outStatusEl.textContent = '';
         outStatusEl.className = 'out-status';
         outWrapEl.style.display = 'block';
-        renderActBtns(); runCmd(cmd);
-      }}, 'Run ' + confirmCmd),
+        renderActBtns(); runCmd();
+      }}, 'Run'),
     );
   } else {
-    ['kickstart','preflight'].forEach((cmd, i) => {
-      const b = el('button', { class: 'btn' + (i === 0 ? ' pri' : '') },
-        cmd.charAt(0).toUpperCase() + cmd.slice(1));
-      b.disabled = cmdRunning;
-      b.addEventListener('click', () => { if (!cmdRunning) { confirmCmd = cmd; renderActBtns(); } });
-      actRowEl.append(b);
-    });
+    const b = el('button', { class: 'btn pri' }, 'Run');
+    b.disabled = cmdRunning;
+    b.addEventListener('click', () => { if (!cmdRunning) { confirmCmd = true; renderActBtns(); } });
+    actRowEl.append(b);
   }
 }
 
@@ -2519,34 +2408,20 @@ function renderPage() {
   const app = document.getElementById('app');
 
   saveEl = el('span', { class: 'hdr-save idle' });
+  const configBtn = META.configExists
+    ? el('button', { class: 'btn-hdr-reset', onclick: showResetModal }, 'Reset')
+    : el('button', { class: 'btn-hdr-create', onclick: doCreate }, 'Create config');
   app.append(el('div', { class: 'hdr' },
     el('span', { class: 'hdr-logo' }, 'bumfuzzle'),
     el('span', { class: 'hdr-meta' }, 'v' + META.version),
     el('span', { class: 'hdr-path' }, META.projectDir),
     saveEl,
-    el('button', { class: 'btn-hdr-reset', onclick: showResetModal }, 'Reset'),
+    configBtn,
   ));
 
   const wrap = el('div', { class: 'wrap' });
 
   sections = [];
-
-  // Kickstart Steps — a fixed catalog (see KICKSTART_STEPS), not a
-  // user-extensible tree like Rules/Scripts/Enums, so it gets a bespoke
-  // toggle-list panel instead of createTreeSection.
-  const { sec: scaffoldSec, body: kb, titleEl: scaffoldTitleEl } = makeSection('scaffold', 'Kickstart Steps');
-  kb.style.display = 'flex';
-  kb.style.flexDirection = 'column';
-  kb.style.gap = '14px';
-  function renderScaffoldRows() {
-    kb.innerHTML = '';
-    const steps = state.scaffold.steps;
-    const onCount = steps.filter(s => s.enabled === true).length;
-    scaffoldTitleEl.textContent = 'Kickstart Steps (' + onCount + '/' + steps.length + ' on)';
-    steps.forEach(item => kb.append(buildScaffoldStepRow(item, renderScaffoldRows)));
-  }
-  renderScaffoldRows();
-  wrap.append(scaffoldSec);
 
   // Rules
   const { sec: rulesSec, body: rb, hdr: rulesHdr, titleEl: rulesTitleEl } = makeSection('rules', 'Rules');

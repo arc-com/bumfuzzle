@@ -15,12 +15,7 @@ usage() {
   printf 'Usage: bumfuzzle <command> [options]\n\n'
   printf 'Commands:\n'
   printf '  wizard               Start the browser-based config wizard\n'
-  printf '  kickstart            Scaffold a new project in the current directory\n'
-  printf '    --config <file>      Config override (default: bumfuzzle-template.yml)\n'
-  printf '    --dry-run            Print steps without executing\n'
-  printf '    --only <steps>       Run only these steps (comma-separated)\n'
-  printf '    --skip <steps>       Skip these steps (comma-separated)\n'
-  printf '  preflight            Validate bumfuzzle.yml in the current directory\n'
+  printf '  run                  Run every enabled check in bumfuzzle.yml\n'
   printf '    -v, --verbose        Show passing checks\n'
   printf '\n'
 }
@@ -29,9 +24,8 @@ cmd="${1:-}"
 [[ $# -gt 0 ]] && shift
 
 case "$cmd" in
-  wizard)            exec "$BUMFUZZLE_ROOT/scripts/wizard.sh"    "$@" ;;
-  kickstart)         exec "$BUMFUZZLE_ROOT/scripts/kickstart.sh" "$@" ;;
-  preflight)         exec "$BUMFUZZLE_ROOT/scripts/preflight.sh" "$@" ;;
+  wizard)             exec "$BUMFUZZLE_ROOT/scripts/wizard.sh" "$@" ;;
+  run)                exec "$BUMFUZZLE_ROOT/scripts/run.sh"    "$@" ;;
   ""|-h|--help|help) usage ;;
   *) printf 'bumfuzzle: unknown command: %s\n\n' "$cmd" >&2; usage >&2; exit 1 ;;
 esac

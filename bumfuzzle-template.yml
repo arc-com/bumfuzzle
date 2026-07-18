@@ -1,51 +1,3 @@
-scaffold:
-  steps:
-    - id: git_init
-      label: "Initialize git repository"
-      description: "Runs git init if the project is not already a git repository"
-      enabled: true
-    - id: gitignore
-      label: "Create .gitignore"
-      description: "Creates a starter .gitignore if one does not already exist"
-      enabled: true
-    - id: githooks
-      label: "Install git hooks"
-      description: "Copies pre-commit and commit-msg into .githooks/, installs them into .git/hooks/, and copies the reinstaller to scripts/hooks.sh"
-      enabled: true
-    - id: directories
-      label: "Scaffold directories"
-      description: "Creates the listed directories if they don't already exist"
-      enabled: true
-      args:
-        DIRS:
-          - tmp
-          - Export
-          - Logs
-    - id: env_files
-      label: "Environment files"
-      description: "Creates empty .env.<environment> files for each listed environment"
-      enabled: false
-      args:
-        ENVIRONMENTS:
-          - dev
-          - prod
-    - id: vscode_settings
-      label: "VS Code settings"
-      description: "Reserved for future scaffolding of .vscode/settings.json — not yet implemented"
-      enabled: false
-    - id: claude_settings
-      label: "Claude Code settings"
-      description: "Reserved for future scaffolding of .claude/settings.json — not yet implemented"
-      enabled: false
-    - id: dependencies
-      label: "Install dependencies"
-      description: "Reserved for future dependency bootstrap (npm install, pip install, etc.) — not yet implemented"
-      enabled: false
-    - id: docker_compose
-      label: "Docker Compose"
-      description: "Reserved for future docker-compose.yml scaffolding — not yet implemented"
-      enabled: false
-
 scripts:
   - group: "Claude Settings"
     scripts:
@@ -1025,14 +977,14 @@ rules:
   - group: Bumfuzzle
     rules:
       - type: script_reusable
-        name: "Preflight wired into pre-commit"
-        description: "preflight.sh is called inside the pre-commit hook so checks run before every commit"
+        name: "Run wired into pre-commit"
+        description: "bumfuzzle run is called inside the pre-commit hook so checks run before every commit"
         script: file-line-contains
         severity: hard-stop
-        instruction: "Add a call to preflight.sh in .githooks/pre-commit"
+        instruction: "Add a call to 'bumfuzzle run' in .githooks/pre-commit"
         args:
           FILE_PATH: .githooks/pre-commit
-          PATTERN: preflight
+          PATTERN: bumfuzzle run
       - type: script_reusable
         name: "bumfuzzle.yml parses cleanly"
         description: "bumfuzzle.yml is syntactically valid YAML — yq can parse it without errors"

@@ -3,8 +3,7 @@ import http.server, json, os, shutil, socketserver, subprocess
 
 PORT      = int(os.environ['BUMFUZZLE_PORT'])
 PROJ_DIR  = os.environ['BUMFUZZLE_PROJECT_DIR']
-KS_SH     = os.environ['BUMFUZZLE_KICKSTART_SH']
-PF_SH     = os.environ['BUMFUZZLE_PREFLIGHT_SH']
+RUN_SH    = os.environ['BUMFUZZLE_RUN_SH']
 HTML_PATH = os.environ['BUMFUZZLE_HTML']
 YAML_PATH     = os.path.join(PROJ_DIR, 'bumfuzzle.yml')
 SETTINGS_PATH = os.environ['BUMFUZZLE_SETTINGS']
@@ -60,10 +59,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass
             self.send_response(200)
             self.end_headers()
-        elif self.path in ('/run/kickstart', '/run/preflight'):
-            is_preflight = self.path == '/run/preflight'
-            script = PF_SH if is_preflight else KS_SH
-            argv   = [script, '--verbose'] if is_preflight else [script]
+        elif self.path == '/run':
+            argv = [RUN_SH, '--verbose']
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')

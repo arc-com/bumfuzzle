@@ -52,7 +52,9 @@ assert_help "pip bf" "$("$PYPI_WORK/venv/bin/bf" --help 2>&1)"
 echo "OK PyPI serves v$VERSION"
 
 # -- Homebrew ---------------------------------------------------------------
+# Deep check (test-release-brew-deep.sh) is not run here - it requires
+# Docker, which isn't guaranteed to be available. Run it manually when
+# Docker is up.
 "$(dirname "$0")/test-release-brew-shallow.sh"
-"$(dirname "$0")/test-release-brew-deep.sh"
 
 echo "OK $(basename "$0")"
