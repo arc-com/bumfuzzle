@@ -293,7 +293,7 @@ function initData() {
   const cArgTemplates = C && C['arg-templates'];
   state = {
     rules:        JSON.parse(JSON.stringify(cRules   || sRules   || [])),
-    enums:        JSON.parse(JSON.stringify(cEnums)),
+    enums:        JSON.parse(JSON.stringify(cEnums || [])),
     scripts:      JSON.parse(JSON.stringify(cScripts || [])),
     argTemplates: JSON.parse(JSON.stringify(cArgTemplates || [])),
     sections: { rules: true, enums: true, scripts: true, argTemplates: true, actions: true },
@@ -504,10 +504,6 @@ function generateYaml() {
     if (a.type === 'enum') {
       if (a.multi_select)             lines.push(indent + 'multi_select: true');
       if (a.separator && a.separator !== 'space') lines.push(indent + 'separator: ' + a.separator);
-      if (Array.isArray(a.options) && a.options.length) {
-        lines.push(indent + 'options:');
-        a.options.forEach(o => lines.push(indent + '  - ' + JSON.stringify(o)));
-      }
       if (a.enum_ref)                 lines.push(indent + 'enum_ref: ' + JSON.stringify(a.enum_ref));
     }
     if (a.visible_when && a.visible_when.key && a.visible_when.eq !== undefined) {
@@ -941,7 +937,6 @@ function argTemplateSnapshot(item) {
     enum_ref:     item.enum_ref     || '',
     multi_select: !!item.multi_select,
     separator:    item.separator    || '',
-    options:      JSON.parse(JSON.stringify(item.options || [])),
     visible_when: item.visible_when || null,
   });
 }
@@ -1021,7 +1016,7 @@ function buildArgWidget(argDef, rule, onChange) {
     });
     wrap.append(seg);
   } else if (type === 'enum') {
-    const rawOpts = Array.isArray(argDef.options) && argDef.options.length ? argDef.options : getEnumValues(argDef.enum_ref || '');
+    const rawOpts = getEnumValues(argDef.enum_ref || '');
     const options = rawOpts.map(o => typeof o === 'object' ? o : { name: String(o), description: '', value: String(o) });
     const valToName = Object.fromEntries(options.map(o => [String(o.value), o.name]));
     if (argDef.multi_select) {
@@ -1684,28 +1679,11 @@ function buildArgFields(argDef, onChangeFn) {
       });
       constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Multi-select separator'), sepSeg));
 
-      const optChips = el('div', { class: 'chips' });
-      function refreshOptChips() {
-        optChips.innerHTML = '';
-        const options = argDef.options || [];
-        if (!options.length) optChips.append(el('span', { class: 'chip-empty' }, 'none'));
-        options.forEach((v, i) => {
-          const x = el('button', { class: 'chip-x' }, '\xd7');
-          x.addEventListener('click', () => { argDef.options.splice(i, 1); refreshOptChips(); onChangeFn?.(); });
-          optChips.append(el('span', { class: 'chip' }, v, x));
-        });
-      }
-      refreshOptChips();
-      const optInp = el('input', { class: 'add-inp', type: 'text', placeholder: 'option…' });
-      const optBtn = el('button', { class: 'add-btn' }, '+ add');
-      optBtn.addEventListener('click', () => { const v = optInp.value.trim(); if (v) { if (!Array.isArray(argDef.options)) argDef.options = []; if (!argDef.options.includes(v)) { argDef.options.push(v); optInp.value = ''; refreshOptChips(); onChangeFn?.(); } } });
-      optInp.addEventListener('keydown', e => { if (e.key === 'Enter') optBtn.click(); });
-      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Options'), el('div', {}, optChips, el('div', { class: 'add-row' }, optInp, optBtn))));
-
-      const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum id (optional)' });
+      const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum id (required)' });
       refInp.value = argDef.enum_ref || '';
       refInp.addEventListener('input', () => { argDef.enum_ref = refInp.value.trim() || undefined; onChangeFn?.(); });
-      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Enum ref (optional)'), refInp));
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Enum ref'), refInp,
+        el('div', { class: 'hint-text' }, 'Enum values are defined once in the shared enums catalog and referenced here, they cannot be declared inline.')));
     }
 
     // visible_when — available on all arg types
@@ -1888,8 +1866,11 @@ function buildScriptPanel(script, reRender, inModal = false) {
 
   function buildArgRow(argDef, idx) {
     if (argDef.arg_ref) {
-      // arg_ref'd entries are edited by changing the shared arg-templates: entry, not inline here
+      // arg_ref'd entries are edited by changing the shared arg-templates: entry, not inline here —
+      // expanding only ever shows a read-only view, to keep the template the single source of truth
       const resolved = resolveArg(argDef);
+      let open = false;
+      const arrow  = el('span', { class: 'arg-collapse-arrow' }, '▶');
       const handle  = el('span', { class: 'arg-drag-handle', title: 'Drag to reorder' }, '⠿');
       const strong  = document.createElement('strong');
       strong.textContent = resolved.key || argDef.arg_ref;
@@ -1906,8 +1887,43 @@ function buildScriptPanel(script, reRender, inModal = false) {
         argDragState = { fromIdx: idx, startY: e.clientY, active: false, ctx: { containerEl: argsListEl, argsArr: script.args, rebuildFn: rebuildArgsList } };
         e.preventDefault();
       });
-      const hdr = el('div', { class: 'arg-hdr' }, handle, preview, typeTag, rmBtn);
-      return el('div', { class: 'arg-block' }, hdr);
+
+      const roRow = (lbl, val) => val ? el('div', { class: 'rf-sec', style: 'margin-bottom:8px' },
+        el('span', { class: 'rf-lbl' }, lbl), el('div', { class: 'mono' }, String(val))) : null;
+
+      const detailBody = [
+        roRow('Key (env var)', resolved.key),
+        roRow('Label', resolved.label),
+        roRow('Type', resolved.type || 'string'),
+        roRow('Description', resolved.description),
+        roRow('Required', resolved.required ? 'true' : 'false'),
+        roRow('Placeholder', resolved.placeholder),
+        roRow('Default', resolved.default),
+      ].filter(Boolean);
+
+      if ((resolved.type || 'string') === 'enum' && resolved.enum_ref) {
+        const values = getEnumValues(resolved.enum_ref);
+        const valuesEl = el('div', { class: 'chips' });
+        if (!values.length) valuesEl.append(el('span', { class: 'chip-empty' }, 'no values found for enum "' + resolved.enum_ref + '"'));
+        values.forEach(v => valuesEl.append(el('span', { class: 'chip' }, (v.name || v.value) + (v.value !== undefined && v.name ? ' (' + v.value + ')' : ''))));
+        detailBody.push(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' },
+          el('span', { class: 'rf-lbl' }, 'Enum ref: ' + resolved.enum_ref), valuesEl));
+      }
+
+      detailBody.push(el('div', { class: 'hint-text' },
+        'Read-only — defined in the shared Arg Templates catalog (id: ' + argDef.arg_ref + '). Edit it there to change this for every rule that references it.'));
+
+      const detail = el('div', { class: 'arg-detail', style: 'display:none' }, ...detailBody);
+
+      const hdr = el('div', { class: 'arg-hdr' }, handle, arrow, preview, typeTag, rmBtn);
+      hdr.addEventListener('click', e => {
+        if (e.target === rmBtn || e.target === handle) return;
+        open = !open;
+        arrow.classList.toggle('open', open);
+        detail.style.display = open ? '' : 'none';
+      });
+
+      return el('div', { class: 'arg-block' }, hdr, detail);
     }
 
     let open = false;
@@ -2588,8 +2604,10 @@ function renderPage() {
     S = cfg.settings; C = cfg.current; META = cfg.meta;
     initData();
     renderPage();
-  } catch {
-    document.getElementById('app').textContent = 'Run bumfuzzle to open this page.';
+  } catch (e) {
+    console.error(e);
+    document.getElementById('app').textContent = 'Run bumfuzzle to open this page.'
+      + (e && e.message ? ' (' + e.message + ')' : '');
   }
 })();
 </script>
