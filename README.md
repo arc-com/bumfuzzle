@@ -76,23 +76,18 @@ When a check fails, `bumfuzzle run` prints exactly what broke and how to fix it.
 
 ## Install
 
-```bash
-# Homebrew
-brew install arc-com/tools/bumfuzzle
+Every command below works identically as `bumfuzzle` or `bf` — `bf` is just a shorter convenience alias for the same binary.
 
-# Package managers
-pnpm add -D bumfuzzle
-npm install -D bumfuzzle
-yarn add -D bumfuzzle
-
-pip install bumfuzzle
-uv add --dev bumfuzzle
-poetry add --group dev bumfuzzle
-
-# From source
-git clone https://github.com/arc-com/bumfuzzle ~/.local/share/bumfuzzle
-bash ~/.local/share/bumfuzzle/scripts/install.sh
-```
+| Method | Summary | Installation | Usage |
+|---|---|---|---|
+| Homebrew | Global install, adds `bumfuzzle`/`bf` to PATH system-wide | `brew install arc-com/tools/bumfuzzle` | `bf run` |
+| npm | JS/TS projects using npm; installs as a dev dependency | `npm install -D bumfuzzle` | `bf run` |
+| pnpm | JS/TS projects using pnpm; installs as a dev dependency | `pnpm add -D bumfuzzle` | `pnpm exec bf run` |
+| yarn | JS/TS projects using yarn; installs as a dev dependency | `yarn add -D bumfuzzle` | `yarn bf run` |
+| pip | Python projects; installs into the active environment | `pip install bumfuzzle` | `bf run` |
+| uv | Python projects using uv; installs as a dev dependency | `uv add --dev bumfuzzle` | `uv run bf run` |
+| poetry | Python projects using poetry; installs as a dev-group dependency | `poetry add --group dev bumfuzzle` | `poetry run bf run` |
+| From source | Clone directly and install scripts | `git clone https://github.com/arc-com/bumfuzzle && ./bumfuzzle/scripts/install.sh` | `bf run` |
 
 Installing from source adds `bumfuzzle` and `bf` to `~/.local/bin`. Run `scripts/uninstall.sh` to remove them.
 

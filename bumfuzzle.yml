@@ -21,3 +21,10 @@ rules:
         enabled: true
         command: |
           grep -q 'install_symlink.*=> "bf"' ../homebrew-tools/Formula/bumfuzzle.rb
+  - group: "General"
+    rules:
+      - type: script_clean
+        name: "package.json version matches VERSION"
+        enabled: true
+        command: |
+          grep -q "\"version\": \"$(cat VERSION)\"" package.json

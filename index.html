@@ -2172,12 +2172,17 @@ function createTreeSection(opts) {
 
 // ── Command runner ────────────────────────────────────────────────────────────
 
+const RUN_MODES = [
+  { id: 'run',         label: 'Run',         verbose: false },
+  { id: 'run-verbose', label: 'Run Verbose', verbose: true  },
+];
+
 let cmdRunning = false, confirmCmd = false;
 let outLogEl = null, outStatusEl = null, outWrapEl = null, actRowEl = null;
 
-async function runCmd() {
+async function runCmd(mode) {
   try {
-    const res = await fetch('/run', { method: 'POST' });
+    const res = await fetch('/run' + (mode.verbose ? '/verbose' : ''), { method: 'POST' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = '';
@@ -2208,6 +2213,7 @@ function renderActBtns() {
   if (!actRowEl) return;
   actRowEl.innerHTML = '';
   if (confirmCmd) {
+    const mode = RUN_MODES.find(m => m.id === confirmCmd);
     actRowEl.append(
       el('button', { class: 'btn cancel', onclick: () => { confirmCmd = false; renderActBtns(); } }, 'Cancel'),
       el('button', { class: 'btn pri', onclick: () => {
@@ -2216,14 +2222,16 @@ function renderActBtns() {
         outLogEl.textContent = ''; outStatusEl.textContent = '';
         outStatusEl.className = 'out-status';
         outWrapEl.style.display = 'block';
-        renderActBtns(); runCmd();
-      }}, 'Run'),
+        renderActBtns(); runCmd(mode);
+      }}, mode.label),
     );
   } else {
-    const b = el('button', { class: 'btn pri' }, 'Run');
-    b.disabled = cmdRunning;
-    b.addEventListener('click', () => { if (!cmdRunning) { confirmCmd = true; renderActBtns(); } });
-    actRowEl.append(b);
+    RUN_MODES.forEach((mode, i) => {
+      const b = el('button', { class: 'btn' + (i === 0 ? ' pri' : '') }, mode.label);
+      b.disabled = cmdRunning;
+      b.addEventListener('click', () => { if (!cmdRunning) { confirmCmd = mode.id; renderActBtns(); } });
+      actRowEl.append(b);
+    });
   }
 }
 

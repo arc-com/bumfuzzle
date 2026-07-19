@@ -20,9 +20,9 @@ scripts:
               _hit=$(find "." -name "$_p" 2>/dev/null | head -1)
             fi
             if [[ "$FAIL_ON_ABSENCE" == "true" ]]; then
-              [[ -n "$_hit" ]] || { printf 'FAIL: %s not found (expected present)\n' "$_p"; _failed=true; }
+              [[ -n "$_hit" ]] || { printf 'missing: %s (expected present)\n' "$_p"; _failed=true; }
             else
-              [[ -z "$_hit" ]] || { printf 'FAIL: %s exists (expected absent)\n' "$_p"; _failed=true; }
+              [[ -z "$_hit" ]] || { printf '%s exists (expected absent)\n' "$_p"; _failed=true; }
             fi
           done <<< "$FILE_PATH"
           [[ "$_failed" == "false" ]]
@@ -70,14 +70,14 @@ scripts:
           while IFS= read -r _f; do
             _any=true
             case "$FILE_TYPE" in
-              yaml) yq '.' "$_f" > /dev/null 2>&1 || { printf 'FAIL: %s is not valid YAML\n' "$_f"; _failed=true; } ;;
-              json) jq empty "$_f" > /dev/null 2>&1 || { printf 'FAIL: %s is not valid JSON\n' "$_f"; _failed=true; } ;;
-              bash) bash -n "$_f" 2>/dev/null || { printf 'FAIL: %s has bash syntax errors\n' "$_f"; _failed=true; } ;;
+              yaml) yq '.' "$_f" > /dev/null 2>&1 || { printf '%s is not valid YAML\n' "$_f"; _failed=true; } ;;
+              json) jq empty "$_f" > /dev/null 2>&1 || { printf '%s is not valid JSON\n' "$_f"; _failed=true; } ;;
+              bash) bash -n "$_f" 2>/dev/null || { printf '%s has bash syntax errors\n' "$_f"; _failed=true; } ;;
             esac
           done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
           set +f
           if [[ "$_any" == "false" && "${FAIL_ON_NO_FILES_MATCHED:-true}" == "true" ]]; then
-            printf 'FAIL: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
+            printf 'missing: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
             _failed=true
           fi
           [[ "$_failed" == "false" ]]
@@ -154,19 +154,19 @@ scripts:
             echo "$_stem" | grep -qE "$_pattern" && _match=true
             if [[ "${FAIL_ON_CONVENTION_MISMATCH:-true}" == "true" ]]; then
               if [[ "$_match" == "false" ]]; then
-                printf 'FAIL: %s does not match naming convention %s\n' "$_f" "$_pattern"
+                printf '%s does not match naming convention %s\n' "$_f" "$_pattern"
                 _failed=true
               fi
             else
               if [[ "$_match" == "true" ]]; then
-                printf 'FAIL: %s unexpectedly matches naming convention %s\n' "$_f" "$_pattern"
+                printf '%s unexpectedly matches naming convention %s\n' "$_f" "$_pattern"
                 _failed=true
               fi
             fi
           done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
           set +f
           if [[ "$_any" == "false" && "${FAIL_ON_NO_FILES_MATCHED:-true}" == "true" ]]; then
-            printf 'FAIL: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
+            printf 'missing: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
             _failed=true
           fi
           [[ "$_failed" == "false" ]]
@@ -243,7 +243,7 @@ scripts:
             done <<< "${EXCLUDE_DIRS:-}"
             [[ "$_skip" == "true" ]] && continue
             if ! echo "$_base" | grep -qE "$_pattern"; then
-              printf 'FAIL: directory %s does not match naming convention %s\n' "$_d" "$_pattern"
+              printf 'directory %s does not match naming convention %s\n' "$_d" "$_pattern"
               _failed=true
             fi
           done < <(find "$_from" $_depth_arg -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o -type d -print 2>/dev/null)
@@ -293,7 +293,7 @@ scripts:
           set -f
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            printf 'FAIL: %s exceeds %s bytes\n' "$_f" "$_threshold"
+            printf '%s exceeds %s bytes\n' "$_f" "$_threshold"
             _failed=true
           done < <(find . \( -name .git -o -name node_modules \) -prune -o -type f -size +"${_threshold}"c $_ex_args -print 2>/dev/null)
           set +f
@@ -327,10 +327,10 @@ scripts:
             [[ -z "$_l" ]] && continue
             _t=$(readlink "$_l")
             if [[ ! -e "$_l" ]]; then
-              printf 'FAIL: broken symlink %s -> %s\n' "$_l" "$_t"
+              printf 'broken symlink %s -> %s\n' "$_l" "$_t"
               _failed=true
             elif [[ "$_t" == /* && "$_t" != "$PWD"/* ]]; then
-              printf 'FAIL: symlink %s points outside the project (%s)\n' "$_l" "$_t"
+              printf 'symlink %s points outside the project (%s)\n' "$_l" "$_t"
               _failed=true
             fi
           done < <(find "$_from" -name .git -prune -o -type l -print 2>/dev/null)
@@ -354,7 +354,7 @@ scripts:
             [[ -z "$_f" ]] && continue
             while IFS= read -r _p; do
               [[ -z "$_p" ]] && continue
-              printf 'FAIL: %s has empty value at %s\n' "$_f" "$_p"
+              printf '%s has empty value at %s\n' "$_f" "$_p"
               _failed=true
             done < <(yq '.. | select(tag == "!!null" or (tag == "!!str" and . == "")) | path | join(".")' "$_f" 2>/dev/null | grep -v '^$')
           done < <(
@@ -416,7 +416,7 @@ scripts:
             ' "$_f")
             if [[ -n "$_dups" ]]; then
               while IFS= read -r _l; do
-                printf 'FAIL: %s %s\n' "$_f" "$_l"
+                printf '%s %s\n' "$_f" "$_l"
               done <<< "$_dups"
               _failed=true
             fi
@@ -465,7 +465,7 @@ scripts:
               gt) [[ "$_size" -gt "$_threshold" ]] && _ok=true ;;
             esac
             if [[ "$_ok" == "false" ]]; then
-              printf 'FAIL: %s size %s does not satisfy %s %s\n' "$_f" "$_size" "$COMPARISON_OPERATOR" "$_threshold"
+              printf '%s size %s does not satisfy %s %s\n' "$_f" "$_size" "$COMPARISON_OPERATOR" "$_threshold"
               _failed=true
             fi
           done < <(
@@ -479,7 +479,7 @@ scripts:
             fi
           )
           if [[ "$_any" == "false" && "${FAIL_ON_NO_PATHS_MATCHED:-true}" == "true" ]]; then
-            printf 'FAIL: no files matched %s\n' "$FILE_PATH"
+            printf 'missing: no files matched %s\n' "$FILE_PATH"
             _failed=true
           fi
           [[ "$_failed" == "false" ]]
@@ -871,7 +871,7 @@ scripts:
               _found=true
               if [[ "${FAIL_ON_NO_MATCHING_FILE:-true}" == "false" ]]; then
                 while IFS= read -r _h; do
-                  printf 'FAIL: %s matches forbidden pattern %s\n' "$_h" "$_pat"
+                  printf '%s matches forbidden pattern %s\n' "$_h" "$_pat"
                 done <<< "$_hits"
                 _failed=true
               fi
@@ -879,7 +879,7 @@ scripts:
           done <<< "$REGEX_PATTERN"
           set +f
           if [[ "${FAIL_ON_NO_MATCHING_FILE:-true}" == "true" ]]; then
-            [[ "$_found" == "true" ]] || { printf 'FAIL: no file matched any required pattern\n'; exit 1; }
+            [[ "$_found" == "true" ]] || { printf 'missing: no file matched any required pattern\n'; exit 1; }
           else
             [[ "$_failed" == "false" ]]
           fi
@@ -935,7 +935,7 @@ scripts:
           _failed=false
           while IFS= read -r _k; do
             [[ -z "$_k" || "$_k" == "extends" ]] && continue
-            grep -rqwF $_ex_args -e "$_k" . 2>/dev/null || { printf 'FAIL: config key %s is not referenced anywhere in the codebase\n' "$_k"; _failed=true; }
+            grep -rqwF $_ex_args -e "$_k" . 2>/dev/null || { printf 'config key %s is not referenced anywhere in the codebase\n' "$_k"; _failed=true; }
           done < <(yq 'keys | .[]' "$FILE_PATH" 2>/dev/null)
           set +f
           [[ "$_failed" == "false" ]]
@@ -983,7 +983,7 @@ scripts:
             _rel="${_f#./}"
             case "$_rel" in
               "$_allowed"/*) ;;
-              *) printf 'FAIL: %s is outside %s/\n' "$_rel" "$_allowed"; _failed=true ;;
+              *) printf '%s is outside %s/\n' "$_rel" "$_allowed"; _failed=true ;;
             esac
           done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
           set +f
@@ -1028,7 +1028,7 @@ scripts:
         description: "Checks that permissions.defaultMode in the selected Claude settings file (default .claude/settings.json) matches the expected value"
         command: |
           _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [ ! -f "$_f" ] && { printf 'missing: %s\n' "$_f"; exit 1; }
           jq -e --arg m "$CLAUDE_PERMISSION_MODE" '.permissions.defaultMode == $m' "$_f" > /dev/null
         args:
           - key: CLAUDE_PERMISSION_MODE
@@ -1047,7 +1047,7 @@ scripts:
         description: "Checks that the selected Claude settings file (default .claude/settings.json) contains a specific deny/allow/ask entry for a given tool and optional pattern"
         command: |
           _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [ ! -f "$_f" ] && { printf 'missing: %s\n' "$_f"; exit 1; }
           _entry="$CLAUDE_PERMISSION_TOOL"
           [ -n "${CLAUDE_PERMISSION_PATTERN:-}" ] && _entry="${CLAUDE_PERMISSION_TOOL}(${CLAUDE_PERMISSION_PATTERN})"
           jq -e --arg r "$CLAUDE_PERMISSION_RULE" --arg e "$_entry" '(.permissions[$r] // []) | index($e) != null' "$_f" > /dev/null
@@ -1078,15 +1078,15 @@ scripts:
         description: "Checks that a settings.json key (dot-separated path, picked from the curated catalog of project-enforceable Claude Code settings) equals CLAUDE_SETTING_VALUE (JSON-encoded, e.g. \"sonnet\", 30, true) in the selected settings file. Set FAIL_ON_VALUE_MISMATCH: false to forbid the value instead."
         command: |
           _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [ ! -f "$_f" ] && { printf 'missing: %s\n' "$_f"; exit 1; }
           [[ "$CLAUDE_SETTING_KEY" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'CLAUDE_SETTING_KEY contains invalid characters\n'; exit 1; }
           jq empty <<<"$CLAUDE_SETTING_VALUE" > /dev/null 2>&1 || { printf 'CLAUDE_SETTING_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
           _ok=false
           jq -e --argjson v "$CLAUDE_SETTING_VALUE" ".${CLAUDE_SETTING_KEY} == \$v" "$_f" > /dev/null 2>&1 && _ok=true
           if [[ "${FAIL_ON_VALUE_MISMATCH:-true}" == "true" ]]; then
-            [[ "$_ok" == "true" ]] || { printf 'FAIL: %s is not %s in %s\n' "$CLAUDE_SETTING_KEY" "$CLAUDE_SETTING_VALUE" "$_f"; exit 1; }
+            [[ "$_ok" == "true" ]] || { printf '%s is not %s in %s\n' "$CLAUDE_SETTING_KEY" "$CLAUDE_SETTING_VALUE" "$_f"; exit 1; }
           else
-            [[ "$_ok" == "false" ]] || { printf 'FAIL: %s is set to forbidden value %s in %s\n' "$CLAUDE_SETTING_KEY" "$CLAUDE_SETTING_VALUE" "$_f"; exit 1; }
+            [[ "$_ok" == "false" ]] || { printf '%s is set to forbidden value %s in %s\n' "$CLAUDE_SETTING_KEY" "$CLAUDE_SETTING_VALUE" "$_f"; exit 1; }
           fi
         args:
           - key: CLAUDE_SETTING_KEY
@@ -1116,8 +1116,8 @@ scripts:
         description: "Checks that the model key in the selected Claude settings file is pinned to the expected model alias"
         command: |
           _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
-          jq -e --arg m "$CLAUDE_MODEL" '.model == $m' "$_f" > /dev/null || { printf 'FAIL: model is not %s in %s\n' "$CLAUDE_MODEL" "$_f"; exit 1; }
+          [ ! -f "$_f" ] && { printf 'missing: %s\n' "$_f"; exit 1; }
+          jq -e --arg m "$CLAUDE_MODEL" '.model == $m' "$_f" > /dev/null || { printf 'model is not %s in %s\n' "$CLAUDE_MODEL" "$_f"; exit 1; }
         args:
           - key: CLAUDE_MODEL
             label: "Expected model"
@@ -1135,9 +1135,9 @@ scripts:
         description: "Checks that the env map in the selected Claude settings file declares CLAUDE_ENV_KEY with exactly CLAUDE_ENV_VALUE — these variables are injected into every command and hook Claude runs"
         command: |
           _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [ ! -f "$_f" ] && { printf 'missing: %s\n' "$_f"; exit 1; }
           [[ "$CLAUDE_ENV_KEY" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { printf 'CLAUDE_ENV_KEY contains invalid characters\n'; exit 1; }
-          jq -e --arg k "$CLAUDE_ENV_KEY" --arg v "$CLAUDE_ENV_VALUE" '.env[$k] == $v' "$_f" > /dev/null || { printf 'FAIL: env.%s is not "%s" in %s\n' "$CLAUDE_ENV_KEY" "$CLAUDE_ENV_VALUE" "$_f"; exit 1; }
+          jq -e --arg k "$CLAUDE_ENV_KEY" --arg v "$CLAUDE_ENV_VALUE" '.env[$k] == $v' "$_f" > /dev/null || { printf 'env.%s is not "%s" in %s\n' "$CLAUDE_ENV_KEY" "$CLAUDE_ENV_VALUE" "$_f"; exit 1; }
         args:
           - key: CLAUDE_ENV_KEY
             label: "Variable name"
@@ -1160,15 +1160,15 @@ scripts:
         description: "Checks that some command hook registered for CLAUDE_HOOK_EVENT in the selected Claude settings file matches CLAUDE_HOOK_PATTERN (regex). Uses the current nested hooks format: hooks.<Event>[].hooks[].command. Set FAIL_ON_HOOK_MISMATCH: false to forbid matching hooks instead."
         command: |
           _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [ ! -f "$_f" ] && { printf 'missing: %s\n' "$_f"; exit 1; }
           _found=false
           jq -e --arg ev "$CLAUDE_HOOK_EVENT" --arg p "$CLAUDE_HOOK_PATTERN" \
             '[.hooks[$ev] // [] | .[] | (.hooks // [])[] | select(.type == "command") | .command // ""] | map(test($p)) | any' \
             "$_f" > /dev/null 2>&1 && _found=true
           if [[ "${FAIL_ON_HOOK_MISMATCH:-true}" == "true" ]]; then
-            [[ "$_found" == "true" ]] || { printf 'FAIL: no %s hook command matches %s in %s\n' "$CLAUDE_HOOK_EVENT" "$CLAUDE_HOOK_PATTERN" "$_f"; exit 1; }
+            [[ "$_found" == "true" ]] || { printf 'missing: no %s hook command matches %s in %s\n' "$CLAUDE_HOOK_EVENT" "$CLAUDE_HOOK_PATTERN" "$_f"; exit 1; }
           else
-            [[ "$_found" == "false" ]] || { printf 'FAIL: a %s hook command matches forbidden pattern %s in %s\n' "$CLAUDE_HOOK_EVENT" "$CLAUDE_HOOK_PATTERN" "$_f"; exit 1; }
+            [[ "$_found" == "false" ]] || { printf 'a %s hook command matches forbidden pattern %s in %s\n' "$CLAUDE_HOOK_EVENT" "$CLAUDE_HOOK_PATTERN" "$_f"; exit 1; }
           fi
         args:
           - key: CLAUDE_HOOK_EVENT
@@ -1193,6 +1193,33 @@ scripts:
             type: enum
             enum_ref: claude-settings-file
             description: Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted.
+  - group: "Package Manager Checks"
+    scripts:
+      - id: package-script-clean
+        name: "package.json script runs clean"
+        description: "Runs a named script from package.json via the selected package manager and requires it to exit cleanly. Delegates to whatever that script actually does, so the check stays in sync with the project's own definition instead of reimplementing the tool invocation (and its PATH resolution) here."
+        command: |
+          case "$PACKAGE_MANAGER" in
+            npm|pnpm|yarn) ;;
+            *) printf 'Unsupported PACKAGE_MANAGER: %s\n' "$PACKAGE_MANAGER"; exit 1 ;;
+          esac
+          [[ "$SCRIPT_NAME" =~ ^[A-Za-z0-9_:-]+$ ]] || { printf 'SCRIPT_NAME contains invalid characters\n'; exit 1; }
+          [ -f package.json ] || { printf 'package.json not found\n'; exit 1; }
+          jq -e --arg s "$SCRIPT_NAME" '.scripts[$s] != null' package.json > /dev/null 2>&1 \
+            || { printf 'package.json has no "%s" script\n' "$SCRIPT_NAME"; exit 1; }
+          "$PACKAGE_MANAGER" run "$SCRIPT_NAME"
+        args:
+          - key: PACKAGE_MANAGER
+            label: Package manager
+            required: true
+            type: enum
+            enum_ref: package-manager
+          - key: SCRIPT_NAME
+            label: Script name
+            required: true
+            type: string
+            placeholder: lint
+            description: "Name of the script in package.json's scripts block to run"
 rules:
   - group: Bumfuzzle
     rules:
@@ -1882,7 +1909,7 @@ rules:
           _failed=false
           while IFS= read -r _f; do
             [ -z "$_f" ] && continue
-            python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$_f" 2>/dev/null || { printf 'FAIL: %s has syntax errors\n' "$_f"; _failed=true; }
+            python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$_f" 2>/dev/null || { printf '%s has syntax errors\n' "$_f"; _failed=true; }
           done < <(find . \( -name .git -o -name node_modules -o -name .venv \) -prune -o -name '*.py' -type f -print 2>/dev/null)
           [ "$_failed" = "false" ]
         requires: python3
@@ -1984,6 +2011,15 @@ rules:
         requires: eslint
         severity: error
         instruction: "Run: eslint --fix ."
+      - type: script_reusable
+        name: "ESLint passes (via package.json script)"
+        description: "Runs the project's own lint script through its package manager instead of invoking eslint directly. Alternative to the 'ESLint passes' preset — enable one or the other, not both"
+        script: package-script-clean
+        severity: error
+        instruction: "Run: npm run lint"
+        args:
+          PACKAGE_MANAGER: npm
+          SCRIPT_NAME: lint
       - type: script_clean
         name: "Prettier format check"
         description: "All supported files are formatted per Prettier"
@@ -2632,6 +2668,19 @@ enums:
       - name: Bash
         value: bash
         description: "Validated with: bash -n <file>"
+  - id: package-manager
+    name: "Package manager"
+    description: "Which package manager's script runner invokes the named script"
+    values:
+      - name: npm
+        value: npm
+        description: "Runs via: npm run <script>"
+      - name: pnpm
+        value: pnpm
+        description: "Runs via: pnpm run <script>"
+      - name: yarn
+        value: yarn
+        description: "Runs via: yarn run <script>"
   - group: Claude Settings
     enums:
       - id: claude-permission-mode

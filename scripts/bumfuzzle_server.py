@@ -59,8 +59,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass
             self.send_response(200)
             self.end_headers()
-        elif self.path == '/run':
-            argv = [RUN_SH, '--verbose']
+        elif self.path in ('/run', '/run/verbose'):
+            argv = [RUN_SH, '--verbose'] if self.path == '/run/verbose' else [RUN_SH]
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')

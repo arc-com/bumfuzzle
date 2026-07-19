@@ -23,6 +23,21 @@ _urule_instruction() {
 }
 
 
+# shared by script_clean/script_reusable failure paths: builds the
+# instruction + (verbose) command output as fail()'s details block, so
+# it prints after the [WARN]/[FAIL] tag but still ahead of a hard-stop exit.
+_urule_report_failure() {
+  local _label="$1" _ec="$2" _sev="$3" _path="$4" _out="$5"
+  local _details
+  _details=$(_urule_instruction "$_path")
+  if [[ "$VERBOSE" == true && -n "$_out" ]]; then
+    local _out_indented
+    _out_indented=$(printf '%s\n' "$_out" | sed 's/^/    /')
+    _details="${_details:+$_details$'\n'}${_out_indented}"
+  fi
+  fail "$_label: command exited $_ec" "$_sev" "$_details"
+}
+
 _urule_process_rule() {
   local _path="$1"
 
@@ -58,9 +73,9 @@ _urule_process_rule() {
         fi
         ;;
       fail)
-        _flush_header
-        _urule_instruction "$_path"
-        fail "$_label: required tool '$_requires' is not installed" "$_sev"
+        local _details
+        _details=$(_urule_instruction "$_path")
+        fail "$_label: required tool '$_requires' is not installed" "$_sev" "$_details"
         ;;
       *)
         fail "$_label: skipped — required tool '$_requires' is not installed" warn
@@ -77,15 +92,7 @@ _urule_process_rule() {
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else
-        # print instruction/output before fail(), since fail() exits immediately
-        # for severity: hard-stop and would otherwise swallow both.
-        # flush the section header first so it still appears before them.
-        _flush_header
-        _urule_instruction "$_path"
-        if [[ "$VERBOSE" == true && -n "$_out" ]]; then
-          printf '%s\n' "$_out" | sed 's/^/    /' >&2
-        fi
-        fail "$_label: command exited $_ec" "$_sev"
+        _urule_report_failure "$_label" "$_ec" "$_sev" "$_path" "$_out"
       fi
       ;;
 
@@ -126,15 +133,7 @@ _urule_process_rule() {
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else
-        # print instruction/output before fail(), since fail() exits immediately
-        # for severity: hard-stop and would otherwise swallow both.
-        # flush the section header first so it still appears before them.
-        _flush_header
-        _urule_instruction "$_path"
-        if [[ "$VERBOSE" == true && -n "$_out" ]]; then
-          printf '%s\n' "$_out" | sed 's/^/    /' >&2
-        fi
-        fail "$_label: command exited $_ec" "$_sev"
+        _urule_report_failure "$_label" "$_ec" "$_sev" "$_path" "$_out"
       fi
       ;;
   esac
@@ -324,7 +323,7 @@ _lint_script_commands() {
 # part of config lint.
 _lint_field_values() {
   local _out _rc=0
-  _out=$("$BUMFUZZLE_ROOT/scripts/validate-schema.sh" "$PREFLIGHT_FILE") || _rc=$?
+  _out=$("$BUMFUZZLE_ROOT/scripts/validate-schema.sh" "$PREFLIGHT_FILE" 2>/dev/null) || _rc=$?
   [[ "$_rc" -eq 0 ]] && return 0
   while IFS= read -r _line; do
     [[ "$_line" == \[FAIL\]* ]] || continue

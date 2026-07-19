@@ -43,21 +43,25 @@ pass() {
 
 fail() {
   local _sev="${2:-error}"
+  local _details="${3:-}"
   case "$_sev" in
     warn)
       _flush_header
       printf '[WARN] %s\n' "$1"
+      [[ -n "$_details" ]] && printf '%s\n' "$_details"
       WARNINGS+=("$1")
       ;;
     hard-stop)
       _flush_header
       printf '[FAIL] %s\n' "$1"
+      [[ -n "$_details" ]] && printf '%s\n' "$_details"
       printf '[hard-stop] aborting run\n'
       exit 1
       ;;
     *)
       _flush_header
       printf '[FAIL] %s\n' "$1"
+      [[ -n "$_details" ]] && printf '%s\n' "$_details"
       ERRORS+=("$1")
       ;;
   esac
@@ -72,9 +76,15 @@ if ! command -v yq &>/dev/null; then
 fi
 
 if [[ ! -f "$PREFLIGHT_FILE" ]]; then
+  TEMPLATE="$BUMFUZZLE_ROOT/bumfuzzle-template.yml"
+  if [[ ! -f "$TEMPLATE" ]]; then
+    _flush_header
+    printf '[FAIL] %s not found and template missing - cannot run validation\n' "$PREFLIGHT_FILE"
+    exit 1
+  fi
+  cp "$TEMPLATE" "$PREFLIGHT_FILE"
   _flush_header
-  printf '[FAIL] %s not found - cannot run validation\n' "$PREFLIGHT_FILE"
-  exit 1
+  printf '[INFO] %s not found - scaffolded from template\n' "$PREFLIGHT_FILE"
 fi
 
 pass "yq is installed"
