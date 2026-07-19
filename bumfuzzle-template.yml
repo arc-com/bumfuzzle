@@ -1,267 +1,136 @@
 scripts:
-  - group: "Claude Settings"
-    scripts:
-      - id: permission-mode
-        name: "Permission mode"
-        description: "Checks that permissions.defaultMode in the selected Claude settings file (default .claude/settings.json) matches the expected value"
-        command: |
-          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
-          jq -e --arg m "$CLAUDE_PERMISSION_MODE" '.permissions.defaultMode == $m' "$_f" > /dev/null
-        args:
-          - key: CLAUDE_PERMISSION_MODE
-            label: "Expected permission mode"
-            type: enum
-            required: true
-            enum_ref: claude-permission-mode
-          - arg_ref: claude-settings-file
-
-      - id: permission-entry
-        name: "Permission entry"
-        description: "Checks that the selected Claude settings file (default .claude/settings.json) contains a specific deny/allow/ask entry for a given tool and optional pattern"
-        command: |
-          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
-          _entry="$CLAUDE_PERMISSION_TOOL"
-          [ -n "${CLAUDE_PERMISSION_PATTERN:-}" ] && _entry="${CLAUDE_PERMISSION_TOOL}(${CLAUDE_PERMISSION_PATTERN})"
-          jq -e --arg r "$CLAUDE_PERMISSION_RULE" --arg e "$_entry" '(.permissions[$r] // []) | index($e) != null' "$_f" > /dev/null
-        args:
-          - key: CLAUDE_PERMISSION_RULE
-            label: "Rule type"
-            type: enum
-            required: true
-            enum_ref: claude-rule
-          - key: CLAUDE_PERMISSION_TOOL
-            label: "Claude tool"
-            type: enum
-            required: true
-            enum_ref: claude-tool
-          - key: CLAUDE_PERMISSION_PATTERN
-            label: "Pattern (optional)"
-            type: string
-            required: false
-            placeholder: "curl *"
-          - arg_ref: claude-settings-file
-
-      - id: claude-setting-value
-        name: "Claude setting value"
-        description: "Checks that a settings.json key (dot-separated path, picked from the curated catalog of project-enforceable Claude Code settings) equals CLAUDE_SETTING_VALUE (JSON-encoded, e.g. \"sonnet\", 30, true) in the selected settings file. Set EXPECT: no_match to forbid the value instead."
-        command: |
-          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
-          [[ "$CLAUDE_SETTING_KEY" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'CLAUDE_SETTING_KEY contains invalid characters\n'; exit 1; }
-          jq empty <<<"$CLAUDE_SETTING_VALUE" > /dev/null 2>&1 || { printf 'CLAUDE_SETTING_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
-          _ok=false
-          jq -e --argjson v "$CLAUDE_SETTING_VALUE" ".${CLAUDE_SETTING_KEY} == \$v" "$_f" > /dev/null 2>&1 && _ok=true
-          if [[ "${EXPECT:-match}" == "match" ]]; then
-            [[ "$_ok" == "true" ]] || { printf 'FAIL: %s is not %s in %s\n' "$CLAUDE_SETTING_KEY" "$CLAUDE_SETTING_VALUE" "$_f"; exit 1; }
-          else
-            [[ "$_ok" == "false" ]] || { printf 'FAIL: %s is set to forbidden value %s in %s\n' "$CLAUDE_SETTING_KEY" "$CLAUDE_SETTING_VALUE" "$_f"; exit 1; }
-          fi
-        args:
-          - key: CLAUDE_SETTING_KEY
-            label: "Setting"
-            type: enum
-            required: true
-            enum_ref: claude-setting-key
-          - key: CLAUDE_SETTING_VALUE
-            label: "Expected value (JSON-encoded)"
-            type: string
-            required: true
-            placeholder: "true"
-          - arg_ref: expect
-          - arg_ref: claude-settings-file
-
-      - id: claude-model
-        name: "Claude model"
-        description: "Checks that the model key in the selected Claude settings file is pinned to the expected model alias"
-        command: |
-          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
-          jq -e --arg m "$CLAUDE_MODEL" '.model == $m' "$_f" > /dev/null || { printf 'FAIL: model is not %s in %s\n' "$CLAUDE_MODEL" "$_f"; exit 1; }
-        args:
-          - key: CLAUDE_MODEL
-            label: "Expected model"
-            type: enum
-            required: true
-            enum_ref: claude-model
-          - arg_ref: claude-settings-file
-
-      - id: claude-env-var
-        name: "Claude env var"
-        description: "Checks that the env map in the selected Claude settings file declares CLAUDE_ENV_KEY with exactly CLAUDE_ENV_VALUE — these variables are injected into every command and hook Claude runs"
-        command: |
-          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
-          [[ "$CLAUDE_ENV_KEY" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { printf 'CLAUDE_ENV_KEY contains invalid characters\n'; exit 1; }
-          jq -e --arg k "$CLAUDE_ENV_KEY" --arg v "$CLAUDE_ENV_VALUE" '.env[$k] == $v' "$_f" > /dev/null || { printf 'FAIL: env.%s is not "%s" in %s\n' "$CLAUDE_ENV_KEY" "$CLAUDE_ENV_VALUE" "$_f"; exit 1; }
-        args:
-          - key: CLAUDE_ENV_KEY
-            label: "Variable name"
-            type: string
-            required: true
-            placeholder: "NODE_ENV"
-          - key: CLAUDE_ENV_VALUE
-            label: "Expected value"
-            type: string
-            required: true
-            placeholder: "development"
-          - arg_ref: claude-settings-file
-
-      - id: claude-hook-command
-        name: "Claude hook command"
-        description: "Checks that some command hook registered for CLAUDE_HOOK_EVENT in the selected Claude settings file matches CLAUDE_HOOK_PATTERN (regex). Uses the current nested hooks format: hooks.<Event>[].hooks[].command. Set EXPECT: no_match to forbid matching hooks instead."
-        command: |
-          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
-          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
-          _found=false
-          jq -e --arg ev "$CLAUDE_HOOK_EVENT" --arg p "$CLAUDE_HOOK_PATTERN" \
-            '[.hooks[$ev] // [] | .[] | (.hooks // [])[] | select(.type == "command") | .command // ""] | map(test($p)) | any' \
-            "$_f" > /dev/null 2>&1 && _found=true
-          if [[ "${EXPECT:-match}" == "match" ]]; then
-            [[ "$_found" == "true" ]] || { printf 'FAIL: no %s hook command matches %s in %s\n' "$CLAUDE_HOOK_EVENT" "$CLAUDE_HOOK_PATTERN" "$_f"; exit 1; }
-          else
-            [[ "$_found" == "false" ]] || { printf 'FAIL: a %s hook command matches forbidden pattern %s in %s\n' "$CLAUDE_HOOK_EVENT" "$CLAUDE_HOOK_PATTERN" "$_f"; exit 1; }
-          fi
-        args:
-          - key: CLAUDE_HOOK_EVENT
-            label: "Hook event"
-            type: enum
-            required: true
-            enum_ref: claude-hook-event
-          - key: CLAUDE_HOOK_PATTERN
-            label: "Command pattern (regex)"
-            type: regex
-            required: true
-            placeholder: "git pull"
-          - arg_ref: expect
-          - arg_ref: claude-settings-file
-
   - group: "File Meta Checks"
     scripts:
       - id: file-or-dir-existence
         name: "File or directory existence"
-        description: "Checks whether a file or directory exists at the given path."
+        description: "Checks whether a file or directory exists at each path in FILE_PATH (glob-capable; accepts a YAML list to check multiple paths in one rule). FAIL_ON_ABSENCE: true requires every path to exist, false requires every path to be absent."
         command: |
-          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
-          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
-          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
-          if [[ "$FILE_PATH" == *"**/"* ]]; then
-            _root="${FILE_PATH%%\*\*/*}"
-            _hit=$(find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" 2>/dev/null | head -1)
-          elif [[ "$FILE_PATH" == */* ]]; then
-            _hit=$(find "." -path "./$FILE_PATH" 2>/dev/null | head -1)
-          else
-            _hit=$(find "." -name "$FILE_PATH" 2>/dev/null | head -1)
+          _failed=false
+          while IFS= read -r _p; do
+            [[ -z "$_p" ]] && continue
+            [[ "$_p" =~ [[:space:]] ]] && { printf '%s must not contain spaces\n' "$_p"; exit 1; }
+            [[ "$_p" =~ \.\. ]] && { printf '%s must not contain ..\n' "$_p"; exit 1; }
+            [[ "$_p" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf '%s contains invalid characters\n' "$_p"; exit 1; }
+            if [[ "$_p" == *"**/"* ]]; then
+              _root="${_p%%\*\*/*}"
+              _hit=$(find "${_root:-.}" -name "${_p#*\*\*/}" 2>/dev/null | head -1)
+            elif [[ "$_p" == */* ]]; then
+              _hit=$(find "." -path "./$_p" 2>/dev/null | head -1)
+            else
+              _hit=$(find "." -name "$_p" 2>/dev/null | head -1)
+            fi
+            if [[ "$FAIL_ON_ABSENCE" == "true" ]]; then
+              [[ -n "$_hit" ]] || { printf 'FAIL: %s not found (expected present)\n' "$_p"; _failed=true; }
+            else
+              [[ -z "$_hit" ]] || { printf 'FAIL: %s exists (expected absent)\n' "$_p"; _failed=true; }
+            fi
+          done <<< "$FILE_PATH"
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: FILE_PATH
+            label: File or directory path
+            required: true
+            type: path
+            list: true
+            placeholder: README.md
+            description: "Glob-capable path. Provide a YAML list to check multiple files/directories in one rule."
+          - key: FAIL_ON_ABSENCE
+            label: Fail on absence
+            type: bool
+            required: true
+            description: true = fail when a path is absent (must exist); false = fail when a path is present (must be absent)
+      - id: file-syntax-valid
+        name: "File syntax valid"
+        description: "Checks that all files matching INCLUDE_FILES_GLOB (and not matching EXCLUDE_FILES_GLOB; both accept YAML lists) under SEARCH_ROOT parse/compile cleanly as the selected FILE_TYPE (YAML via yq, JSON via jq, Bash via bash -n). Searches up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. Every matched file must pass; no matches is a pass unless FAIL_ON_NO_FILES_MATCHED."
+        command: |
+          [[ "${SEARCH_ROOT:-}" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          case "$FILE_TYPE" in
+            yaml|json|bash) ;;
+            *) printf 'Unsupported FILE_TYPE: %s\n' "$FILE_TYPE"; exit 1 ;;
+          esac
+          _depth_arg=""
+          if [[ -n "${SEARCH_DEPTH:-}" && "$SEARCH_DEPTH" -ge 1 ]]; then
+            _depth_arg="-maxdepth $SEARCH_DEPTH"
           fi
-          if [[ "$EXPECT" == "present" ]]; then
-            [[ -n "$_hit" ]] || { printf 'FAIL: %s not found (expected present)\n' "$FILE_PATH"; exit 1; }
-          else
-            [[ -z "$_hit" ]] || { printf 'FAIL: %s exists (expected absent)\n' "$FILE_PATH"; exit 1; }
+          _from="${SEARCH_ROOT:-.}"
+          _inc_args=""
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _inc_args="${_inc_args:+$_inc_args -o }-name $_g"
+          done <<< "${INCLUDE_FILES_GLOB:-}"
+          [[ -z "$_inc_args" ]] && { printf 'INCLUDE_FILES_GLOB is required\n'; exit 1; }
+          _ex_args=""
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _ex_args="$_ex_args -not -name $_g"
+          done <<< "${EXCLUDE_FILES_GLOB:-}"
+          _failed=false
+          _any=false
+          set -f
+          while IFS= read -r _f; do
+            _any=true
+            case "$FILE_TYPE" in
+              yaml) yq '.' "$_f" > /dev/null 2>&1 || { printf 'FAIL: %s is not valid YAML\n' "$_f"; _failed=true; } ;;
+              json) jq empty "$_f" > /dev/null 2>&1 || { printf 'FAIL: %s is not valid JSON\n' "$_f"; _failed=true; } ;;
+              bash) bash -n "$_f" 2>/dev/null || { printf 'FAIL: %s has bash syntax errors\n' "$_f"; _failed=true; } ;;
+            esac
+          done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
+          set +f
+          if [[ "$_any" == "false" && "${FAIL_ON_NO_FILES_MATCHED:-true}" == "true" ]]; then
+            printf 'FAIL: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
+            _failed=true
           fi
-        args:
-          - key: FILE_PATH
-            label: "File or directory path"
-            type: path
-            required: true
-            placeholder: "README.md"
-          - arg_ref: expect-presence
-      - id: yaml-valid
-        name: "YAML valid"
-        description: "Checks that all files matching FILE_PATH (glob-capable) parse as valid YAML. Every matched file must pass; no matches is a pass."
-        command: |
-          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
-          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
-          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
-          _failed=false
-          while IFS= read -r _f; do
-            [[ -z "$_f" ]] && continue
-            yq '.' "$_f" > /dev/null 2>&1 || { printf 'FAIL: %s is not valid YAML\n' "$_f"; _failed=true; }
-          done < <(
-            if [[ "$FILE_PATH" == *"**/"* ]]; then
-              _root="${FILE_PATH%%\*\*/*}"
-              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" -type f 2>/dev/null
-            elif [[ "$FILE_PATH" == */* ]]; then
-              find "." -path "./$FILE_PATH" -type f 2>/dev/null
-            else
-              find "." -name "$FILE_PATH" -type f 2>/dev/null
-            fi
-          )
           [[ "$_failed" == "false" ]]
         args:
-          - key: FILE_PATH
-            label: "YAML file path or glob"
-            type: path
+          - key: FILE_TYPE
+            label: File type
             required: true
-            placeholder: "config.yml"
-      - id: json-valid
-        name: "JSON valid"
-        description: "Checks that all files matching FILE_PATH (glob-capable) parse as valid JSON. Every matched file must pass; no matches is a pass."
-        command: |
-          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
-          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
-          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
-          _failed=false
-          while IFS= read -r _f; do
-            [[ -z "$_f" ]] && continue
-            jq empty "$_f" > /dev/null 2>&1 || { printf 'FAIL: %s is not valid JSON\n' "$_f"; _failed=true; }
-          done < <(
-            if [[ "$FILE_PATH" == *"**/"* ]]; then
-              _root="${FILE_PATH%%\*\*/*}"
-              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" -type f 2>/dev/null
-            elif [[ "$FILE_PATH" == */* ]]; then
-              find "." -path "./$FILE_PATH" -type f 2>/dev/null
-            else
-              find "." -name "$FILE_PATH" -type f 2>/dev/null
-            fi
-          )
-          [[ "$_failed" == "false" ]]
-        args:
-          - key: FILE_PATH
-            label: "JSON file path or glob"
+            type: enum
+            enum_ref: verifiable-file-types
+          - key: SEARCH_ROOT
+            label: "Search root"
             type: path
+            required: false
+            placeholder: "."
+            description: "Directory to search from. Defaults to . (project root)."
+          - key: SEARCH_DEPTH
+            label: "Max depth"
+            type: int
+            required: false
+            placeholder: "1"
+            description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
+          - key: INCLUDE_FILES_GLOB
+            label: Include files glob
             required: true
-            placeholder: "package.json"
-      - id: bash-valid
-        name: "Bash valid"
-        description: "Checks that all files matching FILE_PATH (glob-capable) pass bash -n syntax validation. Every matched file must pass; no matches is a pass."
-        command: |
-          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
-          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
-          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
-          _failed=false
-          while IFS= read -r _f; do
-            [[ -z "$_f" ]] && continue
-            bash -n "$_f" 2>/dev/null || { printf 'FAIL: %s has bash syntax errors\n' "$_f"; _failed=true; }
-          done < <(
-            if [[ "$FILE_PATH" == *"**/"* ]]; then
-              _root="${FILE_PATH%%\*\*/*}"
-              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" -type f 2>/dev/null
-            elif [[ "$FILE_PATH" == */* ]]; then
-              find "." -path "./$FILE_PATH" -type f 2>/dev/null
-            else
-              find "." -name "$FILE_PATH" -type f 2>/dev/null
-            fi
-          )
-          [[ "$_failed" == "false" ]]
-        args:
-          - key: FILE_PATH
-            label: "Shell script path or glob"
-            type: path
-            required: true
-            placeholder: "scripts/deploy.sh"
+            type: glob
+            list: true
+            placeholder: '*.yml'
+            description: Glob pattern matched against file basenames to include (e.g. *.yml, config.yml). Provide a YAML list to match multiple globs.
+          - key: EXCLUDE_FILES_GLOB
+            label: Exclude files glob
+            required: false
+            type: glob
+            list: true
+            placeholder: '*.generated.yml'
+            description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
+          - key: FAIL_ON_NO_FILES_MATCHED
+            label: Fail when no files matched
+            type: bool
+            required: false
+            default: true
+            description: true = zero files matched is a failure; false = zero files matched is a pass
       - id: file-naming-convention-check
         name: "File naming convention check"
-        description: "Checks that all file basenames matching includeFilesGlob (and not matching excludeFilesGlob; both accept YAML lists) comply with the selected naming convention CASE or a CUSTOM_PATTERN regex (or don't, if EXPECT: no_match). The final extension is stripped before matching, so PascalCase matches Header.tsx. Searches under 'from' up to 'depth' levels deep; .git, node_modules, .venv and .claude are always skipped. ON_NO_MATCH controls whether zero matches is a fail (default) or a pass."
+        description: "Checks that all file basenames matching includeFilesGlob (and not matching excludeFilesGlob; both accept YAML lists) comply with the selected NAMING_CONVENTION or a REGEX_PATTERN override (or don't, if FAIL_ON_CONVENTION_MISMATCH: false). The final extension is stripped before matching, so PascalCase matches Header.tsx. Searches under SEARCH_ROOT up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. FAIL_ON_NO_FILES_MATCHED controls whether zero matches is a fail (default true) or a pass (false)."
         command: |
-          [[ "${FROM:-}" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
-          [[ -z "${CASE:-}" && -z "${CUSTOM_PATTERN:-}" ]] && { printf 'Provide CASE or CUSTOM_PATTERN\n'; exit 1; }
-          _pattern="${CUSTOM_PATTERN:-${CASE:-}}"
+          [[ "${SEARCH_ROOT:-}" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          [[ -z "${NAMING_CONVENTION:-}" && -z "${REGEX_PATTERN:-}" ]] && { printf 'Provide NAMING_CONVENTION or REGEX_PATTERN\n'; exit 1; }
+          _pattern="${REGEX_PATTERN:-${NAMING_CONVENTION:-}}"
           _depth_arg=""
-          if [[ -n "${DEPTH:-}" && "$DEPTH" -ge 1 ]]; then
-            _depth_arg="-maxdepth $DEPTH"
+          if [[ -n "${SEARCH_DEPTH:-}" && "$SEARCH_DEPTH" -ge 1 ]]; then
+            _depth_arg="-maxdepth $SEARCH_DEPTH"
           fi
-          _from="${FROM:-.}"
+          _from="${SEARCH_ROOT:-.}"
           _inc_args=""
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
@@ -283,7 +152,7 @@ scripts:
             [[ -z "$_stem" ]] && _stem="$_base"
             _match=false
             echo "$_stem" | grep -qE "$_pattern" && _match=true
-            if [[ "${EXPECT:-match}" == "match" ]]; then
+            if [[ "${FAIL_ON_CONVENTION_MISMATCH:-true}" == "true" ]]; then
               if [[ "$_match" == "false" ]]; then
                 printf 'FAIL: %s does not match naming convention %s\n' "$_f" "$_pattern"
                 _failed=true
@@ -296,41 +165,72 @@ scripts:
             fi
           done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
           set +f
-          if [[ "$_any" == "false" && "${ON_NO_MATCH:-fail}" == "fail" ]]; then
+          if [[ "$_any" == "false" && "${FAIL_ON_NO_FILES_MATCHED:-true}" == "true" ]]; then
             printf 'FAIL: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
             _failed=true
           fi
           [[ "$_failed" == "false" ]]
         args:
-          - arg_ref: search-from
-          - arg_ref: search-depth
-          - arg_ref: include-files-glob
-          - arg_ref: exclude-files-glob
-          - key: CASE
-            label: "Naming convention"
+          - key: SEARCH_ROOT
+            label: "Search root"
+            type: path
+            required: false
+            placeholder: "."
+            description: "Directory to search from. Defaults to . (project root)."
+          - key: SEARCH_DEPTH
+            label: "Max depth"
+            type: int
+            required: false
+            placeholder: "1"
+            description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
+          - key: INCLUDE_FILES_GLOB
+            label: Include files glob
+            required: true
+            type: glob
+            list: true
+            placeholder: '*.java'
+            description: Glob pattern matched against file basenames to include (e.g. *.java, *Controller*). Provide a YAML list to match multiple globs.
+          - key: EXCLUDE_FILES_GLOB
+            label: Exclude files glob
+            required: false
+            type: glob
+            list: true
+            placeholder: '*Test.java'
+            description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
+          - key: NAMING_CONVENTION
+            label: Naming convention
+            required: false
             type: enum
-            required: false
             enum_ref: file-naming-convention
-          - key: CUSTOM_PATTERN
-            label: "Custom pattern (overrides convention)"
-            type: regex
+          - key: REGEX_PATTERN
+            label: Custom pattern (overrides convention)
             required: false
-            placeholder: "^[A-Z][a-zA-Z0-9]+$"
-            description: "Custom regex applied to each matched file's basename (extension stripped) instead of a predefined naming convention. Provide CASE or CUSTOM_PATTERN."
-          - arg_ref: expect
-          - arg_ref: on-no-match
-
+            type: regex
+            placeholder: ^[A-Z][a-zA-Z0-9]+$
+            description: Custom regex applied to each matched file's basename (extension stripped) instead of a predefined naming convention. Provide NAMING_CONVENTION or REGEX_PATTERN.
+          - key: FAIL_ON_CONVENTION_MISMATCH
+            label: Fail on convention mismatch
+            type: bool
+            required: false
+            default: true
+            description: true = fail when a matched file does not follow the convention; false = fail when it does (forbidden)
+          - key: FAIL_ON_NO_FILES_MATCHED
+            label: Fail when no files matched
+            type: bool
+            required: false
+            default: true
+            description: true = zero files matched is a failure; false = zero files matched is a pass
       - id: dir-naming-convention-check
         name: "Directory naming convention check"
-        description: "Checks that all directory names under 'from' (up to 'depth' levels) comply with the selected naming convention CASE or a CUSTOM_PATTERN regex. Hidden directories and node_modules are always skipped; EXCLUDE_DIRS (accepts a YAML list of basename globs) skips more."
+        description: "Checks that all directory names under 'from' (up to 'depth' levels) comply with the selected NAMING_CONVENTION or a REGEX_PATTERN override. Hidden directories and node_modules are always skipped; EXCLUDE_DIRS (accepts a YAML list of basename globs) skips more."
         command: |
-          _from="${FROM:-.}"
-          [[ "$_from" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
-          [[ -z "${CASE:-}" && -z "${CUSTOM_PATTERN:-}" ]] && { printf 'Provide CASE or CUSTOM_PATTERN\n'; exit 1; }
-          _pattern="${CUSTOM_PATTERN:-${CASE:-}}"
+          _from="${SEARCH_ROOT:-.}"
+          [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          [[ -z "${NAMING_CONVENTION:-}" && -z "${REGEX_PATTERN:-}" ]] && { printf 'Provide NAMING_CONVENTION or REGEX_PATTERN\n'; exit 1; }
+          _pattern="${REGEX_PATTERN:-${NAMING_CONVENTION:-}}"
           _depth_arg=""
-          if [[ -n "${DEPTH:-}" && "$DEPTH" -ge 1 ]]; then
-            _depth_arg="-maxdepth $DEPTH"
+          if [[ -n "${SEARCH_DEPTH:-}" && "$SEARCH_DEPTH" -ge 1 ]]; then
+            _depth_arg="-maxdepth $SEARCH_DEPTH"
           fi
           _failed=false
           while IFS= read -r _d; do
@@ -349,31 +249,41 @@ scripts:
           done < <(find "$_from" $_depth_arg -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o -type d -print 2>/dev/null)
           [[ "$_failed" == "false" ]]
         args:
-          - arg_ref: search-from
-          - arg_ref: search-depth
-          - key: CASE
-            label: "Naming convention"
+          - key: SEARCH_ROOT
+            label: "Search root"
+            type: path
+            required: false
+            placeholder: "."
+            description: "Directory to search from. Defaults to . (project root)."
+          - key: SEARCH_DEPTH
+            label: "Max depth"
+            type: int
+            required: false
+            placeholder: "1"
+            description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
+          - key: NAMING_CONVENTION
+            label: Naming convention
+            required: false
             type: enum
-            required: false
             enum_ref: file-naming-convention
-          - key: CUSTOM_PATTERN
-            label: "Custom pattern (overrides convention)"
-            type: regex
+          - key: REGEX_PATTERN
+            label: Custom pattern (overrides convention)
             required: false
-            placeholder: "^[a-z0-9]+$"
-            description: "Custom regex applied to each directory basename instead of a predefined naming convention. Provide CASE or CUSTOM_PATTERN."
+            type: regex
+            placeholder: ^[a-z0-9]+$
+            description: Custom regex applied to each directory basename instead of a predefined naming convention. Provide NAMING_CONVENTION or REGEX_PATTERN.
           - key: EXCLUDE_DIRS
             label: "Exclude directories"
-            type: glob
+            type: string
+            list: true
             required: false
             placeholder: "Export"
             description: "Directory basename globs to skip. Provide a YAML list for multiple."
-
       - id: no-large-files
         name: "No large files"
-        description: "Checks that no file in the project exceeds AMOUNT UNIT. .git and node_modules are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips additional basename globs."
+        description: "Checks that no file in the project exceeds SIZE_AMOUNT SIZE_UNIT. .git and node_modules are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips additional basename globs."
         command: |
-          _threshold=$((10#$AMOUNT * UNIT))
+          _threshold=$((10#$SIZE_AMOUNT * SIZE_UNIT))
           _ex_args=""
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
@@ -389,24 +299,29 @@ scripts:
           set +f
           [[ "$_failed" == "false" ]]
         args:
-          - key: AMOUNT
+          - key: SIZE_AMOUNT
             label: "Amount"
-            type: integer
+            type: int
             required: true
             placeholder: "5"
-          - key: UNIT
+          - key: SIZE_UNIT
             label: "Unit"
             type: enum
             required: true
             enum_ref: size-unit
-          - arg_ref: exclude-files-glob
-
+          - key: EXCLUDE_FILES_GLOB
+            label: Exclude files glob
+            required: false
+            type: glob
+            list: true
+            placeholder: '*Test.java'
+            description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
       - id: symlinks-valid
         name: "Symlinks valid"
-        description: "Checks that every symlink under FROM resolves to an existing target, and that absolute targets stay inside the project root."
+        description: "Checks that every symlink under SEARCH_ROOT resolves to an existing target, and that absolute targets stay inside the project root."
         command: |
-          _from="${FROM:-.}"
-          [[ "$_from" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
+          _from="${SEARCH_ROOT:-.}"
+          [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
           _failed=false
           while IFS= read -r _l; do
             [[ -z "$_l" ]] && continue
@@ -421,8 +336,12 @@ scripts:
           done < <(find "$_from" -name .git -prune -o -type l -print 2>/dev/null)
           [[ "$_failed" == "false" ]]
         args:
-          - arg_ref: search-from
-
+          - key: SEARCH_ROOT
+            label: "Search root"
+            type: path
+            required: false
+            placeholder: "."
+            description: "Directory to search from. Defaults to . (project root)."
       - id: yaml-no-empty-values
         name: "YAML no empty values"
         description: "Checks that no key in files matching FILE_PATH (glob-capable) resolves to an empty string or null. Every matched file must pass; no matches is a pass."
@@ -451,11 +370,10 @@ scripts:
           [[ "$_failed" == "false" ]]
         args:
           - key: FILE_PATH
-            label: "YAML file path or glob"
-            type: path
+            label: YAML file path or glob
             required: true
-            placeholder: "config.yml"
-
+            type: path
+            placeholder: config.yml
       - id: yaml-no-duplicate-keys
         name: "YAML no duplicate keys"
         description: "Checks that no mapping in files matching FILE_PATH (glob-capable) declares the same key twice — YAML parsers silently keep only one. Indentation-based heuristic: block scalars and list items are handled; flow style and quoted keys are not inspected."
@@ -515,20 +433,19 @@ scripts:
           [[ "$_failed" == "false" ]]
         args:
           - key: FILE_PATH
-            label: "YAML file path or glob"
-            type: path
+            label: YAML file path or glob
             required: true
-            placeholder: "config.yml"
-
+            type: path
+            placeholder: config.yml
       - id: file-or-dir-size-compare
         name: "File or directory size"
-        description: "Checks that all files/directories matching FILE_PATH (glob-capable) satisfy AMOUNT UNIT compared via OPERATOR (e.g. AMOUNT=5, UNIT=MiB, OPERATOR=le means every match must be <= 5 MiB). Directories are measured as their recursive total size. Every match must comply. ON_NO_MATCH controls whether zero matches is a fail (default) or a pass."
+        description: "Checks that all files/directories matching FILE_PATH (glob-capable) satisfy SIZE_AMOUNT SIZE_UNIT compared via COMPARISON_OPERATOR (e.g. AMOUNT=5, UNIT=MiB, OPERATOR=le means every match must be <= 5 MiB). Directories are measured as their recursive total size. Every match must comply. FAIL_ON_NO_PATHS_MATCHED controls whether zero matches is a fail (default true) or a pass (false)."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
-          case "$OPERATOR" in lt|le|eq|ge|gt) ;; *) printf 'Unrecognized OPERATOR %s\n' "$OPERATOR"; exit 1 ;; esac
-          _threshold=$((10#$AMOUNT * UNIT))
+          case "$COMPARISON_OPERATOR" in lt|le|eq|ge|gt) ;; *) printf 'Unrecognized COMPARISON_OPERATOR %s\n' "$COMPARISON_OPERATOR"; exit 1 ;; esac
+          _threshold=$((10#$SIZE_AMOUNT * SIZE_UNIT))
           _failed=false
           _any=false
           while IFS= read -r _f; do
@@ -540,7 +457,7 @@ scripts:
               _size=$(stat -f%z "$_f" 2>/dev/null || stat -c%s "$_f" 2>/dev/null)
             fi
             _ok=false
-            case "$OPERATOR" in
+            case "$COMPARISON_OPERATOR" in
               lt) [[ "$_size" -lt "$_threshold" ]] && _ok=true ;;
               le) [[ "$_size" -le "$_threshold" ]] && _ok=true ;;
               eq) [[ "$_size" -eq "$_threshold" ]] && _ok=true ;;
@@ -548,7 +465,7 @@ scripts:
               gt) [[ "$_size" -gt "$_threshold" ]] && _ok=true ;;
             esac
             if [[ "$_ok" == "false" ]]; then
-              printf 'FAIL: %s size %s does not satisfy %s %s\n' "$_f" "$_size" "$OPERATOR" "$_threshold"
+              printf 'FAIL: %s size %s does not satisfy %s %s\n' "$_f" "$_size" "$COMPARISON_OPERATOR" "$_threshold"
               _failed=true
             fi
           done < <(
@@ -561,47 +478,51 @@ scripts:
               find "." -name "$FILE_PATH" 2>/dev/null
             fi
           )
-          if [[ "$_any" == "false" && "${ON_NO_MATCH:-fail}" == "fail" ]]; then
+          if [[ "$_any" == "false" && "${FAIL_ON_NO_PATHS_MATCHED:-true}" == "true" ]]; then
             printf 'FAIL: no files matched %s\n' "$FILE_PATH"
             _failed=true
           fi
           [[ "$_failed" == "false" ]]
         args:
           - key: FILE_PATH
-            label: "File or directory path or glob"
-            type: path
+            label: File or directory path or glob
             required: true
-            placeholder: "**/*.log"
-          - key: OPERATOR
+            type: path
+            placeholder: '**/*.log'
+          - key: COMPARISON_OPERATOR
             label: "Operator"
             type: enum
             required: true
             enum_ref: comparison-operator
-          - key: AMOUNT
+          - key: SIZE_AMOUNT
             label: "Amount"
-            type: integer
+            type: int
             required: true
             placeholder: "5"
-          - key: UNIT
+          - key: SIZE_UNIT
             label: "Unit"
             type: enum
             required: true
             enum_ref: size-unit
-          - arg_ref: on-no-match
-
+          - key: FAIL_ON_NO_PATHS_MATCHED
+            label: Fail when no paths matched
+            type: bool
+            required: false
+            default: true
+            description: true = zero matches is a failure; false = zero matches is a pass
       - id: json-path-value
         name: "JSON path value"
-        description: "Checks that a dot-separated key path in a JSON file resolves to VALUE (JSON-encoded, e.g. \"foo\", 42, true, null). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set EXPECT: no_match to invert."
+        description: "Checks that a dot-separated key path in a JSON file resolves to EXPECTED_VALUE (JSON-encoded, e.g. \"foo\", 42, true, null). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set FAIL_ON_JSON_VALUE_MISMATCH: false to invert."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
           [[ "$JSON_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'JSON_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
-          jq empty <<<"$VALUE" > /dev/null 2>&1 || { printf 'VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          jq empty <<<"$EXPECTED_VALUE" > /dev/null 2>&1 || { printf 'EXPECTED_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            jq -e --argjson v "$VALUE" ".${JSON_PATH} == \$v" "$_f" > /dev/null 2>&1 && _found=true && break
+            jq -e --argjson v "$EXPECTED_VALUE" ".${JSON_PATH} == \$v" "$_f" > /dev/null 2>&1 && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
               _root="${FILE_PATH%%\*\*/*}"
@@ -612,38 +533,42 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${EXPECT:-match}" == "match" ]]; then $_found; else ! $_found; fi
+          if [[ "${FAIL_ON_JSON_VALUE_MISMATCH:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
-            label: "JSON file path or glob"
+            label: JSON file path or glob
+            required: true
             type: path
-            required: true
-            placeholder: "package.json"
+            placeholder: package.json
           - key: JSON_PATH
-            label: "Key path (dot-separated)"
-            type: string
+            label: Key path (dot-separated)
             required: true
-            placeholder: "a.b.c"
-          - key: VALUE
+            type: string
+            placeholder: a.b.c
+          - key: EXPECTED_VALUE
             label: "Expected value (JSON-encoded)"
             type: string
             required: true
             placeholder: '"foo"'
-          - arg_ref: expect
-
+          - key: FAIL_ON_JSON_VALUE_MISMATCH
+            label: Fail on value mismatch
+            type: bool
+            required: false
+            default: true
+            description: true = fail when the value does not equal EXPECTED_VALUE; false = fail when it does (forbidden)
       - id: yaml-path-value
         name: "YAML path value"
-        description: "Checks that a dot-separated key path in a YAML file resolves to VALUE (JSON-encoded, e.g. \"foo\", 42, true, null). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set EXPECT: no_match to invert."
+        description: "Checks that a dot-separated key path in a YAML file resolves to EXPECTED_VALUE (JSON-encoded, e.g. \"foo\", 42, true, null). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set FAIL_ON_YAML_VALUE_MISMATCH: false to invert."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
           [[ "$YAML_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'YAML_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
-          jq empty <<<"$VALUE" > /dev/null 2>&1 || { printf 'VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          jq empty <<<"$EXPECTED_VALUE" > /dev/null 2>&1 || { printf 'EXPECTED_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            yq -o=json "$_f" 2>/dev/null | jq -e --argjson v "$VALUE" ".${YAML_PATH} == \$v" > /dev/null 2>&1 && _found=true && break
+            yq -o=json "$_f" 2>/dev/null | jq -e --argjson v "$EXPECTED_VALUE" ".${YAML_PATH} == \$v" > /dev/null 2>&1 && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
               _root="${FILE_PATH%%\*\*/*}"
@@ -654,38 +579,42 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${EXPECT:-match}" == "match" ]]; then $_found; else ! $_found; fi
+          if [[ "${FAIL_ON_YAML_VALUE_MISMATCH:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
-            label: "YAML file path or glob"
+            label: YAML file path or glob
+            required: true
             type: path
-            required: true
-            placeholder: "config.yml"
+            placeholder: config.yml
           - key: YAML_PATH
-            label: "Key path (dot-separated)"
-            type: string
+            label: Key path (dot-separated)
             required: true
-            placeholder: "a.b.c"
-          - key: VALUE
+            type: string
+            placeholder: a.b.c
+          - key: EXPECTED_VALUE
             label: "Expected value (JSON-encoded)"
             type: string
             required: true
             placeholder: '"foo"'
-          - arg_ref: expect
-
+          - key: FAIL_ON_YAML_VALUE_MISMATCH
+            label: Fail on value mismatch
+            type: bool
+            required: false
+            default: true
+            description: true = fail when the value does not equal EXPECTED_VALUE; false = fail when it does (forbidden)
       - id: json-array-contains
         name: "JSON array contains"
-        description: "Checks that the array at a dot-separated key path in a JSON file contains VALUE (JSON-encoded, e.g. \"foo\", 42). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set EXPECT: no_match to invert."
+        description: "Checks that the array at a dot-separated key path in a JSON file contains EXPECTED_VALUE (JSON-encoded, e.g. \"foo\", 42). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set FAIL_ON_MISSING_ARRAY_VALUE: false to invert."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
           [[ "$JSON_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'JSON_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
-          jq empty <<<"$VALUE" > /dev/null 2>&1 || { printf 'VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          jq empty <<<"$EXPECTED_VALUE" > /dev/null 2>&1 || { printf 'EXPECTED_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            jq -e --argjson v "$VALUE" ".${JSON_PATH} // [] | index(\$v) != null" "$_f" > /dev/null 2>&1 && _found=true && break
+            jq -e --argjson v "$EXPECTED_VALUE" ".${JSON_PATH} // [] | index(\$v) != null" "$_f" > /dev/null 2>&1 && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
               _root="${FILE_PATH%%\*\*/*}"
@@ -696,28 +625,32 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${EXPECT:-match}" == "match" ]]; then $_found; else ! $_found; fi
+          if [[ "${FAIL_ON_MISSING_ARRAY_VALUE:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
-            label: "JSON file path or glob"
+            label: JSON file path or glob
+            required: true
             type: path
-            required: true
-            placeholder: "package.json"
+            placeholder: package.json
           - key: JSON_PATH
-            label: "Array key path (dot-separated)"
-            type: string
+            label: Array key path (dot-separated)
             required: true
-            placeholder: "a.b.c"
-          - key: VALUE
+            type: string
+            placeholder: a.b.c
+          - key: EXPECTED_VALUE
             label: "Expected element (JSON-encoded)"
             type: string
             required: true
             placeholder: '"foo"'
-          - arg_ref: expect
-
+          - key: FAIL_ON_MISSING_ARRAY_VALUE
+            label: Fail on missing array value
+            type: bool
+            required: false
+            default: true
+            description: true = fail when the array does not contain EXPECTED_VALUE; false = fail when it does (forbidden)
       - id: json-path-exists
         name: "JSON path exists"
-        description: "Checks that a dot-separated key path resolves to a non-null value in a JSON file. EXPECT: present passes if at least one file matching FILE_PATH (glob-capable) has it; absent requires it in none."
+        description: "Checks that a dot-separated key path resolves to a non-null value in a JSON file. FAIL_ON_KEY_ABSENCE: true passes if at least one file matching FILE_PATH (glob-capable) has it; false requires it in none."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
@@ -737,25 +670,28 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "$EXPECT" == "present" ]]; then $_found; else ! $_found; fi
+          if [[ "$FAIL_ON_KEY_ABSENCE" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
-            label: "JSON file path or glob"
+            label: JSON file path or glob
+            required: true
             type: path
-            required: true
-            placeholder: "package.json"
+            placeholder: package.json
           - key: JSON_PATH
-            label: "Key path (dot-separated)"
-            type: string
+            label: Key path (dot-separated)
             required: true
-            placeholder: "a.b.c"
-          - arg_ref: expect-presence
-
+            type: string
+            placeholder: a.b.c
+          - key: FAIL_ON_KEY_ABSENCE
+            label: Fail on key absence
+            type: bool
+            required: true
+            description: true = fail when the key is absent from every matching file (must exist somewhere); false = fail when it's present in any matching file (must be absent everywhere)
   - group: "File Content Checks"
     scripts:
       - id: file-line-contains
         name: "File line contains"
-        description: "Checks that a regex pattern matches (or does not match) a substring of at least one line in a file. Defaults to match; set EXPECT: no_match to invert."
+        description: "Checks that a regex pattern matches (or does not match) a substring of at least one line in a file. Defaults to match; set FAIL_ON_PATTERN_NOT_FOUND: false to invert."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
@@ -763,7 +699,7 @@ scripts:
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            grep -qE "$PATTERN" "$_f" 2>/dev/null && _found=true && break
+            grep -qE "$REGEX_PATTERN" "$_f" 2>/dev/null && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
               _root="${FILE_PATH%%\*\*/*}"
@@ -774,23 +710,27 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${EXPECT:-match}" == "match" ]]; then $_found; else ! $_found; fi
+          if [[ "${FAIL_ON_PATTERN_NOT_FOUND:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
-            label: "File path or glob"
+            label: File path or glob
+            required: true
             type: path
+            placeholder: .gitignore
+          - key: REGEX_PATTERN
+            label: Pattern (regex)
             required: true
-            placeholder: ".gitignore"
-          - key: PATTERN
-            label: "Pattern (regex)"
             type: regex
-            required: true
-            placeholder: '\.DS_Store'
-          - arg_ref: expect
-
+            placeholder: \.DS_Store
+          - key: FAIL_ON_PATTERN_NOT_FOUND
+            label: Fail when pattern not found
+            type: bool
+            required: false
+            default: true
+            description: true = fail when the pattern is found in no line; false = fail when it's found in some line (forbidden)
       - id: file-line-match
         name: "File line match"
-        description: "Checks that a regex pattern matches (or does not match) an entire line in a file. Defaults to match; set EXPECT: no_match to invert."
+        description: "Checks that a regex pattern matches (or does not match) an entire line in a file. Defaults to match; set FAIL_ON_LINE_NOT_MATCHED: false to invert."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
@@ -798,7 +738,7 @@ scripts:
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            grep -qxE "$PATTERN" "$_f" 2>/dev/null && _found=true && break
+            grep -qxE "$REGEX_PATTERN" "$_f" 2>/dev/null && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
               _root="${FILE_PATH%%\*\*/*}"
@@ -809,23 +749,27 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${EXPECT:-match}" == "match" ]]; then $_found; else ! $_found; fi
+          if [[ "${FAIL_ON_LINE_NOT_MATCHED:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
-            label: "File path or glob"
+            label: File path or glob
+            required: true
             type: path
+            placeholder: .gitignore
+          - key: REGEX_PATTERN
+            label: Pattern (regex)
             required: true
-            placeholder: ".gitignore"
-          - key: PATTERN
-            label: "Pattern (regex)"
             type: regex
-            required: true
-            placeholder: '\.DS_Store'
-          - arg_ref: expect
-
+            placeholder: \.DS_Store
+          - key: FAIL_ON_LINE_NOT_MATCHED
+            label: Fail when no line matches
+            type: bool
+            required: false
+            default: true
+            description: true = fail when no entire line matches the pattern; false = fail when one does (forbidden)
       - id: file-word-match
         name: "File word match"
-        description: "Checks that a regex pattern matches (or does not match) a whole word in a file. Defaults to match; set EXPECT: no_match to invert."
+        description: "Checks that a regex pattern matches (or does not match) a whole word in a file. Defaults to match; set FAIL_ON_WORD_NOT_FOUND: false to invert."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
@@ -833,7 +777,7 @@ scripts:
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            grep -qwE "$PATTERN" "$_f" 2>/dev/null && _found=true && break
+            grep -qwE "$REGEX_PATTERN" "$_f" 2>/dev/null && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
               _root="${FILE_PATH%%\*\*/*}"
@@ -844,23 +788,27 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${EXPECT:-match}" == "match" ]]; then $_found; else ! $_found; fi
+          if [[ "${FAIL_ON_WORD_NOT_FOUND:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
-            label: "File path or glob"
+            label: File path or glob
+            required: true
             type: path
+            placeholder: .gitignore
+          - key: REGEX_PATTERN
+            label: Pattern (regex)
             required: true
-            placeholder: ".gitignore"
-          - key: PATTERN
-            label: "Pattern (regex)"
             type: regex
-            required: true
-            placeholder: "TODO"
-          - arg_ref: expect
-
+            placeholder: TODO
+          - key: FAIL_ON_WORD_NOT_FOUND
+            label: Fail when word not found
+            type: bool
+            required: false
+            default: true
+            description: true = fail when the pattern matches no whole word; false = fail when it does (forbidden)
       - id: file-content-match
         name: "File content match"
-        description: "Checks that a regex pattern matches (or does not match) anywhere across a file's whole content, not line-by-line. Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set EXPECT: no_match to invert."
+        description: "Checks that a regex pattern matches (or does not match) anywhere across a file's whole content, not line-by-line. Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set FAIL_ON_CONTENT_NOT_MATCHED: false to invert."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
@@ -868,7 +816,7 @@ scripts:
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            PATTERN="$PATTERN" perl -0777 -ne 'exit(/$ENV{PATTERN}/ ? 0 : 1)' "$_f" 2>/dev/null && _found=true && break
+            REGEX_PATTERN="$REGEX_PATTERN" perl -0777 -ne 'exit(/$ENV{REGEX_PATTERN}/ ? 0 : 1)' "$_f" 2>/dev/null && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
               _root="${FILE_PATH%%\*\*/*}"
@@ -879,26 +827,30 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${EXPECT:-match}" == "match" ]]; then $_found; else ! $_found; fi
+          if [[ "${FAIL_ON_CONTENT_NOT_MATCHED:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
-            label: "File path or glob"
+            label: File path or glob
+            required: true
             type: path
+            placeholder: '*.md'
+          - key: REGEX_PATTERN
+            label: Pattern (regex, multi-line)
             required: true
-            placeholder: "*.md"
-          - key: PATTERN
-            label: "Pattern (regex, multi-line)"
             type: regex
-            required: true
-            placeholder: '(?s)Copyright.*\d{4}'
-          - arg_ref: expect
-
+            placeholder: (?s)Copyright.*\d{4}
+          - key: FAIL_ON_CONTENT_NOT_MATCHED
+            label: Fail when content does not match
+            type: bool
+            required: false
+            default: true
+            description: true = fail when the pattern matches no file's content; false = fail when it does (forbidden)
       - id: files-content-scan
         name: "Files content scan"
-        description: "Greps every file matching INCLUDE_FILES_GLOB (basename globs; accepts a YAML list) under FROM for one or more ERE PATTERNS (accepts a YAML list). EXPECT: match passes when any pattern matches anywhere; no_match fails listing every offending file per pattern. .git, node_modules, .claude and bumfuzzle.yml are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more."
+        description: "Greps every file matching INCLUDE_FILES_GLOB (basename globs; accepts a YAML list) under SEARCH_ROOT for one or more ERE REGEX_PATTERN (accepts a YAML list). FAIL_ON_NO_MATCHING_FILE: true passes when any pattern matches anywhere; false fails listing every offending file per pattern. .git, node_modules, .claude and bumfuzzle.yml are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more."
         command: |
-          _from="${FROM:-.}"
-          [[ "$_from" =~ \.\. ]] && { printf 'FROM must not contain ..\n'; exit 1; }
+          _from="${SEARCH_ROOT:-.}"
+          [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
           set -f
           _inc_args=""
           while IFS= read -r _g; do
@@ -917,32 +869,54 @@ scripts:
             _hits=$(grep -rlE $_inc_args $_ex_args -e "$_pat" "$_from" 2>/dev/null || true)
             if [[ -n "$_hits" ]]; then
               _found=true
-              if [[ "${EXPECT:-match}" == "no_match" ]]; then
+              if [[ "${FAIL_ON_NO_MATCHING_FILE:-true}" == "false" ]]; then
                 while IFS= read -r _h; do
                   printf 'FAIL: %s matches forbidden pattern %s\n' "$_h" "$_pat"
                 done <<< "$_hits"
                 _failed=true
               fi
             fi
-          done <<< "$PATTERNS"
+          done <<< "$REGEX_PATTERN"
           set +f
-          if [[ "${EXPECT:-match}" == "match" ]]; then
+          if [[ "${FAIL_ON_NO_MATCHING_FILE:-true}" == "true" ]]; then
             [[ "$_found" == "true" ]] || { printf 'FAIL: no file matched any required pattern\n'; exit 1; }
           else
             [[ "$_failed" == "false" ]]
           fi
         args:
-          - arg_ref: search-from
-          - arg_ref: include-files-glob
-          - arg_ref: exclude-files-glob
-          - key: PATTERNS
-            label: "Patterns (regex)"
-            type: regex
+          - key: SEARCH_ROOT
+            label: "Search root"
+            type: path
+            required: false
+            placeholder: "."
+            description: "Directory to search from. Defaults to . (project root)."
+          - key: INCLUDE_FILES_GLOB
+            label: Include files glob
             required: true
-            placeholder: "TODO|FIXME"
-            description: "ERE patterns grepped against file contents. Provide a YAML list for multiple; entries may contain spaces."
-          - arg_ref: expect
-
+            type: glob
+            list: true
+            placeholder: '*.java'
+            description: Glob pattern matched against file basenames to include (e.g. *.java, *Controller*). Provide a YAML list to match multiple globs.
+          - key: EXCLUDE_FILES_GLOB
+            label: Exclude files glob
+            required: false
+            type: glob
+            list: true
+            placeholder: '*Test.java'
+            description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
+          - key: REGEX_PATTERN
+            label: Patterns (regex)
+            required: true
+            type: regex
+            list: true
+            placeholder: TODO|FIXME
+            description: ERE patterns grepped against file contents. Provide a YAML list for multiple; entries may contain spaces.
+          - key: FAIL_ON_NO_MATCHING_FILE
+            label: Fail when no file matches any pattern
+            type: bool
+            required: false
+            default: true
+            description: true = fail when no file matches any required pattern; false = fail listing every offending file that matches a forbidden pattern
       - id: config-keys-used
         name: "Config keys used"
         description: "Checks that every top-level key in a YAML config file is referenced somewhere in the codebase (word-boundary fixed-string grep). The config file itself, bumfuzzle.yml, lockfiles, .git, node_modules and .claude are skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more. The 'extends' key is ignored. Missing config file is a pass — pair with a file existence rule."
@@ -967,12 +941,258 @@ scripts:
           [[ "$_failed" == "false" ]]
         args:
           - key: FILE_PATH
-            label: "Config file path"
+            label: Config file path
+            required: true
+            type: path
+            placeholder: config.yml
+          - key: EXCLUDE_FILES_GLOB
+            label: Exclude files glob
+            required: false
+            type: glob
+            list: true
+            placeholder: '*Test.java'
+            description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
+      - id: file-location-restriction
+        name: "File location restriction"
+        description: "Checks that every file whose basename matches INCLUDE_FILES_GLOB (accepts a YAML list, minus EXCLUDE_FILES_GLOB) lives under FILE_LOCATION_ALLOWED_DIR — a match found anywhere else fails. Searches under SEARCH_ROOT up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped."
+        command: |
+          _from="${SEARCH_ROOT:-.}"
+          [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          [[ -z "${FILE_LOCATION_ALLOWED_DIR:-}" ]] && { printf 'FILE_LOCATION_ALLOWED_DIR is required\n'; exit 1; }
+          [[ "$FILE_LOCATION_ALLOWED_DIR" =~ \.\. ]] && { printf 'FILE_LOCATION_ALLOWED_DIR must not contain ..\n'; exit 1; }
+          _allowed="${FILE_LOCATION_ALLOWED_DIR%/}"
+          _depth_arg=""
+          if [[ -n "${SEARCH_DEPTH:-}" && "$SEARCH_DEPTH" -ge 1 ]]; then
+            _depth_arg="-maxdepth $SEARCH_DEPTH"
+          fi
+          _inc_args=""
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _inc_args="${_inc_args:+$_inc_args -o }-name $_g"
+          done <<< "${INCLUDE_FILES_GLOB:-}"
+          [[ -z "$_inc_args" ]] && { printf 'INCLUDE_FILES_GLOB is required\n'; exit 1; }
+          _ex_args=""
+          while IFS= read -r _g; do
+            [[ -z "$_g" ]] && continue
+            _ex_args="$_ex_args -not -name $_g"
+          done <<< "${EXCLUDE_FILES_GLOB:-}"
+          _failed=false
+          set -f
+          while IFS= read -r _f; do
+            [[ -z "$_f" ]] && continue
+            _rel="${_f#./}"
+            case "$_rel" in
+              "$_allowed"/*) ;;
+              *) printf 'FAIL: %s is outside %s/\n' "$_rel" "$_allowed"; _failed=true ;;
+            esac
+          done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
+          set +f
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: SEARCH_ROOT
+            label: "Search root"
+            type: path
+            required: false
+            placeholder: "."
+            description: "Directory to search from. Defaults to . (project root)."
+          - key: SEARCH_DEPTH
+            label: "Max depth"
+            type: int
+            required: false
+            placeholder: "1"
+            description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
+          - key: INCLUDE_FILES_GLOB
+            label: Include files glob
+            required: true
+            type: glob
+            list: true
+            placeholder: '*.java'
+            description: Glob pattern matched against file basenames to include (e.g. *.java, *Controller*). Provide a YAML list to match multiple globs.
+          - key: EXCLUDE_FILES_GLOB
+            label: Exclude files glob
+            required: false
+            type: glob
+            list: true
+            placeholder: '*Test.java'
+            description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
+          - key: FILE_LOCATION_ALLOWED_DIR
+            label: "Allowed directory"
             type: path
             required: true
-            placeholder: "config.yml"
-          - arg_ref: exclude-files-glob
-
+            placeholder: "scripts"
+            description: "Directory, relative to the project root, that every matching file must live under. A match found anywhere else fails."
+  - group: "Claude Settings"
+    scripts:
+      - id: permission-mode
+        name: "Permission mode"
+        description: "Checks that permissions.defaultMode in the selected Claude settings file (default .claude/settings.json) matches the expected value"
+        command: |
+          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          jq -e --arg m "$CLAUDE_PERMISSION_MODE" '.permissions.defaultMode == $m' "$_f" > /dev/null
+        args:
+          - key: CLAUDE_PERMISSION_MODE
+            label: "Expected permission mode"
+            type: enum
+            required: true
+            enum_ref: claude-permission-mode
+          - key: CLAUDE_SETTINGS_FILE
+            label: Settings file
+            required: false
+            type: enum
+            enum_ref: claude-settings-file
+            description: Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted.
+      - id: permission-entry
+        name: "Permission entry"
+        description: "Checks that the selected Claude settings file (default .claude/settings.json) contains a specific deny/allow/ask entry for a given tool and optional pattern"
+        command: |
+          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          _entry="$CLAUDE_PERMISSION_TOOL"
+          [ -n "${CLAUDE_PERMISSION_PATTERN:-}" ] && _entry="${CLAUDE_PERMISSION_TOOL}(${CLAUDE_PERMISSION_PATTERN})"
+          jq -e --arg r "$CLAUDE_PERMISSION_RULE" --arg e "$_entry" '(.permissions[$r] // []) | index($e) != null' "$_f" > /dev/null
+        args:
+          - key: CLAUDE_PERMISSION_RULE
+            label: "Rule type"
+            type: enum
+            required: true
+            enum_ref: claude-rule
+          - key: CLAUDE_PERMISSION_TOOL
+            label: "Claude tool"
+            type: enum
+            required: true
+            enum_ref: claude-tool
+          - key: CLAUDE_PERMISSION_PATTERN
+            label: "Pattern (optional)"
+            type: string
+            required: false
+            placeholder: "curl *"
+          - key: CLAUDE_SETTINGS_FILE
+            label: Settings file
+            required: false
+            type: enum
+            enum_ref: claude-settings-file
+            description: Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted.
+      - id: claude-setting-value
+        name: "Claude setting value"
+        description: "Checks that a settings.json key (dot-separated path, picked from the curated catalog of project-enforceable Claude Code settings) equals CLAUDE_SETTING_VALUE (JSON-encoded, e.g. \"sonnet\", 30, true) in the selected settings file. Set FAIL_ON_VALUE_MISMATCH: false to forbid the value instead."
+        command: |
+          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [[ "$CLAUDE_SETTING_KEY" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'CLAUDE_SETTING_KEY contains invalid characters\n'; exit 1; }
+          jq empty <<<"$CLAUDE_SETTING_VALUE" > /dev/null 2>&1 || { printf 'CLAUDE_SETTING_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          _ok=false
+          jq -e --argjson v "$CLAUDE_SETTING_VALUE" ".${CLAUDE_SETTING_KEY} == \$v" "$_f" > /dev/null 2>&1 && _ok=true
+          if [[ "${FAIL_ON_VALUE_MISMATCH:-true}" == "true" ]]; then
+            [[ "$_ok" == "true" ]] || { printf 'FAIL: %s is not %s in %s\n' "$CLAUDE_SETTING_KEY" "$CLAUDE_SETTING_VALUE" "$_f"; exit 1; }
+          else
+            [[ "$_ok" == "false" ]] || { printf 'FAIL: %s is set to forbidden value %s in %s\n' "$CLAUDE_SETTING_KEY" "$CLAUDE_SETTING_VALUE" "$_f"; exit 1; }
+          fi
+        args:
+          - key: CLAUDE_SETTING_KEY
+            label: "Setting"
+            type: enum
+            required: true
+            enum_ref: claude-setting-key
+          - key: CLAUDE_SETTING_VALUE
+            label: "Expected value (JSON-encoded)"
+            type: string
+            required: true
+            placeholder: "true"
+          - key: FAIL_ON_VALUE_MISMATCH
+            label: Fail on value mismatch
+            type: bool
+            required: false
+            default: true
+            description: true = fail when the setting does not equal CLAUDE_SETTING_VALUE; false = fail when it does (forbidden)
+          - key: CLAUDE_SETTINGS_FILE
+            label: Settings file
+            required: false
+            type: enum
+            enum_ref: claude-settings-file
+            description: Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted.
+      - id: claude-model
+        name: "Claude model"
+        description: "Checks that the model key in the selected Claude settings file is pinned to the expected model alias"
+        command: |
+          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          jq -e --arg m "$CLAUDE_MODEL" '.model == $m' "$_f" > /dev/null || { printf 'FAIL: model is not %s in %s\n' "$CLAUDE_MODEL" "$_f"; exit 1; }
+        args:
+          - key: CLAUDE_MODEL
+            label: "Expected model"
+            type: enum
+            required: true
+            enum_ref: claude-model
+          - key: CLAUDE_SETTINGS_FILE
+            label: Settings file
+            required: false
+            type: enum
+            enum_ref: claude-settings-file
+            description: Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted.
+      - id: claude-env-var
+        name: "Claude env var"
+        description: "Checks that the env map in the selected Claude settings file declares CLAUDE_ENV_KEY with exactly CLAUDE_ENV_VALUE — these variables are injected into every command and hook Claude runs"
+        command: |
+          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          [[ "$CLAUDE_ENV_KEY" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || { printf 'CLAUDE_ENV_KEY contains invalid characters\n'; exit 1; }
+          jq -e --arg k "$CLAUDE_ENV_KEY" --arg v "$CLAUDE_ENV_VALUE" '.env[$k] == $v' "$_f" > /dev/null || { printf 'FAIL: env.%s is not "%s" in %s\n' "$CLAUDE_ENV_KEY" "$CLAUDE_ENV_VALUE" "$_f"; exit 1; }
+        args:
+          - key: CLAUDE_ENV_KEY
+            label: "Variable name"
+            type: string
+            required: true
+            placeholder: "NODE_ENV"
+          - key: CLAUDE_ENV_VALUE
+            label: "Expected value"
+            type: string
+            required: true
+            placeholder: "development"
+          - key: CLAUDE_SETTINGS_FILE
+            label: Settings file
+            required: false
+            type: enum
+            enum_ref: claude-settings-file
+            description: Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted.
+      - id: claude-hook-command
+        name: "Claude hook command"
+        description: "Checks that some command hook registered for CLAUDE_HOOK_EVENT in the selected Claude settings file matches CLAUDE_HOOK_PATTERN (regex). Uses the current nested hooks format: hooks.<Event>[].hooks[].command. Set FAIL_ON_HOOK_MISMATCH: false to forbid matching hooks instead."
+        command: |
+          _f="${CLAUDE_SETTINGS_FILE:-.claude/settings.json}"
+          [ ! -f "$_f" ] && { printf 'FAIL: %s not found\n' "$_f"; exit 1; }
+          _found=false
+          jq -e --arg ev "$CLAUDE_HOOK_EVENT" --arg p "$CLAUDE_HOOK_PATTERN" \
+            '[.hooks[$ev] // [] | .[] | (.hooks // [])[] | select(.type == "command") | .command // ""] | map(test($p)) | any' \
+            "$_f" > /dev/null 2>&1 && _found=true
+          if [[ "${FAIL_ON_HOOK_MISMATCH:-true}" == "true" ]]; then
+            [[ "$_found" == "true" ]] || { printf 'FAIL: no %s hook command matches %s in %s\n' "$CLAUDE_HOOK_EVENT" "$CLAUDE_HOOK_PATTERN" "$_f"; exit 1; }
+          else
+            [[ "$_found" == "false" ]] || { printf 'FAIL: a %s hook command matches forbidden pattern %s in %s\n' "$CLAUDE_HOOK_EVENT" "$CLAUDE_HOOK_PATTERN" "$_f"; exit 1; }
+          fi
+        args:
+          - key: CLAUDE_HOOK_EVENT
+            label: "Hook event"
+            type: enum
+            required: true
+            enum_ref: claude-hook-event
+          - key: CLAUDE_HOOK_PATTERN
+            label: "Command pattern (regex)"
+            type: regex
+            required: true
+            placeholder: "git pull"
+          - key: FAIL_ON_HOOK_MISMATCH
+            label: Fail when no hook matches
+            type: bool
+            required: false
+            default: true
+            description: true = fail when no registered hook command matches CLAUDE_HOOK_PATTERN; false = fail when one does (forbidden)
+          - key: CLAUDE_SETTINGS_FILE
+            label: Settings file
+            required: false
+            type: enum
+            enum_ref: claude-settings-file
+            description: Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted.
 rules:
   - group: Bumfuzzle
     rules:
@@ -984,15 +1204,18 @@ rules:
         instruction: "Add a call to 'bumfuzzle run' in .githooks/pre-commit"
         args:
           FILE_PATH: .githooks/pre-commit
-          PATTERN: bumfuzzle run
+          REGEX_PATTERN: bumfuzzle run
       - type: script_reusable
         name: "bumfuzzle.yml parses cleanly"
         description: "bumfuzzle.yml is syntactically valid YAML — yq can parse it without errors"
-        script: yaml-valid
+        script: file-syntax-valid
         severity: hard-stop
         instruction: "Fix YAML syntax errors in bumfuzzle.yml"
         args:
-          FILE_PATH: bumfuzzle.yml
+          FILE_TYPE: yaml
+          SEARCH_ROOT: "."
+          SEARCH_DEPTH: 1
+          INCLUDE_FILES_GLOB: bumfuzzle.yml
       - type: script_clean
         name: "bumfuzzle.yml env.vars is a list"
         description: "If env.vars is defined in bumfuzzle.yml it must be a YAML sequence, not a scalar or map"
@@ -1012,7 +1235,7 @@ rules:
         instruction: "Create README.md in the project root"
         args:
           FILE_PATH: README.md
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_clean
         name: "Single manifest file"
         description: "At most one package manifest (package.json, Cargo.toml, go.mod, etc.) exists at the root — multiple manifests indicate a misconfigured or hybrid project"
@@ -1024,10 +1247,10 @@ rules:
         description: "No file in the project exceeds 5 MiB — large binaries belong in artifact storage or Git LFS, not the repository"
         script: no-large-files
         severity: warn
-        instruction: "Remove or gitignore the listed files, or raise AMOUNT if they are intentional"
+        instruction: "Remove or gitignore the listed files, or raise SIZE_AMOUNT if they are intentional"
         args:
-          AMOUNT: 5
-          UNIT: 1048576
+          SIZE_AMOUNT: 5
+          SIZE_UNIT: 1048576
       - type: script_reusable
         name: "All symlinks valid"
         description: "Every symlink in the project resolves to an existing target inside the project — no broken or escaping links"
@@ -1041,20 +1264,47 @@ rules:
         severity: warn
         instruction: "Remove the destructive command, or add the file to EXCLUDE_FILES_GLOB if it is intentional"
         args:
-          INCLUDE_FILES_GLOB:
-            - "*.sh"
-            - "*.bash"
-            - "*.zsh"
-            - "Makefile"
-            - "Justfile"
-          PATTERNS:
-            - 'rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f'
-            - 'git[[:space:]]+push[^|;&]*(--force|[[:space:]]-f)([[:space:]]|$)'
-            - 'git[[:space:]]+reset[[:space:]]+--hard'
-            - 'git[[:space:]]+clean[[:space:]]+-[a-zA-Z]*f'
-            - '\bmkfs\b'
-            - '\btruncate[[:space:]]+-s[[:space:]]+0\b'
-          EXPECT: no_match
+          INCLUDE_FILES_GLOB: ["*.sh", "*.bash", "*.zsh", "Makefile", "Justfile"]
+          REGEX_PATTERN: ['rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f', 'git[[:space:]]+push[^|;&]*(--force|[[:space:]]-f)([[:space:]]|$)', 'git[[:space:]]+reset[[:space:]]+--hard', 'git[[:space:]]+clean[[:space:]]+-[a-zA-Z]*f', '\bmkfs\b', '\btruncate[[:space:]]+-s[[:space:]]+0\b']
+          FAIL_ON_NO_MATCHING_FILE: false
+      - type: script_reusable
+        name: "Shell scripts confined to scripts/"
+        description: "Every .sh file in the project lives under scripts/ — no shell scripts scattered elsewhere in the tree"
+        script: file-location-restriction
+        severity: warn
+        instruction: "Move the listed .sh file(s) into scripts/, or update this rule's FILE_LOCATION_ALLOWED_DIR if another location is intentional"
+        args:
+          INCLUDE_FILES_GLOB: "*.sh"
+          FILE_LOCATION_ALLOWED_DIR: scripts
+      - type: script_reusable
+        name: "Shell scripts in scripts/ compile cleanly"
+        description: "Every .sh file under scripts/ passes bash -n syntax validation"
+        script: file-syntax-valid
+        severity: error
+        instruction: "Fix the bash syntax errors reported for the listed script(s)"
+        args:
+          FILE_TYPE: bash
+          SEARCH_ROOT: scripts
+          INCLUDE_FILES_GLOB: "*.sh"
+          FAIL_ON_NO_FILES_MATCHED: false
+      - type: script_reusable
+        name: "Required directories are present"
+        description: "Each required project-root directory listed in FILE_PATH exists"
+        script: file-or-dir-existence
+        severity: warn
+        instruction: "Create the missing directories listed"
+        args:
+          FILE_PATH: [tmp, export, migrations, src, scripts, docs, logs, dist, out]
+          FAIL_ON_ABSENCE: true
+      - type: script_reusable
+        name: "Required files are present"
+        description: "Each required file listed in FILE_PATH exists"
+        script: file-or-dir-existence
+        severity: warn
+        instruction: "Create the missing files listed"
+        args:
+          FILE_PATH: [./config, ./docs/SKILL.md]
+          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "VERSION file present"
         description: "A VERSION file exists at the project root — the single source of truth for the project version"
@@ -1063,7 +1313,7 @@ rules:
         instruction: "Create a VERSION file at the project root containing the semver version"
         args:
           FILE_PATH: VERSION
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "VERSION is valid semver"
         description: "The VERSION file contains a valid semantic version line (MAJOR.MINOR.PATCH with optional pre-release/build metadata)"
@@ -1072,8 +1322,7 @@ rules:
         instruction: "Set the VERSION file content to a semver string like 1.4.2"
         args:
           FILE_PATH: VERSION
-          PATTERN: '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?'
-
+          REGEX_PATTERN: '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?'
   - group: Git
     rules:
       - group: Commit Message
@@ -1108,8 +1357,8 @@ rules:
             instruction: "Remove Co-Authored-By lines from the commit message"
             args:
               FILE_PATH: .git/COMMIT_EDITMSG
-              PATTERN: 'Co-Authored-By: Claude'
-              EXPECT: no_match
+              REGEX_PATTERN: 'Co-Authored-By: Claude'
+              FAIL_ON_PATTERN_NOT_FOUND: false
       - group: Hooks
         rules:
           - type: script_clean
@@ -1133,7 +1382,7 @@ rules:
             instruction: "Add a CONFIG_APPROVED guard in .githooks/pre-commit"
             args:
               FILE_PATH: .githooks/pre-commit
-              PATTERN: CONFIG_APPROVED
+              REGEX_PATTERN: CONFIG_APPROVED
           - type: script_reusable
             name: "DOCS_APPROVED guard declared"
             description: ".githooks/pre-commit references the DOCS_APPROVED environment variable guard"
@@ -1142,7 +1391,7 @@ rules:
             instruction: "Add a DOCS_APPROVED guard in .githooks/pre-commit"
             args:
               FILE_PATH: .githooks/pre-commit
-              PATTERN: DOCS_APPROVED
+              REGEX_PATTERN: DOCS_APPROVED
           - type: script_reusable
             name: "ENV_APPROVED guard declared"
             description: ".githooks/pre-commit references the ENV_APPROVED environment variable guard"
@@ -1151,7 +1400,7 @@ rules:
             instruction: "Add an ENV_APPROVED guard in .githooks/pre-commit"
             args:
               FILE_PATH: .githooks/pre-commit
-              PATTERN: ENV_APPROVED
+              REGEX_PATTERN: ENV_APPROVED
       - group: Gitignore
         rules:
           - type: script_reusable
@@ -1162,7 +1411,7 @@ rules:
             instruction: "Create .gitignore at the project root"
             args:
               FILE_PATH: .gitignore
-              EXPECT: present
+              FAIL_ON_ABSENCE: true
           - type: script_clean
             name: "bumfuzzle extra patterns gitignored"
             description: "Every extra pattern declared in bumfuzzle.yml under gitignore.extra_patterns is also listed in .gitignore"
@@ -1214,7 +1463,7 @@ rules:
                 instruction: "Add '.DS_Store' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
-                  PATTERN: 'DS_Store'
+                  REGEX_PATTERN: 'DS_Store'
               - type: script_reusable
                 name: ".idea/ ignored"
                 description: ".gitignore contains a pattern covering the .idea/ IntelliJ project directory"
@@ -1223,7 +1472,7 @@ rules:
                 instruction: "Add '.idea/' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
-                  PATTERN: '\.idea/'
+                  REGEX_PATTERN: '\.idea/'
               - type: script_reusable
                 name: "*.iml ignored"
                 description: ".gitignore contains a pattern covering *.iml IntelliJ module files"
@@ -1232,7 +1481,7 @@ rules:
                 instruction: "Add '*.iml' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
-                  PATTERN: '\*\.iml'
+                  REGEX_PATTERN: '\*\.iml'
               - type: script_reusable
                 name: "*.iws ignored"
                 description: ".gitignore contains a pattern covering *.iws IntelliJ workspace files"
@@ -1241,7 +1490,7 @@ rules:
                 instruction: "Add '*.iws' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
-                  PATTERN: '\*\.iws'
+                  REGEX_PATTERN: '\*\.iws'
               - type: script_reusable
                 name: ".vscode/ ignored"
                 description: ".gitignore contains a pattern covering .vscode/ VS Code editor settings"
@@ -1250,7 +1499,7 @@ rules:
                 instruction: "Add '.vscode/' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
-                  PATTERN: '\.vscode/'
+                  REGEX_PATTERN: '\.vscode/'
               - type: script_reusable
                 name: ".env.* gitignored"
                 description: ".gitignore contains a pattern excluding .env.* environment files — real secrets must not be committed"
@@ -1259,7 +1508,7 @@ rules:
                 instruction: "Add '.env.*' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
-                  PATTERN: '^\.env\.'
+                  REGEX_PATTERN: '^\.env\.'
               - type: script_reusable
                 name: "tmp/ ignored"
                 description: ".gitignore contains 'tmp/' so its contents are never accidentally committed"
@@ -1268,8 +1517,7 @@ rules:
                 instruction: "Add 'tmp/' to .gitignore"
                 args:
                   FILE_PATH: .gitignore
-                  PATTERN: '^tmp/'
-
+                  REGEX_PATTERN: '^tmp/'
   - group: Environment Variables
     rules:
       - type: script_reusable
@@ -1280,7 +1528,7 @@ rules:
         instruction: "Create .env at the project root with the base configuration"
         args:
           FILE_PATH: .env
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: ".env.local present"
         description: ".env.local exists at the project root for machine-local overrides"
@@ -1289,7 +1537,7 @@ rules:
         instruction: "Create .env.local at the project root for machine-local overrides"
         args:
           FILE_PATH: .env.local
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: ".env.template present"
         description: ".env.template exists at the project root and declares all required environment variable keys"
@@ -1298,7 +1546,7 @@ rules:
         instruction: "Create .env.template declaring all required environment variables"
         args:
           FILE_PATH: .env.template
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_clean
         name: "All template keys in every .env.* file"
         description: "Every key declared in .env.template is present in each .env.* file — no environment is missing a declared variable"
@@ -1375,7 +1623,7 @@ rules:
         instruction: "Create a Dockerfile at the project root"
         args:
           FILE_PATH: Dockerfile
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "Compose file present"
         description: "A docker-compose*.yml file exists at the project root"
@@ -1384,7 +1632,7 @@ rules:
         instruction: "Create docker-compose.yml at the project root"
         args:
           FILE_PATH: 'docker-compose*.yml'
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_clean
         name: "Compose files render without errors"
         description: "All docker-compose*.yml files in the project pass docker compose config — no unresolved variables or syntax errors"
@@ -1399,8 +1647,8 @@ rules:
         instruction: "Pin image tags to a specific version instead of :latest"
         args:
           FILE_PATH: '*.yml'
-          PATTERN: 'image:.*:latest'
-          EXPECT: no_match
+          REGEX_PATTERN: 'image:.*:latest'
+          FAIL_ON_PATTERN_NOT_FOUND: false
       - type: script_clean
         name: "Docker env vars declared in .env.template"
         description: "Every environment variable referenced in Docker compose files is declared in .env.template — no undocumented container configuration"
@@ -1445,15 +1693,18 @@ rules:
         instruction: "Create config.yml in the project root"
         args:
           FILE_PATH: config.yml
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "Config file is valid YAML"
         description: "config.yml can be parsed by yq without errors"
-        script: yaml-valid
+        script: file-syntax-valid
         severity: error
         instruction: "Fix YAML syntax errors in config.yml"
         args:
-          FILE_PATH: config.yml
+          FILE_TYPE: yaml
+          SEARCH_ROOT: "."
+          SEARCH_DEPTH: 1
+          INCLUDE_FILES_GLOB: config.yml
       - type: script_clean
         name: "Config extends targets exist"
         description: "Every file path referenced by an extends field in config files exists on disk"
@@ -1493,7 +1744,6 @@ rules:
         instruction: "Remove unused keys from config.yml, or reference them in code"
         args:
           FILE_PATH: config.yml
-
   - group: Security
     rules:
       - type: script_reusable
@@ -1504,9 +1754,8 @@ rules:
         instruction: "Remove the AWS credentials, rotate them immediately, and load them from the environment instead"
         args:
           INCLUDE_FILES_GLOB: "*"
-          PATTERNS:
-            - 'AKIA[0-9A-Z]{16}'
-          EXPECT: no_match
+          REGEX_PATTERN: ['AKIA[0-9A-Z]{16}']
+          FAIL_ON_NO_MATCHING_FILE: false
       - type: script_reusable
         name: "No private key blocks"
         description: "No file contains an unencrypted private key signature block (-----BEGIN … PRIVATE KEY-----)"
@@ -1515,30 +1764,19 @@ rules:
         instruction: "Remove the private key from the repository, rotate it, and reference it from a secret store instead"
         args:
           INCLUDE_FILES_GLOB: "*"
-          PATTERNS:
-            - '-----BEGIN [A-Z ]*PRIVATE KEY-----'
-          EXPECT: no_match
+          REGEX_PATTERN: ['-----BEGIN [A-Z ]*PRIVATE KEY-----']
+          FAIL_ON_NO_MATCHING_FILE: false
       - type: script_reusable
         name: "No hardcoded API keys"
-        description: "No file contains known API-key signatures (OpenAI sk-, GitHub ghp_/github_pat_, Google AIza, Slack xox, GitLab glpat-) or generic quoted api_key/secret/token assignments. Extend PATTERNS and EXCLUDE_FILES_GLOB per project."
+        description: "No file contains known API-key signatures (OpenAI sk-, GitHub ghp_/github_pat_, Google AIza, Slack xox, GitLab glpat-) or generic quoted api_key/secret/token assignments. Extend REGEX_PATTERN and EXCLUDE_FILES_GLOB per project."
         script: files-content-scan
         severity: error
         instruction: "Remove the hardcoded key, rotate it, and load it from the environment instead; extend EXCLUDE_FILES_GLOB for false positives"
         args:
           INCLUDE_FILES_GLOB: "*"
-          EXCLUDE_FILES_GLOB:
-            - ".env.*"
-            - "*.lock"
-            - "*.min.js"
-          PATTERNS:
-            - 'sk-[A-Za-z0-9]{20,}'
-            - 'ghp_[A-Za-z0-9]{36}'
-            - 'github_pat_[A-Za-z0-9_]{22,}'
-            - 'AIza[0-9A-Za-z_-]{35}'
-            - 'xox[baprs]-[0-9A-Za-z-]{10,}'
-            - 'glpat-[0-9A-Za-z_-]{20}'
-            - "(api_key|apikey|api_token|secret)[[:space:]]*[:=][[:space:]]*[\"'][A-Za-z0-9_/+-]{16,}[\"']"
-          EXPECT: no_match
+          EXCLUDE_FILES_GLOB: [".env.*", "*.lock", "*.min.js"]
+          REGEX_PATTERN: ['sk-[A-Za-z0-9]{20,}', 'ghp_[A-Za-z0-9]{36}', 'github_pat_[A-Za-z0-9_]{22,}', 'AIza[0-9A-Za-z_-]{35}', 'xox[baprs]-[0-9A-Za-z-]{10,}', 'glpat-[0-9A-Za-z_-]{20}', "(api_key|apikey|api_token|secret)[[:space:]]*[:=][[:space:]]*[\"'][A-Za-z0-9_/+-]{16,}[\"']"]
+          FAIL_ON_NO_MATCHING_FILE: false
       - type: script_clean
         name: "gitleaks scan"
         description: "gitleaks finds no hardcoded secrets, API keys, passwords, or tokens in the working tree (recommended scanner; the native pattern rules above are the zero-dependency fallback)"
@@ -1563,24 +1801,27 @@ rules:
         severity: warn
         instruction: "Rename the listed files to kebab-case"
         args:
-          INCLUDE_FILES_GLOB:
-            - "*.yml"
-            - "*.yaml"
-            - "*.xml"
-            - "*.properties"
-          CASE: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          ON_NO_MATCH: pass
+          INCLUDE_FILES_GLOB: ["*.yml", "*.yaml", "*.xml", "*.properties"]
+          NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
+          FAIL_ON_NO_FILES_MATCHED: false
+      - type: script_reusable
+        name: "Shell script files are kebab-case"
+        description: "All .sh file names are kebab-case"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed files to kebab-case"
+        args:
+          INCLUDE_FILES_GLOB: ["*.sh"]
+          NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
+          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_reusable
         name: "Directories are flat lowercase"
-        description: "All directory names are flat lowercase (no separators). Hidden directories and node_modules are skipped; Export/ and Logs/ are excluded to match the Scaffolding rules"
+        description: "All directory names are flat lowercase (no separators). Hidden directories and node_modules are skipped"
         script: dir-naming-convention-check
         severity: warn
         instruction: "Rename the listed directories to flat lowercase, or add them to EXCLUDE_DIRS"
         args:
-          CASE: '^[a-z0-9]+$'
-          EXCLUDE_DIRS:
-            - Export
-            - Logs
+          NAMING_CONVENTION: '^[a-z0-9]+$'
 
   - group: Docs & SQL
     rules:
@@ -1622,8 +1863,8 @@ rules:
         instruction: "Rename the listed Python files to snake_case"
         args:
           INCLUDE_FILES_GLOB: "*.py"
-          CASE: '^[a-z0-9]+([_.][a-z0-9]+)*$'
-          ON_NO_MATCH: pass
+          NAMING_CONVENTION: '^[a-z0-9]+([_.][a-z0-9]+)*$'
+          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_reusable
         name: "TOML files are flat lowercase"
         description: "All .toml file names are flat lowercase (dots allowed via the stripped extension)"
@@ -1632,8 +1873,8 @@ rules:
         instruction: "Rename the listed .toml files to flat lowercase"
         args:
           INCLUDE_FILES_GLOB: "*.toml"
-          CASE: '^[a-z0-9]+$'
-          ON_NO_MATCH: pass
+          NAMING_CONVENTION: '^[a-z0-9]+$'
+          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_clean
         name: "Python files parse"
         description: "Every .py file parses into a valid abstract syntax tree (read-only equivalent of check-ast)"
@@ -1655,11 +1896,8 @@ rules:
         instruction: "Remove the debug statements from the listed files"
         args:
           INCLUDE_FILES_GLOB: "*.py"
-          PATTERNS:
-            - '\bbreakpoint\(\)'
-            - 'pdb\.set_trace'
-            - '(^|[[:space:]])import[[:space:]]+pdb\b'
-          EXPECT: no_match
+          REGEX_PATTERN: ['\bbreakpoint\(\)', 'pdb\.set_trace', '(^|[[:space:]])import[[:space:]]+pdb\b']
+          FAIL_ON_NO_MATCHING_FILE: false
       - type: script_clean
         name: "ruff lint"
         description: "ruff finds no lint errors (recommended: subsumes flake8 and isort, and most style checks)"
@@ -1720,17 +1958,15 @@ rules:
   - group: JavaScript & Web
     rules:
       - type: script_reusable
-        name: "Script files are kebab-case"
+        name: "JS/TS files are kebab-case"
         description: "All .js and .ts file names are kebab-case"
         script: file-naming-convention-check
         severity: warn
         instruction: "Rename the listed files to kebab-case"
         args:
-          INCLUDE_FILES_GLOB:
-            - "*.js"
-            - "*.ts"
-          CASE: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          ON_NO_MATCH: pass
+          INCLUDE_FILES_GLOB: ["*.js", "*.ts"]
+          NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
+          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_reusable
         name: "Component files are PascalCase"
         description: "All .jsx, .tsx, .vue and .svelte component file names are PascalCase"
@@ -1738,13 +1974,9 @@ rules:
         severity: warn
         instruction: "Rename the listed component files to PascalCase"
         args:
-          INCLUDE_FILES_GLOB:
-            - "*.jsx"
-            - "*.tsx"
-            - "*.vue"
-            - "*.svelte"
-          CASE: '^([A-Z][a-z0-9]*)+$'
-          ON_NO_MATCH: pass
+          INCLUDE_FILES_GLOB: ["*.jsx", "*.tsx", "*.vue", "*.svelte"]
+          NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
+          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_clean
         name: "ESLint passes"
         description: "eslint finds no code-quality violations"
@@ -1811,10 +2043,10 @@ rules:
         instruction: "Split the oversized chunk (dynamic imports) or trim its dependencies"
         args:
           FILE_PATH: '.next/static/**/*.js'
-          OPERATOR: le
-          AMOUNT: 500
-          UNIT: 1024
-          ON_NO_MATCH: pass
+          COMPARISON_OPERATOR: le
+          SIZE_AMOUNT: 500
+          SIZE_UNIT: 1024
+          FAIL_ON_NO_PATHS_MATCHED: false
       - type: script_reusable
         name: "Total static JS under limit"
         description: "The total size of .next/static stays under 3 MiB"
@@ -1823,10 +2055,10 @@ rules:
         instruction: "Reduce the total bundle size: analyze with ANALYZE=true next build"
         args:
           FILE_PATH: '.next/static'
-          OPERATOR: le
-          AMOUNT: 3
-          UNIT: 1048576
-          ON_NO_MATCH: pass
+          COMPARISON_OPERATOR: le
+          SIZE_AMOUNT: 3
+          SIZE_UNIT: 1048576
+          FAIL_ON_NO_PATHS_MATCHED: false
       - type: script_clean
         name: "Knip dead export detection"
         description: "No unused exported symbols, files, or dependencies (requires a check:dead script running knip in package.json)"
@@ -1845,8 +2077,8 @@ rules:
         instruction: "Rename the listed Java files to PascalCase"
         args:
           INCLUDE_FILES_GLOB: "*.java"
-          CASE: '^([A-Z][a-z0-9]*)+$'
-          ON_NO_MATCH: pass
+          NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
+          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_reusable
         name: "Kotlin files are PascalCase"
         description: "All .kt file names are PascalCase"
@@ -1855,8 +2087,8 @@ rules:
         instruction: "Rename the listed Kotlin files to PascalCase"
         args:
           INCLUDE_FILES_GLOB: "*.kt"
-          CASE: '^([A-Z][a-z0-9]*)+$'
-          ON_NO_MATCH: pass
+          NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
+          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_clean
         name: "Maven project compiles"
         description: "mvn compile -q exits cleanly"
@@ -1872,7 +2104,7 @@ rules:
         instruction: "Run: gradle wrapper, and commit the generated files"
         args:
           FILE_PATH: gradlew
-          EXPECT: present
+          FAIL_ON_ABSENCE: true
       - type: script_clean
         name: "Gradle project builds"
         description: "./gradlew build exits cleanly"
@@ -1896,46 +2128,9 @@ rules:
         severity: warn
         instruction: "Replace bare gradle invocations with ./gradlew"
         args:
-          INCLUDE_FILES_GLOB:
-            - "*.sh"
-            - "*.yml"
-            - "*.yaml"
-            - "Makefile"
-            - "Justfile"
-          PATTERNS:
-            - '(^|[[:space:]])gradle[[:space:]]'
-          EXPECT: no_match
-
-  - group: Scaffolding
-    rules:
-      - type: script_reusable
-        name: "tmp/ directory present"
-        description: "The tmp/ directory exists at the project root for ephemeral, non-tracked scratch files"
-        script: file-or-dir-existence
-        severity: warn
-        instruction: "Create the tmp/ directory"
-        args:
-          FILE_PATH: tmp
-          EXPECT: present
-      - type: script_reusable
-        name: "Export/ directory present"
-        description: "The Export/ directory exists at the project root"
-        script: file-or-dir-existence
-        severity: warn
-        instruction: "Create the Export/ directory"
-        args:
-          FILE_PATH: Export
-          EXPECT: present
-      - type: script_reusable
-        name: "Logs/ directory present"
-        description: "The Logs/ directory exists at the project root"
-        script: file-or-dir-existence
-        severity: warn
-        instruction: "Create the Logs/ directory"
-        args:
-          FILE_PATH: Logs
-          EXPECT: present
-
+          INCLUDE_FILES_GLOB: ["*.sh", "*.yml", "*.yaml", "Makefile", "Justfile"]
+          REGEX_PATTERN: ['(^|[[:space:]])gradle[[:space:]]']
+          FAIL_ON_NO_MATCHING_FILE: false
   - group: Claude Settings
     rules:
       - type: script_reusable
@@ -1946,7 +2141,7 @@ rules:
         instruction: "Add '.claude/' to .gitignore"
         args:
           FILE_PATH: .gitignore
-          PATTERN: '\.claude/'
+          REGEX_PATTERN: '\.claude/'
       - group: Shared Settings
         rules:
           - type: script_reusable
@@ -1957,7 +2152,7 @@ rules:
             instruction: "Create .claude/settings.json with the desired Claude Code configuration"
             args:
               FILE_PATH: .claude/settings.json
-              EXPECT: present
+              FAIL_ON_ABSENCE: true
           - group: Model & Thinking
             rules:
               - type: script_reusable
@@ -1995,7 +2190,7 @@ rules:
                 args:
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: availableModels
-                  VALUE: '"sonnet"'
+                  EXPECTED_VALUE: '"sonnet"'
           - group: Permissions & Security
             rules:
               - type: script_reusable
@@ -2053,7 +2248,7 @@ rules:
                 args:
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: permissions.additionalDirectories
-                  EXPECT: absent
+                  FAIL_ON_KEY_ABSENCE: false
           - group: Hooks
             rules:
               - type: script_reusable
@@ -2065,7 +2260,7 @@ rules:
                 args:
                   CLAUDE_SETTING_KEY: disableAllHooks
                   CLAUDE_SETTING_VALUE: "true"
-                  EXPECT: no_match
+                  FAIL_ON_VALUE_MISMATCH: false
               - type: script_reusable
                 name: "SessionStart syncs the repo"
                 description: "A SessionStart command hook in .claude/settings.json runs git pull so every session starts from the latest code"
@@ -2084,7 +2279,7 @@ rules:
                 args:
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: statusLine.command
-                  EXPECT: present
+                  FAIL_ON_KEY_ABSENCE: true
           - group: Environment
             rules:
               - type: script_reusable
@@ -2125,7 +2320,7 @@ rules:
                 args:
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: sandbox.excludedCommands
-                  VALUE: '"git"'
+                  EXPECTED_VALUE: '"git"'
               - type: script_reusable
                 name: "github.com reachable from the sandbox"
                 description: "sandbox.network.allowedDomains in .claude/settings.json lists github.com — git-over-HTTPS and the gh CLI keep working inside the sandbox"
@@ -2135,7 +2330,7 @@ rules:
                 args:
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: sandbox.network.allowedDomains
-                  VALUE: '"github.com"'
+                  EXPECTED_VALUE: '"github.com"'
           - group: Git Integration
             rules:
               - type: script_reusable
@@ -2194,7 +2389,7 @@ rules:
                 args:
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: claudeMdExcludes
-                  VALUE: '"node_modules/**"'
+                  EXPECTED_VALUE: '"node_modules/**"'
           - group: MCP & Plugins
             rules:
               - type: script_reusable
@@ -2215,63 +2410,7 @@ rules:
                 args:
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: enabledMcpjsonServers
-                  VALUE: '"github"'
-
-arg-templates:
-  - id: expect-presence
-    key: EXPECT
-    label: "Expect"
-    type: enum
-    required: true
-    enum_ref: presence-values
-  - id: expect
-    key: EXPECT
-    label: "Expect"
-    type: enum
-    required: false
-    enum_ref: match-value
-  - id: on-no-match
-    key: ON_NO_MATCH
-    label: "When zero files are found"
-    type: enum
-    required: false
-    enum_ref: no-match-policy
-  - id: search-from
-    key: FROM
-    label: "Search root"
-    type: path
-    required: false
-    placeholder: "."
-    description: "Directory to search from. Defaults to . (project root)."
-  - id: search-depth
-    key: DEPTH
-    label: "Max depth"
-    type: integer
-    required: false
-    placeholder: "1"
-    description: "Maximum directory depth to search. 1 = files directly inside FROM. Omit for unlimited depth."
-  - id: include-files-glob
-    key: INCLUDE_FILES_GLOB
-    label: "Include files glob"
-    type: string
-    required: true
-    placeholder: "*.java"
-    description: "Glob pattern matched against file basenames to include (e.g. *.java, *Controller*). Provide a YAML list to match multiple globs."
-  - id: exclude-files-glob
-    key: EXCLUDE_FILES_GLOB
-    label: "Exclude files glob"
-    type: string
-    required: false
-    placeholder: "*Test.java"
-    description: "Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs."
-  - id: claude-settings-file
-    key: CLAUDE_SETTINGS_FILE
-    label: "Settings file"
-    type: enum
-    required: false
-    enum_ref: claude-settings-file
-    description: "Which Claude Code settings file to check. Defaults to .claude/settings.json (shared) when omitted."
-
+                  EXPECTED_VALUE: '"github"'
 enums:
   - id: file-naming-convention
     name: "File naming convention"
@@ -2319,37 +2458,6 @@ enums:
       - name: Title Case
         value: "^[A-Z][a-z0-9]*( [A-Z][a-z0-9]*)*$"
         description: "Every word capitalized, separated by spaces. Used for UI labels, button text, menu items, and display strings — not valid as a code identifier in most languages."
-
-  - id: presence-values
-    name: "Presence values"
-    description: "Whether the file or directory should be present or absent"
-    values:
-      - name: Present
-        value: present
-        description: "File or directory must exist at the given path"
-      - name: Absent
-        value: absent
-        description: "File or directory must not exist at the given path"
-  - id: match-value
-    name: "Match value"
-    description: "Whether the pattern should match or not match"
-    values:
-      - name: Match
-        value: match
-        description: "The pattern must be found in the file"
-      - name: "No match"
-        value: no_match
-        description: "The pattern must not appear in the file"
-  - id: no-match-policy
-    name: "No match policy"
-    description: "What a check should do when its glob or path matches zero files. Defaults to fail when omitted."
-    values:
-      - name: Fail
-        value: fail
-        description: "Treat zero matches as a failure (recommended for enforcement-style checks like size or naming lints, where a typo'd glob should not silently pass)"
-      - name: Pass
-        value: pass
-        description: "Treat zero matches as a pass (nothing to check)"
 
   - id: common-manifest
     name: "Common manifest"
@@ -2435,10 +2543,95 @@ enums:
     name: "App Environments"
     description: "Application deployment environments"
     values:
-      - development
-      - staging
-      - production
+      - name: Development
+        value: development
+        description: "Local or shared development environment"
+      - name: Staging
+        value: staging
+        description: "Pre-production environment for final verification"
+      - name: Production
+        value: production
+        description: "Live environment serving real users"
+      - name: Isolated
+        value: isolated
+        description: "No access to any 3rd party API or network whatsoever"
 
+  - id: comparison-operator
+    name: "Comparison operator"
+    description: "Comparison operators for numeric or size-based rule conditions"
+    values:
+      - name: less
+        value: lt
+        description: "Strictly less than"
+      - name: lessOrEqual
+        value: le
+        description: "Less than or equal to"
+      - name: equal
+        value: eq
+        description: "Equal to"
+      - name: moreOrEqual
+        value: ge
+        description: "Greater than or equal to"
+      - name: more
+        value: gt
+        description: "Strictly greater than"
+
+  - id: size-unit
+    name: "Size unit"
+    description: "Binary (1024-based) file/data size units"
+    values:
+      - name: B
+        value: "1"
+        description: "Byte"
+      - name: KiB
+        value: "1024"
+        description: "Kibibyte (1024 bytes)"
+      - name: MiB
+        value: "1048576"
+        description: "Mebibyte (1024 KiB)"
+      - name: GiB
+        value: "1073741824"
+        description: "Gibibyte (1024 MiB)"
+      - name: TiB
+        value: "1099511627776"
+        description: "Tebibyte (1024 GiB)"
+
+  - id: file-extensions
+    name: "File extensions"
+    description: "Common structured-data file extensions — use as FILE_PATH glob suffix or EXCLUDE_FILES_GLOB filter"
+    values:
+      - name: yaml
+        value: yaml
+        description: "YAML"
+      - name: yml
+        value: yml
+        description: "YAML (short form)"
+      - name: json
+        value: json
+        description: "JSON"
+      - name: jsonl
+        value: jsonl
+        description: "JSON Lines (newline-delimited JSON)"
+      - name: toml
+        value: toml
+        description: "TOML"
+      - name: xml
+        value: xml
+        description: "XML"
+
+  - id: verifiable-file-types
+    name: "Verifiable file types"
+    description: "File types the file-syntax-valid script can parse/compile-check — selects which validator command runs (yq, jq, or bash -n)"
+    values:
+      - name: YAML
+        value: yaml
+        description: "Validated with: yq '.' <file>"
+      - name: JSON
+        value: json
+        description: "Validated with: jq empty <file>"
+      - name: Bash
+        value: bash
+        description: "Validated with: bash -n <file>"
   - group: Claude Settings
     enums:
       - id: claude-permission-mode
@@ -2691,97 +2884,3 @@ enums:
             value: verbose
             description: "Enables verbose logging output (boolean)"
 
-  - group: Internals
-    enums:
-      - id: missing-tool-policy
-        name: "Missing tool policy"
-        description: "Rule field `on_missing:` — behavior when the binary named in a rule's `requires:` field is not installed. Defaults to warn when omitted."
-        values:
-          - name: Skip
-            value: skip
-            description: "Skip the rule silently (shown as [SKIP] in verbose mode)"
-          - name: Warn
-            value: warn
-            description: "Record a warning that the rule was skipped because the tool is missing"
-          - name: Fail
-            value: fail
-            description: "Fail the rule with its configured severity"
-      - id: types
-        name: "Types"
-        description: "Reference catalog of param `type:` values used throughout this file's `args:` definitions"
-        values:
-          - name: path
-            description: "Filesystem path, absolute or relative to the project root."
-          - name: string
-            description: "Free-form text value."
-          - name: integer
-            description: "Whole number value."
-          - name: regex
-            description: "Regular expression pattern."
-          - name: enum
-            description: "A value selected from a predefined set, referenced via enum_ref."
-          - name: glob
-            description: "May contain a path and/or exact file name. Case sensitive. Use * or ? for pattern matching. Example: src/**/*.js matches all .js files recursively under src/."
-
-  - id: comparison-operator
-    name: "Comparison operator"
-    description: "Comparison operators for numeric or size-based rule conditions"
-    values:
-      - name: less
-        value: lt
-        description: "Strictly less than"
-      - name: lessOrEqual
-        value: le
-        description: "Less than or equal to"
-      - name: equal
-        value: eq
-        description: "Equal to"
-      - name: moreOrEqual
-        value: ge
-        description: "Greater than or equal to"
-      - name: more
-        value: gt
-        description: "Strictly greater than"
-
-  - id: size-unit
-    name: "Size unit"
-    description: "Binary (1024-based) file/data size units"
-    values:
-      - name: B
-        value: 1
-        description: "Byte"
-      - name: KiB
-        value: 1024
-        description: "Kibibyte (1024 bytes)"
-      - name: MiB
-        value: 1048576
-        description: "Mebibyte (1024 KiB)"
-      - name: GiB
-        value: 1073741824
-        description: "Gibibyte (1024 MiB)"
-      - name: TiB
-        value: 1099511627776
-        description: "Tebibyte (1024 GiB)"
-
-  - id: file-extensions
-    name: "File extensions"
-    description: "Common structured-data file extensions — use as FILE_PATH glob suffix or EXCLUDE_FILES_GLOB filter"
-    values:
-      - name: yaml
-        value: yaml
-        description: "YAML"
-      - name: yml
-        value: yml
-        description: "YAML (short form)"
-      - name: json
-        value: json
-        description: "JSON"
-      - name: jsonl
-        value: jsonl
-        description: "JSON Lines (newline-delimited JSON)"
-      - name: toml
-        value: toml
-        description: "TOML"
-      - name: xml
-        value: xml
-        description: "XML"

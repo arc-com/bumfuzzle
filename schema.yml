@@ -1,0 +1,209 @@
+# schema.yml — the single source of truth for the FULL structure of
+# bumfuzzle-template.yml and bumfuzzle.yml: every top-level section, every
+# node shape, every property on every node, which are required, and how
+# nesting works.
+#
+# Written in JSON Schema (2020-12) vocabulary, YAML-encoded to match this
+# project's convention. $defs are read directly (via yq/JS path queries) by
+# scripts/eval-rules.sh, scripts/validate-schema.sh, and index.html instead
+# of any of them hardcoding these lists/shapes themselves — see SKILL.md.
+
+"$schema": "https://json-schema.org/draft/2020-12/schema"
+"$id": "bumfuzzle-config"
+title: "Bumfuzzle config"
+description: "Shared by bumfuzzle-template.yml (the full catalog: scripts + rules + enums) and a project's bumfuzzle.yml (any subset of the same three sections)."
+type: object
+additionalProperties: false
+properties:
+  scripts:
+    type: array
+    items: { "$ref": "#/$defs/scriptNode" }
+  rules:
+    type: array
+    items: { "$ref": "#/$defs/ruleNode" }
+  enums:
+    type: array
+    items: { "$ref": "#/$defs/enumNode" }
+
+"$defs":
+
+  # ── scripts: reusable check definitions ──────────────────────────────────
+
+  scriptNode:
+    oneOf:
+      - "$ref": "#/$defs/scriptGroup"
+      - "$ref": "#/$defs/scriptEntry"
+
+  scriptGroup:
+    type: object
+    additionalProperties: false
+    required: [group, scripts]
+    properties:
+      group: { type: string }
+      scripts:
+        type: array
+        items: { "$ref": "#/$defs/scriptNode" }
+
+  scriptEntry:
+    type: object
+    additionalProperties: false
+    required: [id, name, command]
+    properties:
+      id: { type: string, description: "kebab-case, unique, locked after first save" }
+      name: { type: string }
+      description: { type: string }
+      command: { type: string, description: "shell script; reads args as env vars" }
+      args:
+        type: array
+        items: { "$ref": "#/$defs/arg" }
+
+  # ── args: on a script — always fully inline, one shape only
+
+  arg:
+    type: object
+    additionalProperties: false
+    required: [key, label, type, required]
+    properties:
+      key: { type: string, pattern: "^[A-Z][A-Z0-9_]*$", description: "env var name; always unambiguous and self-explanatory on its own, never a bare generic word" }
+      label: { type: string }
+      description: { type: string }
+      type: { "$ref": "#/$defs/argType" }
+      required: { type: boolean }
+      placeholder: { type: string, description: "not applicable when type: bool" }
+      default: { description: "type-matched literal" }
+      min: { type: number, description: "type: int or double only" }
+      max: { type: number, description: "type: int or double only" }
+      multi_select: { type: boolean, description: "type: enum only" }
+      list: { type: boolean, description: "not type: enum or bool. true = the script reads this arg as a YAML list of values (newline-joined into the env var, one per line) instead of a single scalar; the wizard renders an add/remove list editor instead of a single input." }
+      separator: { "$ref": "#/$defs/separator", description: "type: enum with multi_select only" }
+      enum_ref: { type: string, minLength: 1, description: "id of an entry in enums:. No literal values allowed inline, ever — this is the ONLY way an enum-typed arg may supply its values." }
+      visible_when: { "$ref": "#/$defs/visibleWhen" }
+    if:
+      properties: { type: { const: enum } }
+      required: [type]
+    then:
+      required: [enum_ref]
+      description: "type: enum without enum_ref is not a partially-valid arg — it is structurally forbidden."
+    else:
+      not: { required: [enum_ref] }
+      description: "enum_ref only makes sense when type: enum — left set on a non-enum arg it is dead, unused configuration."
+
+  argType:
+    type: string
+    enum: [string, int, double, regex, path, bool, enum, glob]
+
+  separator:
+    type: string
+    enum: [space, comma, json]
+
+  visibleWhen:
+    type: object
+    additionalProperties: false
+    required: [key, eq]
+    properties:
+      key: { type: string, description: "a sibling arg's key" }
+      eq: { type: string }
+
+  # ── enums: reusable value lists ────────────────────────────────────────────
+
+  enumNode:
+    oneOf:
+      - "$ref": "#/$defs/enumGroup"
+      - "$ref": "#/$defs/enumEntry"
+
+  enumGroup:
+    type: object
+    additionalProperties: false
+    required: [group, enums]
+    properties:
+      group: { type: string }
+      enums:
+        type: array
+        items: { "$ref": "#/$defs/enumNode" }
+
+  enumEntry:
+    type: object
+    additionalProperties: false
+    required: [id, name, description, values]
+    properties:
+      id: { type: string, description: "kebab-case, referenced from args via enum_ref" }
+      name: { type: string }
+      description: { type: string }
+      values:
+        type: array
+        items: { "$ref": "#/$defs/enumValue" }
+
+  enumValue:
+    type: object
+    additionalProperties: false
+    required: [name, value]
+    properties:
+      name: { type: string, description: "shown in the wizard" }
+      value: { type: string, description: "literal written into the target config file" }
+      description: { type: string }
+
+  # ── rules: instances of a script, or standalone commands ─────────────────
+
+  ruleNode:
+    description: "A rules[] entry is a group, OR a script_clean rule (own inline command), OR a script_reusable rule (instantiates a scripts: entry with concrete arg values) — never a fourth shape."
+    oneOf:
+      - "$ref": "#/$defs/ruleGroup"
+      - "$ref": "#/$defs/ruleEntryClean"
+      - "$ref": "#/$defs/ruleEntryReusable"
+
+  ruleGroup:
+    type: object
+    additionalProperties: false
+    required: [group, rules]
+    properties:
+      group: { type: string }
+      rules:
+        type: array
+        items: { "$ref": "#/$defs/ruleNode" }
+
+  ruleEntryClean:
+    type: object
+    additionalProperties: false
+    required: [type, name, command]
+    properties:
+      type: { const: script_clean }
+      name: { type: string }
+      description: { type: string }
+      command: { type: string, description: "inline shell command, not shared with any script" }
+      severity: { "$ref": "#/$defs/severity" }
+      instruction: { type: string }
+      enabled: { type: boolean }
+      requires: { type: string, description: "binary that must be installed for this rule to run" }
+      on_missing: { "$ref": "#/$defs/onMissing" }
+
+  ruleEntryReusable:
+    type: object
+    additionalProperties: false
+    required: [type, name, script]
+    properties:
+      type: { const: script_reusable }
+      name: { type: string }
+      description: { type: string }
+      script: { type: string, description: "id of the scripts: entry being instantiated" }
+      args:
+        type: object
+        description: "map of KEY: value — KEY must match one of the script's declared arg keys"
+      severity: { "$ref": "#/$defs/severity" }
+      instruction: { type: string }
+      enabled: { type: boolean }
+      requires: { type: string }
+      on_missing: { "$ref": "#/$defs/onMissing" }
+
+  ruleType:
+    type: string
+    enum: [script_clean, script_reusable]
+
+  severity:
+    type: string
+    enum: [warn, error, hard-stop]
+    default: error
+
+  onMissing:
+    type: string
+    enum: [skip, warn, fail]
+    default: warn

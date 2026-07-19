@@ -125,7 +125,6 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .seg-btn:last-child{border-right:none}
 .seg-btn:hover{background:rgba(255,255,255,.05);color:var(--tx)}
 .seg-btn.on{font-weight:600}
-.seg-btn.on.t-info     {background:rgba(88,166,255,.08);color:var(--ac)}
 .seg-btn.on.t-warn     {background:rgba(227,179,65,.13);color:var(--yl)}
 .seg-btn.on.t-error    {background:rgba(210,153,34,.13);color:var(--or)}
 .seg-btn.on.t-hard-stop{background:rgba(248,81,73,.13);color:var(--rd)}
@@ -215,8 +214,6 @@ select.inp{cursor:pointer}
 .btn.danger:hover:not(:disabled){border-color:var(--rd);background:rgba(248,81,73,.07)}
 .btn-hdr-reset{background:none;border:1px solid rgba(248,81,73,.3);border-radius:4px;color:var(--rd);font-size:11px;font-family:inherit;padding:3px 10px;cursor:pointer;opacity:.65;transition:opacity .1s,border-color .1s}
 .btn-hdr-reset:hover{opacity:1;border-color:var(--rd)}
-.btn-hdr-create{background:none;border:1px solid rgba(63,185,80,.35);border-radius:4px;color:var(--gr);font-size:11px;font-family:inherit;padding:3px 10px;cursor:pointer;opacity:.85;transition:opacity .1s,border-color .1s}
-.btn-hdr-create:hover{opacity:1;border-color:var(--gr)}
 </style>
 </head>
 <body>
@@ -231,7 +228,7 @@ const CONFIG = {
   treeLines:   false,
 };
 
-let S, C, META;
+let S, C, META, SCHEMA;
 let state;
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
@@ -290,29 +287,16 @@ function initData() {
   const sRules        = S && S.rules;
   const cEnums        = C && C.enums;
   const cScripts      = C && C.scripts;
-  const cArgTemplates = C && C['arg-templates'];
   state = {
     rules:        JSON.parse(JSON.stringify(cRules   || sRules   || [])),
     enums:        JSON.parse(JSON.stringify(cEnums || [])),
     scripts:      JSON.parse(JSON.stringify(cScripts || [])),
-    argTemplates: JSON.parse(JSON.stringify(cArgTemplates || [])),
-    sections: { rules: true, enums: true, scripts: true, argTemplates: true, actions: true },
+    sections: { rules: true, enums: true, scripts: true, actions: true },
     filters:  { rules: 'all' },
   };
   annotate(state.rules);
   annotateEnums(state.enums);
   annotateScripts(state.scripts);
-  annotateArgTemplates(state.argTemplates);
-}
-
-function annotateArgTemplates(items) {
-  (items || []).forEach(item => {
-    if (item._exp === undefined) item._exp = false;
-    if (!item.id)  item.id  = '';
-    if (!item.key) item.key = '';
-    if (item._saved === undefined) item._saved = argTemplateSnapshot(item);
-    if (item._mode === undefined) item._mode = 'edit';
-  });
 }
 
 function annotate(items) {
@@ -453,14 +437,6 @@ async function doReset() {
   } catch { showToast('Reset failed'); }
 }
 
-async function doCreate() {
-  try {
-    const res = await fetch('/reset', { method: 'POST' });
-    if (!res.ok) throw new Error();
-    location.reload();
-  } catch { showToast('Create failed'); }
-}
-
 function showResetModal() {
   if (modalEl) return;
   const overlay = el('div', { class: 'modal-overlay' });
@@ -501,6 +477,7 @@ function generateYaml() {
     if (a.default !== undefined && a.default !== '') lines.push(indent + 'default: ' + JSON.stringify(a.default));
     if (a.min !== undefined)          lines.push(indent + 'min: ' + a.min);
     if (a.max !== undefined)          lines.push(indent + 'max: ' + a.max);
+    if (a.list && a.type !== 'enum' && a.type !== 'bool') lines.push(indent + 'list: true');
     if (a.type === 'enum') {
       if (a.multi_select)             lines.push(indent + 'multi_select: true');
       if (a.separator && a.separator !== 'space') lines.push(indent + 'separator: ' + a.separator);
@@ -527,10 +504,6 @@ function generateYaml() {
         if (Array.isArray(item.args) && item.args.length) {
           lines.push(indent + '  args:');
           item.args.forEach(a => {
-            if (a.arg_ref) {
-              lines.push(indent + '    - arg_ref: ' + JSON.stringify(a.arg_ref));
-              return;
-            }
             lines.push(indent + '    - key: '   + JSON.stringify(a.key || ''));
             lines.push(indent + '      label: ' + JSON.stringify(a.label || ''));
             lines.push(indent + '      type: '  + (a.type || 'string'));
@@ -561,12 +534,10 @@ function generateYaml() {
         if (item.args && Object.keys(item.args).length) {
           lines.push(indent + '  args:');
           Object.entries(item.args).forEach(([k, v]) => {
-            const val = Array.isArray(v) ? v : v;
-            if (Array.isArray(val) && val.length) {
-              lines.push(indent + '    ' + k + ':');
-              val.forEach(entry => lines.push(indent + '      - ' + JSON.stringify(entry)));
+            if (Array.isArray(v) && v.length) {
+              lines.push(indent + '    ' + k + ': [' + v.map(entry => JSON.stringify(entry)).join(', ') + ']');
             } else {
-              lines.push(indent + '    ' + k + ': ' + JSON.stringify(String(val ?? '')));
+              lines.push(indent + '    ' + k + ': ' + JSON.stringify(String(v ?? '')));
             }
           });
         }
@@ -609,23 +580,10 @@ function generateYaml() {
     }
   }
 
-  function writeArgTemplates(items) {
-    items.forEach(t => {
-      lines.push('  - id: '  + JSON.stringify(t.id || ''));
-      lines.push('    key: ' + JSON.stringify(t.key || ''));
-      lines.push('    label: ' + JSON.stringify(t.label || ''));
-      lines.push('    type: '  + (t.type || 'string'));
-      writeScriptArgConstraints(t, '    ');
-    });
-  }
-
-
   if (state.scripts && state.scripts.length) { lines.push('scripts:'); writeScriptItems(state.scripts, '  '); }
 
   if (state.rules.length) { lines.push('rules:'); writeRuleItems(state.rules, '  '); }
   else lines.push('rules: []');
-
-  if (state.argTemplates && state.argTemplates.length) { lines.push('arg-templates:'); writeArgTemplates(state.argTemplates); }
 
   if (state.enums.length) { lines.push('enums:'); writeEnumItems(state.enums, '  '); }
   else lines.push('enums: []');
@@ -897,7 +855,6 @@ function makeSection(key, title) {
 
 // ── Snapshot helpers ──────────────────────────────────────────────────────────
 
-const SEV_LEVELS  = ['info','warn','error','hard-stop'];
 const SNAP_FIELDS = ['type','name','description','command','severity','instruction','script'];
 
 function ruleSnapshot(rule) {
@@ -920,28 +877,6 @@ function enumSnapshot(item) {
 }
 function isEnumDirty(item) {
   return item._saved === null || enumSnapshot(item) !== item._saved;
-}
-
-function argTemplateSnapshot(item) {
-  return JSON.stringify({
-    id:           item.id           || '',
-    key:          item.key          || '',
-    label:        item.label        || '',
-    description:  item.description  || '',
-    type:         item.type         || 'string',
-    required:     !!item.required,
-    placeholder:  item.placeholder  || '',
-    default:      item.default,
-    min:          item.min,
-    max:          item.max,
-    enum_ref:     item.enum_ref     || '',
-    multi_select: !!item.multi_select,
-    separator:    item.separator    || '',
-    visible_when: item.visible_when || null,
-  });
-}
-function isArgTemplateDirty(item) {
-  return item._saved === null || argTemplateSnapshot(item) !== item._saved;
 }
 
 function scriptSnapshot(s) {
@@ -981,15 +916,8 @@ function getEnumValues(enumRef) {
   return search(state.enums) || [];
 }
 
-// resolves a script args[] entry against arg-templates: when it uses arg_ref
-// instead of inline key/label/type/etc.; any field set alongside arg_ref overrides the template
-function resolveArg(a) {
-  if (!a || !a.arg_ref) return a;
-  const t = (state.argTemplates || []).find(x => x.id === a.arg_ref);
-  return t ? { ...t, ...a } : a;
-}
 function getResolvedArgs(script) {
-  return (script && Array.isArray(script.args) ? script.args : []).map(resolveArg);
+  return (script && Array.isArray(script.args)) ? script.args : [];
 }
 
 function buildArgWidget(argDef, rule, onChange) {
@@ -1071,6 +999,38 @@ function buildArgWidget(argDef, rule, onChange) {
         wrap.append(sel);
       }
     }
+  } else if (argDef.list) {
+    const selected = Array.isArray(cur) ? [...cur] : (cur !== undefined && cur !== '' ? [String(cur)] : []);
+    const chipsEl = el('div', { class: 'chips' });
+    function refreshList() {
+      chipsEl.innerHTML = '';
+      if (!selected.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
+      selected.forEach((v, i) => {
+        const x = el('button', { class: 'chip-x' }, '\xd7');
+        x.addEventListener('click', () => { selected.splice(i, 1); set([...selected]); refreshList(); });
+        chipsEl.append(el('span', { class: 'chip mono' }, v, x));
+      });
+      if (argDef.required) chipsEl.style.borderColor = selected.length ? '' : 'var(--rd)';
+    }
+    refreshList();
+    const addInp = el('input', { class: 'add-inp mono', type: 'text', placeholder: argDef.placeholder || 'add value' });
+    const addBtn = el('button', { class: 'add-btn' }, '+ add');
+    const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, 'Invalid regex');
+    function tryAdd() {
+      const v = addInp.value.trim();
+      if (!v) return;
+      if (type === 'regex') {
+        try { new RegExp(v); } catch { errEl.style.display = ''; return; }
+      }
+      errEl.style.display = 'none';
+      selected.push(v);
+      set([...selected]);
+      addInp.value = '';
+      refreshList();
+    }
+    addBtn.addEventListener('click', tryAdd);
+    addInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tryAdd(); } });
+    wrap.append(chipsEl, el('div', { class: 'add-row' }, addInp, addBtn), errEl);
   } else if (type === 'int' || type === 'double') {
     const inp = el('input', { class: 'inp mono', type: 'number' });
     if (type === 'int') inp.step = '1';
@@ -1259,7 +1219,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
 
   const sSeg = el('div', { class: 'seg' });
   const sBtns = {};
-  SEV_LEVELS.forEach(s => {
+  SCHEMA.$defs.severity.enum.forEach(s => {
     const b = el('button', { class: 'seg-btn' + ((rule.severity || 'error') === s ? ' on t-' + s : '') }, s);
     b.dataset.val = s;
     b.addEventListener('click', () => {
@@ -1595,10 +1555,10 @@ function onArgDragEnd() {
 
 // ── Script field editor ───────────────────────────────────────────────────────
 
-const ARG_TYPES = ['string','int','double','regex','path','bool','enum'];
+// used by buildScriptPanel's arg editor
+function buildArgFields(argDef, onChangeFn, opts = {}) {
+  const { showIdentity = true, showType = true } = opts;
 
-// shared by buildScriptPanel's arg editor and buildArgTemplatePanel
-function buildArgFields(argDef, onChangeFn) {
   const keyInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'KEY_NAME' });
   keyInp.value = argDef.key || '';
   keyInp.addEventListener('input', () => { argDef.key = keyInp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_'); keyInp.value = argDef.key; onChangeFn?.(); });
@@ -1607,23 +1567,34 @@ function buildArgFields(argDef, onChangeFn) {
   lblInp.value = argDef.label || '';
   lblInp.addEventListener('input', () => { argDef.label = lblInp.value; onChangeFn?.(); });
 
-  const descInp = el('input', { class: 'inp', type: 'text', placeholder: 'Description (optional)' });
-  descInp.value = argDef.description || '';
-  descInp.addEventListener('input', () => { argDef.description = descInp.value || undefined; onChangeFn?.(); });
-
-  const typeSeg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
-  ARG_TYPES.forEach(t => {
-    const b = el('button', { class: 'seg-btn' + ((argDef.type || 'string') === t ? ' on t-on' : '') }, t);
-    b.addEventListener('click', () => { argDef.type = t; typeSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.textContent === t ? ' on t-on' : '')); rebuildConstraints(); onChangeFn?.(); });
-    typeSeg.append(b);
-  });
-
   const reqSeg = el('div', { class: 'seg' });
   ['required','optional'].forEach(v => {
     const isOn = v === 'required' ? !!argDef.required : !argDef.required;
     const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
     b.addEventListener('click', () => { argDef.required = v === 'required'; reqSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'required') === argDef.required ? ' on t-on' : '')); onChangeFn?.(); });
     reqSeg.append(b);
+  });
+
+  const descInp = el('input', { class: 'inp', type: 'text', placeholder: showType ? 'Description (optional)' : 'Description override (optional)' });
+  descInp.value = argDef.description || '';
+  descInp.addEventListener('input', () => { argDef.description = descInp.value || undefined; onChangeFn?.(); });
+
+  if (!showType) {
+    return el('div', {},
+      el('div', { class: 'arg-grid' },
+        el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Key (env var)'), keyInp),
+        el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Label'), lblInp),
+      ),
+      el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Required'), reqSeg),
+      el('div', { class: 'rf-sec' }, el('span', { class: 'rf-lbl' }, 'Description'), descInp),
+    );
+  }
+
+  const typeSeg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
+  SCHEMA.$defs.argType.enum.forEach(t => {
+    const b = el('button', { class: 'seg-btn' + ((argDef.type || 'string') === t ? ' on t-on' : '') }, t);
+    b.addEventListener('click', () => { argDef.type = t; typeSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.textContent === t ? ' on t-on' : '')); rebuildConstraints(); onChangeFn?.(); });
+    typeSeg.append(b);
   });
 
   const constraintsEl = el('div', {});
@@ -1646,6 +1617,17 @@ function buildArgFields(argDef, onChangeFn) {
       onChangeFn?.();
     });
     constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Default'), defInp));
+
+    if (t !== 'bool' && t !== 'enum') {
+      const listSeg = el('div', { class: 'seg' });
+      ['single','list'].forEach(v => {
+        const isOn = v === 'list' ? !!argDef.list : !argDef.list;
+        const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
+        b.addEventListener('click', () => { argDef.list = v === 'list'; listSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'list') === !!argDef.list ? ' on t-on' : '')); onChangeFn?.(); });
+        listSeg.append(b);
+      });
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Value count'), listSeg));
+    }
 
     if (t === 'int' || t === 'double') {
       const minInp = el('input', { class: 'inp mono', type: 'number', placeholder: 'Min (optional)' });
@@ -1671,7 +1653,7 @@ function buildArgFields(argDef, onChangeFn) {
       constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Select mode'), multiSeg));
 
       const sepSeg = el('div', { class: 'seg' });
-      ['space','comma','json'].forEach(v => {
+      SCHEMA.$defs.separator.enum.forEach(v => {
         const isOn = (argDef.separator || 'space') === v;
         const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
         b.addEventListener('click', () => { argDef.separator = v; sepSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((argDef.separator || 'space') === x.textContent ? ' on t-on' : '')); onChangeFn?.(); });
@@ -1705,129 +1687,19 @@ function buildArgFields(argDef, onChangeFn) {
   }
   rebuildConstraints();
 
+  const identityRow = showIdentity ? el('div', { class: 'arg-grid' },
+    el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Key (env var)'), keyInp),
+    el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Label'), lblInp),
+  ) : null;
+  const requiredRow = showIdentity ? el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Required'), reqSeg) : null;
+
   return el('div', {},
-    el('div', { class: 'arg-grid' },
-      el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Key (env var)'), keyInp),
-      el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Label'), lblInp),
-    ),
+    ...(identityRow ? [identityRow] : []),
     el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Description'), descInp),
     el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Type'), typeSeg),
-    el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Required'), reqSeg),
+    ...(requiredRow ? [requiredRow] : []),
     constraintsEl,
   );
-}
-
-function buildArgTemplatePanel(item, reRender, inModal = false) {
-  const panel = el('div', { class: 'rt-panel' });
-
-  const btnDiff   = el('button', { class: 'rf-btn' }, 'Diff');
-  const btnSave   = el('button', { class: 'rf-btn rf-btn-save' }, 'Save');
-  const btnEdit   = el('button', { class: 'rf-btn' }, 'Edit');
-  const btnCancel = el('button', { class: 'rf-btn rf-btn-cancel' }, 'Cancel');
-
-  const idInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'kebab-case-id' });
-  idInp.value = item.id || '';
-  if (item._saved !== null && item._saved !== undefined) {
-    try { if (JSON.parse(item._saved).id) idInp.readOnly = true; } catch {}
-  }
-  idInp.addEventListener('input', () => {
-    item.id = idInp.value.trim().replace(/\s+/g, '-');
-    idInp.value = item.id;
-    item._updateRow?.(); updateStatus();
-  });
-
-  const fieldsEl = buildArgFields(item, () => { item._updateRow?.(); updateStatus(); });
-
-  const formView = el('div', { class: 'rf-body' },
-    panelSec('ID (slug, locked after first save; referenced by scripts via arg_ref)', idInp),
-    fieldsEl,
-  );
-
-  const diffView = el('div', { class: 'rf-body' });
-  function renderDiff() {
-    diffView.innerHTML = '';
-    if (!item._saved) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No saved state')); return; }
-    const from = JSON.parse(item._saved);
-    const changes = [];
-    const fields = ['id','key','label','description','type','required','placeholder','enum_ref'];
-    fields.forEach(f => {
-      const fv = from[f] ?? '', tv = item[f] ?? '';
-      if (String(fv) !== String(tv)) changes.push({ f, from: fv === '' ? '(empty)' : String(fv), to: tv === '' ? '(empty)' : String(tv) });
-    });
-    if (!changes.length) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No changes')); return; }
-    changes.forEach(({ f, from, to }) => {
-      diffView.append(el('div', { class: 'rf-diff-row' },
-        el('span', { class: 'rf-diff-field' }, f),
-        el('span', { class: 'rf-diff-from' }, from),
-        el('span', { class: 'rf-diff-arrow' }, '→'),
-        el('span', { class: 'rf-diff-to' }, to),
-      ));
-    });
-  }
-
-  let dirtyBadgeArgTemplate = null;
-  if (!inModal) {
-    dirtyBadgeArgTemplate = el('div', { class: 'rf-dirty-badge' }, 'Unsaved changes');
-    panel.append(formView, diffView, el('div', { class: 'rf-status-bar' },
-      dirtyBadgeArgTemplate,
-      el('div', { class: 'rf-actions-bar' }, btnDiff, btnEdit, btnCancel, btnSave),
-    ));
-  } else {
-    panel.append(formView, diffView);
-  }
-
-  function updateStatus() {
-    const dirty = isArgTemplateDirty(item);
-    const mode  = item._mode;
-    idInp.style.borderColor = item.id ? '' : 'var(--rd)';
-    if (dirtyBadgeArgTemplate) dirtyBadgeArgTemplate.classList.toggle('visible', dirty);
-    item._updateRow?.();
-    btnDiff.style.display   = (mode === 'edit' && dirty && item._saved !== null) ? '' : 'none';
-    btnSave.style.display   = (dirty && !!item.id && !!item.key) ? '' : 'none';
-    btnEdit.style.display   = mode === 'diff' ? '' : 'none';
-    btnCancel.style.display = '';
-  }
-
-  function setMode(mode) {
-    item._mode = mode;
-    formView.style.display = mode === 'edit' ? '' : 'none';
-    diffView.style.display = mode === 'diff' ? '' : 'none';
-    if (mode === 'diff') renderDiff();
-    updateStatus();
-  }
-
-  btnDiff.addEventListener('click', () => setMode('diff'));
-  btnEdit.addEventListener('click', () => setMode('edit'));
-
-  btnSave.addEventListener('click', () => {
-    item._saved = argTemplateSnapshot(item);
-    if (item.id) idInp.readOnly = true;
-    item._updateRow?.();
-    scheduleSave();
-    setMode('edit');
-  });
-
-  btnCancel.addEventListener('click', () => {
-    if (!isArgTemplateDirty(item)) {
-      item._exp = false;
-      reRender();
-      return;
-    }
-    if (item._saved === null) {
-      const path = findPath(item, state.argTemplates, []);
-      if (path) { removeByPath(path, state.argTemplates); reRender(); scheduleSave(); }
-      return;
-    }
-    const saved = JSON.parse(item._saved);
-    Object.keys(item).forEach(k => { if (!k.startsWith('_')) delete item[k]; });
-    Object.assign(item, JSON.parse(JSON.stringify(saved)));
-    reRender();
-    scheduleSave();
-    setMode('edit');
-  });
-
-  setMode(item._mode || 'edit');
-  return panel;
 }
 
 function buildScriptPanel(script, reRender, inModal = false) {
@@ -1865,67 +1737,6 @@ function buildScriptPanel(script, reRender, inModal = false) {
   const argsListEl = el('div', {});
 
   function buildArgRow(argDef, idx) {
-    if (argDef.arg_ref) {
-      // arg_ref'd entries are edited by changing the shared arg-templates: entry, not inline here —
-      // expanding only ever shows a read-only view, to keep the template the single source of truth
-      const resolved = resolveArg(argDef);
-      let open = false;
-      const arrow  = el('span', { class: 'arg-collapse-arrow' }, '▶');
-      const handle  = el('span', { class: 'arg-drag-handle', title: 'Drag to reorder' }, '⠿');
-      const strong  = document.createElement('strong');
-      strong.textContent = resolved.key || argDef.arg_ref;
-      const preview = el('span', { class: 'arg-hdr-preview' }, strong,
-        document.createTextNode(' · template: ' + argDef.arg_ref + (resolved.label ? ' (' + resolved.label + ')' : '')));
-      const typeTag = el('span', { class: 'arg-hdr-type' }, resolved.type || 'string');
-      const rmBtn   = el('button', { class: 'arg-hdr-rm', title: 'Remove' }, '×');
-      rmBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        openDeleteModal({ title: 'Remove arg template ref "' + argDef.arg_ref + '"?', onDelete: () => { script.args.splice(idx, 1); rebuildArgsList(); } });
-      });
-      handle.addEventListener('mousedown', e => {
-        if (e.button !== 0) return;
-        argDragState = { fromIdx: idx, startY: e.clientY, active: false, ctx: { containerEl: argsListEl, argsArr: script.args, rebuildFn: rebuildArgsList } };
-        e.preventDefault();
-      });
-
-      const roRow = (lbl, val) => val ? el('div', { class: 'rf-sec', style: 'margin-bottom:8px' },
-        el('span', { class: 'rf-lbl' }, lbl), el('div', { class: 'mono' }, String(val))) : null;
-
-      const detailBody = [
-        roRow('Key (env var)', resolved.key),
-        roRow('Label', resolved.label),
-        roRow('Type', resolved.type || 'string'),
-        roRow('Description', resolved.description),
-        roRow('Required', resolved.required ? 'true' : 'false'),
-        roRow('Placeholder', resolved.placeholder),
-        roRow('Default', resolved.default),
-      ].filter(Boolean);
-
-      if ((resolved.type || 'string') === 'enum' && resolved.enum_ref) {
-        const values = getEnumValues(resolved.enum_ref);
-        const valuesEl = el('div', { class: 'chips' });
-        if (!values.length) valuesEl.append(el('span', { class: 'chip-empty' }, 'no values found for enum "' + resolved.enum_ref + '"'));
-        values.forEach(v => valuesEl.append(el('span', { class: 'chip' }, (v.name || v.value) + (v.value !== undefined && v.name ? ' (' + v.value + ')' : ''))));
-        detailBody.push(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' },
-          el('span', { class: 'rf-lbl' }, 'Enum ref: ' + resolved.enum_ref), valuesEl));
-      }
-
-      detailBody.push(el('div', { class: 'hint-text' },
-        'Read-only — defined in the shared Arg Templates catalog (id: ' + argDef.arg_ref + '). Edit it there to change this for every rule that references it.'));
-
-      const detail = el('div', { class: 'arg-detail', style: 'display:none' }, ...detailBody);
-
-      const hdr = el('div', { class: 'arg-hdr' }, handle, arrow, preview, typeTag, rmBtn);
-      hdr.addEventListener('click', e => {
-        if (e.target === rmBtn || e.target === handle) return;
-        open = !open;
-        arrow.classList.toggle('open', open);
-        detail.style.display = open ? '' : 'none';
-      });
-
-      return el('div', { class: 'arg-block' }, hdr, detail);
-    }
-
     let open = false;
 
     const arrow  = el('span', { class: 'arg-collapse-arrow' }, '▶');
@@ -1980,14 +1791,15 @@ function buildScriptPanel(script, reRender, inModal = false) {
 
   const addArgBtn = el('button', { class: 'add-root-btn', style: 'width:100%;margin-top:6px' }, '+ Add Arg');
   addArgBtn.addEventListener('click', () => {
-    const argDef = { key: '', label: '', type: 'string', required: false };
+    const inlineDef = { key: '', label: '', type: 'string', required: false };
     openModal(
-      () => buildArgFields(argDef, () => {}),
+      () => el('div', {}, buildArgFields(inlineDef, () => {}),
+        el('div', { class: 'hint-text' }, 'Give it a self-explanatory key — see SKILL.md rule 1.')),
       {
         title:      'Add Argument',
-        onConfirm:  () => { script.args.push(argDef); rebuildArgsList(); },
+        onConfirm:  () => { script.args.push(inlineDef); rebuildArgsList(); },
         onCancel:   () => {},
-        validateFn: () => !!argDef.key,
+        validateFn: () => !!inlineDef.key,
         noConfirm:  true,
       }
     );
@@ -2424,15 +2236,13 @@ function renderPage() {
   const app = document.getElementById('app');
 
   saveEl = el('span', { class: 'hdr-save idle' });
-  const configBtn = META.configExists
-    ? el('button', { class: 'btn-hdr-reset', onclick: showResetModal }, 'Reset')
-    : el('button', { class: 'btn-hdr-create', onclick: doCreate }, 'Create config');
+  const resetBtn = el('button', { class: 'btn-hdr-reset', onclick: showResetModal }, 'Reset');
   app.append(el('div', { class: 'hdr' },
     el('span', { class: 'hdr-logo' }, 'bumfuzzle'),
     el('span', { class: 'hdr-meta' }, 'v' + META.version),
     el('span', { class: 'hdr-path' }, META.projectDir),
     saveEl,
-    configBtn,
+    resetBtn,
   ));
 
   const wrap = el('div', { class: 'wrap' });
@@ -2548,38 +2358,6 @@ function renderPage() {
   enumsTree.reRender();
   wrap.append(enumsSec);
 
-  // Arg Templates — shared arg definitions (key/label/type/enum_ref/etc.) that
-  // script args:[] entries can reference via arg_ref instead of inlining
-  const { sec: argTplSec, body: atb, titleEl: argTplTitleEl } = makeSection('argTemplates', 'Arg Templates');
-  const argTemplatesTree = createTreeSection({
-    getData:      () => state.argTemplates,
-    buildPanel:   (entry, reRender, inModal) => buildArgTemplatePanel(entry.item, reRender, inModal),
-    hasStatus:    true,
-    isItemDirty:  isArgTemplateDirty,
-    getItemName:  item => item.id || item.key || '—',
-    newItem:      () => ({ id: '', key: '', label: '', type: 'string', required: false, _exp: true, _saved: null, _mode: 'edit' }),
-    snapshotFn:   argTemplateSnapshot,
-    validateItem: item => !!item.id && !!item.key,
-    addItemLabel: '+ Add Arg Template',
-    allowGroups:  false,
-    getDeleteInfo: item => {
-      const refs = [];
-      flattenItems(state.scripts).forEach(s => { (s.args || []).forEach(a => { if (a.arg_ref === item.id) refs.push(s.name || s.id || '—'); }); });
-      return {
-        title: 'Remove arg template "' + (item.id || '—') + '"?',
-        lines: refs.length ? ['Referenced by ' + refs.length + ' script' + (refs.length !== 1 ? 's' : '') + ' via arg_ref:', ...refs.map(r => '  • ' + r)] : [],
-      };
-    },
-    onReRender: () => {
-      const n = countSectionItems(state.argTemplates, true);
-      argTplTitleEl.textContent = n ? 'Arg Templates (' + n + ' item' + (n !== 1 ? 's' : '') + ')' : 'Arg Templates';
-    },
-  });
-  sections.push(argTemplatesTree);
-  argTemplatesTree.mount(atb);
-  argTemplatesTree.reRender();
-  wrap.append(argTplSec);
-
   // Actions
   const { sec: actSec, body: ab } = makeSection('actions', 'Actions');
   actRowEl    = el('div', { class: 'act-row' });
@@ -2601,7 +2379,7 @@ function renderPage() {
     const res = await fetch('/config');
     if (!res.ok) throw new Error();
     const cfg = await res.json();
-    S = cfg.settings; C = cfg.current; META = cfg.meta;
+    S = cfg.settings; C = cfg.current; META = cfg.meta; SCHEMA = cfg.schema;
     initData();
     renderPage();
   } catch (e) {

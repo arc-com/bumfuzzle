@@ -35,7 +35,7 @@
 
 - `bumfuzzle` is a single self-contained HTML file served by a lightweight local Python server. It shuts down when you close the tab. Nothing leaves your machine.
 - `bumfuzzle.yml` is the only config file created in your project. One file, all rules.
-- `bumfuzzle run` runs every check marked `enabled` in `bumfuzzle.yml`. The file itself is created on demand from the wizard's "Create config" button.
+- `bumfuzzle run` runs every check marked `enabled` in `bumfuzzle.yml`. Create that file first with `bumfuzzle init`.
 
 ---
 
@@ -103,9 +103,10 @@ Installing from source adds `bumfuzzle` and `bf` to `~/.local/bin`. Run `scripts
 ```bash
 cd my-project
 
-bumfuzzle
+bumfuzzle init             # writes bumfuzzle.yml from the template
+
+bumfuzzle wizard
 # opens web wizard in browser
-# click "Create config" to write bumfuzzle.yml from the template
 # configure checks, environments, stacks, rules; autosaves as you edit
 
 # Every subsequent run

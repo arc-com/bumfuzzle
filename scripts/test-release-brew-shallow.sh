@@ -4,7 +4,7 @@
 # anything - no Docker required. Doesn't prove `brew install` actually works
 # end to end; see test-release-brew-deep.sh for that.
 set -euo pipefail
-source "$(cd "$(dirname "$0")/../../scripts/release" && pwd)/lib.sh"
+source "$(cd "$(dirname "$0")/release" && pwd)/lib.sh"
 
 VERSION="$(current_version)"
 require_homebrew_tools_dir

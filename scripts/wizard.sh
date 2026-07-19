@@ -4,6 +4,7 @@ set -euo pipefail
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 RUN_SH="$BUMFUZZLE_ROOT/scripts/run.sh"
 SETTINGS="$BUMFUZZLE_ROOT/bumfuzzle-template.yml"
+SCHEMA="$BUMFUZZLE_ROOT/schema.yml"
 BUMFUZZLE_HTML="$BUMFUZZLE_ROOT/index.html"
 BUMFUZZLE_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
 PORT=7373
@@ -17,6 +18,9 @@ fi
 if [[ ! -f "$BUMFUZZLE_HTML" ]]; then
   printf 'Error: bumfuzzle template not found: %s\n' "$BUMFUZZLE_HTML" >&2; exit 1
 fi
+if [[ ! -f "$SCHEMA" ]]; then
+  printf 'Error: bumfuzzle schema not found: %s\n' "$SCHEMA" >&2; exit 1
+fi
 if lsof -i ":$PORT" -sTCP:LISTEN -t &>/dev/null 2>&1; then
   printf 'Error: port %d is already in use\n' "$PORT" >&2; exit 1
 fi
@@ -24,20 +28,22 @@ fi
 PROJECT_DIR="$(pwd)"
 PROJECT_DIR_NAME="$(basename "$PROJECT_DIR")"
 
+if [[ ! -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
+  printf 'Error: bumfuzzle.yml not found in %s\n' "$PROJECT_DIR" >&2
+  printf 'Run `bumfuzzle init` to create it, then re-run `bumfuzzle wizard`.\n' >&2
+  exit 1
+fi
+
 # ── Build CONFIG JSON ──────────────────────────────────────────────────────────
-# bumfuzzle.yml is no longer created automatically here — the wizard shows a
-# "Create config" action (POST /reset) that writes it from SETTINGS on demand.
 
-CONFIG_EXISTS=false
-[[ -f "$PROJECT_DIR/bumfuzzle.yml" ]] && CONFIG_EXISTS=true
+CURRENT_JSON=$(yq -o=json '.' "$PROJECT_DIR/bumfuzzle.yml")
+SCHEMA_JSON=$(yq -o=json '.' "$SCHEMA")
 
-CURRENT_JSON=$(yq -o=json '.' "$PROJECT_DIR/bumfuzzle.yml" 2>/dev/null || printf '{}')
+META_JSON=$(printf '{"projectDir":"%s","projectDirName":"%s","version":"%s"}' \
+  "$PROJECT_DIR" "$PROJECT_DIR_NAME" "$BUMFUZZLE_VERSION")
 
-META_JSON=$(printf '{"projectDir":"%s","projectDirName":"%s","version":"%s","configExists":%s}' \
-  "$PROJECT_DIR" "$PROJECT_DIR_NAME" "$BUMFUZZLE_VERSION" "$CONFIG_EXISTS")
-
-CONFIG_JSON=$(printf '{"current":%s,"meta":%s}' \
-  "$CURRENT_JSON" "$META_JSON")
+CONFIG_JSON=$(printf '{"current":%s,"meta":%s,"schema":%s}' \
+  "$CURRENT_JSON" "$META_JSON" "$SCHEMA_JSON")
 
 SERVER_PY="$BUMFUZZLE_ROOT/scripts/bumfuzzle_server.py"
 
@@ -58,7 +64,7 @@ printf '  Project: %s\n' "$PROJECT_DIR"
 printf '  Serving: http://localhost:%d\n' "$PORT"
 printf '  Press Ctrl+C to exit.\n\n'
 
-( sleep 0.5; open "$PROJECT_DIR"; open "http://localhost:$PORT" ) &
+( sleep 0.5; open "http://localhost:$PORT" ) &
 
 # ── Replace this process with the server so the two can never become detached ──
 

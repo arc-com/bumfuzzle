@@ -7,6 +7,7 @@ name = "bumfuzzle"
 dynamic = ["version"]
 description = "Project scaffolding and validation"
 requires-python = ">=3.8"
+dependencies = ["jsonschema>=4.18"]
 
 [project.scripts]
 bumfuzzle = "bumfuzzle_cli:main"
@@ -26,6 +27,7 @@ bumfuzzle_cli = "."
 bumfuzzle_cli = [
     "index.html",
     "bumfuzzle-template.yml",
+    "schema.yml",
     "VERSION",
     "scripts/**",
 ]

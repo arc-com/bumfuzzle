@@ -14,9 +14,12 @@ usage() {
   printf 'bumfuzzle v%s\n\n' "$BUMFUZZLE_VERSION"
   printf 'Usage: bumfuzzle <command> [options]\n\n'
   printf 'Commands:\n'
+  printf '  init                 Create bumfuzzle.yml in the current project from the template\n'
   printf '  wizard               Start the browser-based config wizard\n'
   printf '  run                  Run every enabled check in bumfuzzle.yml\n'
   printf '    -v, --verbose        Show passing checks\n'
+  printf '  validate-schema      Check a config'"'"'s severity/on_missing/type values against schema.yml\n'
+  printf '    [file]               Defaults to bumfuzzle.yml in the current directory\n'
   printf '\n'
 }
 
@@ -24,8 +27,10 @@ cmd="${1:-}"
 [[ $# -gt 0 ]] && shift
 
 case "$cmd" in
-  wizard)             exec "$BUMFUZZLE_ROOT/scripts/wizard.sh" "$@" ;;
-  run)                exec "$BUMFUZZLE_ROOT/scripts/run.sh"    "$@" ;;
+  init)               exec "$BUMFUZZLE_ROOT/scripts/init.sh"             "$@" ;;
+  wizard)             exec "$BUMFUZZLE_ROOT/scripts/wizard.sh"           "$@" ;;
+  run)                exec "$BUMFUZZLE_ROOT/scripts/run.sh"              "$@" ;;
+  validate-schema)    exec "$BUMFUZZLE_ROOT/scripts/validate-schema.sh"  "$@" ;;
   ""|-h|--help|help) usage ;;
   *) printf 'bumfuzzle: unknown command: %s\n\n' "$cmd" >&2; usage >&2; exit 1 ;;
 esac

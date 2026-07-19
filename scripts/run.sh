@@ -85,9 +85,9 @@ PREFLIGHT_FILE="$(pwd)/$PREFLIGHT_FILE"
 
 . "$BUMFUZZLE_ROOT/scripts/eval-rules.sh"
 
-# config lint is a prerequisite-class check, same as yq/file-presence above:
-# it validates bumfuzzle.yml's own structure and is exempt from the
-# enabled-rules gating that applies to user-defined rules — it always runs.
+# config lint runs as part of Prerequisites (see eval-rules.sh): it validates
+# bumfuzzle.yml's own structure and is exempt from the enabled-rules gating
+# that applies to user-defined rules — it always runs.
 config_lint_check
 
 user_rules_check

@@ -1,6 +1,11 @@
 # eval-rules — walk the rules: tree from bumfuzzle.yml and run each check
 
-_URULE_VALID_TYPES="script_clean script_reusable"
+# ruleType is read from the shared schema (schema.yml, $defs.ruleType)
+# — the single source of truth also read by the wizard (index.html) — instead
+# of being hardcoded here too. severity/onMissing/argType are likewise
+# schema-driven but validated by scripts/validate-schema.sh, not duplicated
+# here — see _lint_field_values below.
+_URULE_VALID_TYPES=$(yq '.["$defs"].ruleType.enum | join(" ")' "$BUMFUZZLE_ROOT/schema.yml")
 
 _urule_pass() {
   if [[ "$VERBOSE" == true ]]; then
@@ -93,24 +98,12 @@ _urule_process_rule() {
 
       # unset all vars declared by this script so optional args not provided by the
       # rule don't inherit stale values from a previous rule execution.
-      # each args[] entry has either an inline 'key' or an 'arg_ref' pointing at
-      # arg-templates: (see bumfuzzle-template.yml), so resolve arg_ref before unsetting.
       local _script_base="\"$_script_id\" as \$sid | .scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$sid)"
-      local _arg_count _idx _sk _ref
-      _arg_count=$(yq "${_script_base} | .args | length" "$PREFLIGHT_FILE" 2>/dev/null || echo 0)
-      is_blank "$_arg_count" && _arg_count=0
-      for _idx in $(seq 0 $((_arg_count - 1)) 2>/dev/null || true); do
-        [[ -z "$_idx" ]] && continue
-        _sk=$(yq "${_script_base} | .args[$_idx].key // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
-        if is_blank "$_sk"; then
-          _ref=$(yq "${_script_base} | .args[$_idx].arg_ref // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
-          if ! is_blank "$_ref"; then
-            _sk=$(yq ".\"arg-templates\"[] | select(.id == \"$_ref\") | .key // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
-          fi
-        fi
+      local _sk
+      while IFS= read -r _sk; do
         is_blank "$_sk" && continue
         unset "$_sk" 2>/dev/null || true
-      done
+      done < <(yq "${_script_base} | .args[]?.key // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
 
       # export each arg provided by the rule as an env var; arrays are joined
       # newline-separated so entries (e.g. regexes) may contain spaces —
@@ -195,7 +188,7 @@ _lint_sha256() { command -v sha256sum &>/dev/null && sha256sum "$@" || shasum -a
 
 _lint_duplicate_ids() {
   local _ns _list _d
-  for _ns in scripts arg-templates enums; do
+  for _ns in scripts enums; do
     _list=$(_lint_yq ".\"${_ns}\" | .. | select(type == \"!!map\") | select(has(\"id\")) | .id")
     while IFS= read -r _d; do
       [[ -z "$_d" ]] && continue
@@ -213,13 +206,6 @@ _lint_reference_integrity() {
     <(_lint_yq '.rules | .. | select(type == "!!map") | select(.type == "script_reusable") | .script // ""' | grep -v '^$' | sort -u) \
     <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("id")) | .id' | sort -u))
 
-  while IFS= read -r _miss; do
-    [[ -z "$_miss" ]] && continue
-    _lint_structural_fail "script arg references unknown arg-template '$_miss'"
-  done < <(comm -23 \
-    <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("arg_ref")) | .arg_ref' | grep -v '^$' | sort -u) \
-    <(_lint_yq '."arg-templates"[] | .id' | sort -u))
-
   # enum refs don't affect rule execution (wizard-only), so broken ones are
   # errors rather than structural aborts
   while IFS= read -r _miss; do
@@ -228,13 +214,6 @@ _lint_reference_integrity() {
   done < <(comm -23 \
     <(_lint_yq '.. | select(type == "!!map") | select(has("enum_ref")) | .enum_ref' | grep -v '^$' | sort -u) \
     <(_lint_yq '.enums | .. | select(type == "!!map") | select(has("id")) | .id' | sort -u))
-
-  while IFS= read -r _miss; do
-    [[ -z "$_miss" ]] && continue
-    fail "arg-template '$_miss' is not referenced by any script" warn
-  done < <(comm -23 \
-    <(_lint_yq '."arg-templates"[] | .id' | grep -v '^$' | sort -u) \
-    <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("arg_ref")) | .arg_ref' | sort -u))
 }
 
 _lint_rule_fields() {
@@ -266,27 +245,19 @@ _lint_rule_fields() {
 }
 
 _lint_script_args() {
-  local _argt_meta _rule_lines _sid
-  # arg-template metadata as "id key required" lines, for resolving arg_refs
-  _argt_meta=$(_lint_yq '."arg-templates"[] | .id + " " + (.key // "?") + " " + ((.required // false) | tostring)')
+  local _rule_lines _sid
   # every script_reusable rule as "script|name|ARG1,ARG2" lines
   _rule_lines=$(_lint_yq '.rules | .. | select(type == "!!map") | select(.type == "script_reusable") | (.script // "") + "|" + (.name // "unnamed") + "|" + ((.args // {}) | keys | join(","))')
 
   while IFS= read -r _sid; do
     [[ -z "$_sid" ]] && continue
     local _script_args _declared="" _required=""
-    _script_args=$(_lint_yq "\"$_sid\" as \$sid | .scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$sid) | .args[] | (.key // (\"@\" + .arg_ref)) + \" \" + ((.required // false) | tostring)")
-    local _al _ak _areq _meta
+    _script_args=$(_lint_yq "\"$_sid\" as \$sid | .scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$sid) | .args[] | (.key // \"?\") + \" \" + ((.required // false) | tostring)")
+    local _al _ak _areq
     while IFS= read -r _al; do
       [[ -z "$_al" ]] && continue
       _ak="${_al%% *}"
       _areq="${_al##* }"
-      if [[ "$_ak" == @* ]]; then
-        _meta=$(printf '%s\n' "$_argt_meta" | grep "^${_ak#@} " | head -1 || true)
-        [[ -z "$_meta" ]] && continue # unresolvable arg_ref is reported separately
-        _ak=$(printf '%s' "$_meta" | awk '{print $2}')
-        _areq=$(printf '%s' "$_meta" | awk '{print $3}')
-      fi
       _declared="$_declared $_ak"
       [[ "$_areq" == "true" ]] && _required="$_required $_ak"
     done <<< "$_script_args"
@@ -347,8 +318,24 @@ _lint_script_commands() {
   fi
 }
 
+# delegates to scripts/validate-schema.sh — the one place severity/on_missing/
+# arg-type values are checked against schema.yml, so it behaves
+# identically whether run standalone (`bumfuzzle validate-schema`) or here as
+# part of config lint.
+_lint_field_values() {
+  local _out _rc=0
+  _out=$("$BUMFUZZLE_ROOT/scripts/validate-schema.sh" "$PREFLIGHT_FILE") || _rc=$?
+  [[ "$_rc" -eq 0 ]] && return 0
+  while IFS= read -r _line; do
+    [[ "$_line" == \[FAIL\]* ]] || continue
+    _lint_structural_fail "${_line#"[FAIL] "}"
+  done <<< "$_out"
+}
+
+# part of run.sh's Prerequisites phase (see the comment at its call site) —
+# no section() call here so its [PASS]/[FAIL] lines group under the same
+# '-- Prerequisites --' banner rather than opening a separate one.
 config_lint_check() {
-  section '-- Config Lint ----------------------------------------------------------'
   _LINT_STRUCTURAL=0
 
   if ! yq '.' "$PREFLIGHT_FILE" > /dev/null 2>&1; then
@@ -361,6 +348,7 @@ config_lint_check() {
   _lint_rule_fields
   _lint_script_args
   _lint_script_commands
+  _lint_field_values
 
   if [[ "$_LINT_STRUCTURAL" -gt 0 ]]; then
     fail "config lint found $_LINT_STRUCTURAL structural error(s) in $PREFLIGHT_FILE — rules were not evaluated" hard-stop
