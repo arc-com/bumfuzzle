@@ -62,13 +62,13 @@ properties:
   arg:
     type: object
     additionalProperties: false
-    required: [key, label, type, required]
+    required: [key, label, type]
     properties:
       key: { type: string, pattern: "^[A-Z][A-Z0-9_]*$", description: "env var name; always unambiguous and self-explanatory on its own, never a bare generic word" }
       label: { type: string }
       description: { type: string }
       type: { "$ref": "#/$defs/argType" }
-      required: { type: boolean }
+      required: { type: boolean, description: "omitted means false, same as list/multi_select and every other optional boolean flag on this node", default: false }
       placeholder: { type: string, description: "not applicable when type: bool" }
       default: { description: "type-matched literal" }
       min: { type: number, description: "type: int or double only" }
