@@ -57,7 +57,7 @@ d="$FIXTURE_DIR/run-no-config"
 mkdir -p "$d"
 out=$(cd "$d" && "$RUN" 2>&1) || fail "run (no bumfuzzle.yml) exited non-zero: $out"
 [[ -f "$d/bumfuzzle.yml" ]] || fail "run (no bumfuzzle.yml): bumfuzzle.yml was not scaffolded"
-grep -q '\[INFO\] bumfuzzle.yml not found - scaffolded from template' <<< "$out" \
+grep -q '\[INFO\] - bumfuzzle.yml not found - scaffolded from template' <<< "$out" \
   || fail "run (no bumfuzzle.yml): expected scaffold notice, got: $out"
 echo "OK run: auto-scaffolds bumfuzzle.yml when missing"
 

@@ -10,13 +10,13 @@
 # bumfuzzle-specific knowledge. This script's only job is bumfuzzle's own
 # file conventions: resolving schema.yml's location, converting YAML to JSON,
 # defaulting TARGET, and reporting in this project's [PASS]/[FAIL] convention
-# (scripts/eval-rules.sh's _lint_field_values parses this script's stdout for
+# (scripts/lint-config.sh's _lint_field_values parses this script's stdout for
 # lines starting with "[FAIL] "). Renaming a field or a $defs entry in
 # schema.yml needs no change here.
 #
 # Relational/cross-node checks JSON Schema cannot express at all (duplicate
 # ids, dangling id references) are NOT schema conformance and are not run
-# here — see scripts/eval-rules.sh's _lint_duplicate_ids / _lint_reference_integrity.
+# here — see scripts/lint-config.sh's _lint_duplicate_ids / _lint_reference_integrity.
 #
 # INVARIANT: this script and json_schema_validate.py must work against any
 # arbitrary SCHEMA_FILE/TARGET pair — never hardcode a field name, $defs id,

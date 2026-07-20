@@ -37,7 +37,7 @@ _flush_header() {
 pass() {
   if [[ "$VERBOSE" == true ]]; then
     _flush_header
-    printf '[PASS] %s\n' "$1"
+    printf '[run.sh][DEBUG] - [PASS] %s\n' "$1"
   fi
 }
 
@@ -47,20 +47,20 @@ fail() {
   case "$_sev" in
     warn)
       _flush_header
-      printf '[WARN] %s\n' "$1"
+      printf '[run.sh][WARN] - [WARN] %s\n' "$1"
       [[ -n "$_details" ]] && printf '%s\n' "$_details"
       WARNINGS+=("$1")
       ;;
     hard-stop)
       _flush_header
-      printf '[FAIL] %s\n' "$1"
+      printf '[run.sh][ERROR] - [FAIL] %s\n' "$1"
       [[ -n "$_details" ]] && printf '%s\n' "$_details"
-      printf '[hard-stop] aborting run\n'
+      printf '[run.sh][ERROR] - [HARD-STOP] aborting run\n'
       exit 1
       ;;
     *)
       _flush_header
-      printf '[FAIL] %s\n' "$1"
+      printf '[run.sh][ERROR] - [FAIL] %s\n' "$1"
       [[ -n "$_details" ]] && printf '%s\n' "$_details"
       ERRORS+=("$1")
       ;;
@@ -71,7 +71,7 @@ section '-- Prerequisites ------------------------------------------------------
 
 if ! command -v yq &>/dev/null; then
   _flush_header
-  printf '[FAIL] yq is not installed - required to parse %s\n' "$PREFLIGHT_FILE"
+  printf '[run.sh][ERROR] - [FAIL] yq is not installed - required to parse %s\n' "$PREFLIGHT_FILE"
   exit 1
 fi
 
@@ -79,18 +79,22 @@ if [[ ! -f "$PREFLIGHT_FILE" ]]; then
   TEMPLATE="$BUMFUZZLE_ROOT/bumfuzzle-template.yml"
   if [[ ! -f "$TEMPLATE" ]]; then
     _flush_header
-    printf '[FAIL] %s not found and template missing - cannot run validation\n' "$PREFLIGHT_FILE"
+    printf '[run.sh][ERROR] - [FAIL] %s not found and template missing - cannot run validation\n' "$PREFLIGHT_FILE"
     exit 1
   fi
   cp "$TEMPLATE" "$PREFLIGHT_FILE"
   _flush_header
-  printf '[INFO] %s not found - scaffolded from template\n' "$PREFLIGHT_FILE"
+  printf '[run.sh][INFO] - %s not found - scaffolded from template\n' "$PREFLIGHT_FILE"
 fi
 
 pass "yq is installed"
 pass "$PREFLIGHT_FILE is present"
 pass "run v$RUN_VERSION"
 
+# PREFLIGHT_FILE becomes absolute below so checks work regardless of any cwd
+# change; PREFLIGHT_FILE_DISPLAY keeps the plain relative name for messages,
+# so [PASS]/[FAIL] lines never leak this machine's absolute path.
+PREFLIGHT_FILE_DISPLAY="$PREFLIGHT_FILE"
 PREFLIGHT_FILE="$(pwd)/$PREFLIGHT_FILE"
 
 . "$BUMFUZZLE_ROOT/scripts/eval-rules.sh"
