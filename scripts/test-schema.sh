@@ -7,9 +7,9 @@
 # generateYaml() (and scripts/eval-rules.sh's own `.required // false`
 # reader) treat an absent "required" as false, same as every other optional
 # boolean flag on the node (list, multi_select, ...). That mismatch meant
-# any wizard-authored bumfuzzle.yml with an optional arg failed schema
+# any wizard-authored .bumfuzzle/config.yml with an optional arg failed schema
 # validation and hard-stopped `bumfuzzle run` for every user who touched the
-# wizard. Nothing in this repo's own dogfooded bumfuzzle.yml or
+# wizard. Nothing in this repo's own dogfooded .bumfuzzle/config.yml or
 # bumfuzzle-template.yml (both hand-authored with "required" always
 # explicit) could ever have exercised that path.
 set -euo pipefail
@@ -37,6 +37,7 @@ assert_fail() {
 
 # -- required omitted on an optional arg: must PASS (the regression) -----
 cat > "$FIXTURE_DIR/omitted-required.yml" <<'EOF'
+schema_version: 1
 scripts:
   - id: test-optional-arg
     name: Test optional arg
@@ -50,6 +51,7 @@ assert_pass "arg with required omitted" "$FIXTURE_DIR/omitted-required.yml"
 
 # -- required explicit true/false: must still PASS (no regression) -------
 cat > "$FIXTURE_DIR/explicit-required.yml" <<'EOF'
+schema_version: 1
 scripts:
   - id: test-explicit-arg
     name: Test explicit arg

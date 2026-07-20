@@ -5,7 +5,7 @@ PORT      = int(os.environ['BUMFUZZLE_PORT'])
 PROJ_DIR  = os.environ['BUMFUZZLE_PROJECT_DIR']
 RUN_SH    = os.environ['BUMFUZZLE_RUN_SH']
 HTML_PATH = os.environ['BUMFUZZLE_HTML']
-YAML_PATH     = os.path.join(PROJ_DIR, 'bumfuzzle.yml')
+YAML_PATH     = os.path.join(PROJ_DIR, '.bumfuzzle', 'config.yml')
 SETTINGS_PATH = os.environ['BUMFUZZLE_SETTINGS']
 
 current_cfg = [os.environ['BUMFUZZLE_CONFIG_JSON'].encode()]

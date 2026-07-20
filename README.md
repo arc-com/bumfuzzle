@@ -34,8 +34,8 @@
 ## Summary
 
 - `bumfuzzle` is a single self-contained HTML file served by a lightweight local Python server. It shuts down when you close the tab. Nothing leaves your machine.
-- `bumfuzzle.yml` is the only config file created in your project. One file, all rules.
-- `bumfuzzle run` runs every check marked `enabled` in `bumfuzzle.yml`. Create that file first with `bumfuzzle init`.
+- `.bumfuzzle/config.yml` is the only config file created in your project. One file, all rules.
+- `bumfuzzle run` runs every check marked `enabled` in `.bumfuzzle/config.yml`. Create that file first with `bumfuzzle init`.
 
 ---
 
@@ -66,7 +66,7 @@ When a check fails, `bumfuzzle run` prints exactly what broke and how to fix it.
 - **Extremely fast, ridiculously simple, and lightweight:** zero external dependencies.
 - **Works with any language, any OS, any project:** from a personal website to the Linux kernel.
 - **You pick the rules yourself:** linters, hooks, and virtually anything else.
-- **One config to rule them all:** a single `bumfuzzle.yml` stores every configuration.
+- **One config to rule them all:** a single `.bumfuzzle/config.yml` stores every configuration.
 - **One entry point for every check:** the `bumfuzzle` command runs it all.
 - **Visual Wizard:** set up every check you want in seconds.
 - **Zero prod footprint:** Bumfuzzle is never included in your build.
@@ -98,18 +98,18 @@ Installing from source adds `bumfuzzle` and `bf` to `~/.local/bin`. Run `scripts
 ```bash
 cd my-project
 
-bumfuzzle init             # writes bumfuzzle.yml from the template
+bumfuzzle init             # writes .bumfuzzle/config.yml from the template
 
 bumfuzzle wizard
 # opens web wizard in browser
 # configure checks, environments, stacks, rules; autosaves as you edit
 
 # Every subsequent run
-bumfuzzle run              # run every check marked enabled in bumfuzzle.yml
+bumfuzzle run              # run every check marked enabled in .bumfuzzle/config.yml
 bumfuzzle run --verbose    # show passing checks too
 ```
 
-Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumfuzzle.yml` directly. `bumfuzzle run` never takes a target — it runs whatever is `enabled`. A check may self-label `readonly: true` in `bumfuzzle.yml` as a hint to whoever's reading the config; the framework doesn't verify or enforce it.
+Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `.bumfuzzle/config.yml` directly. `bumfuzzle run` never takes a target — it runs whatever is `enabled`. A check may self-label `readonly: true` in `.bumfuzzle/config.yml` as a hint to whoever's reading the config; the framework doesn't verify or enforce it.
 
 ---
 
@@ -121,7 +121,7 @@ Manage your rules two ways: run `bumfuzzle` for the visual wizard, or edit `bumf
 ### Planned improvements
 - [ ] Standardize argument-passing and argument-expectation conventions across shared scripts
 - [ ] Support user-defined arguments in custom `command_checks` scripts
-- [ ] Reduce `bumfuzzle.yml` size by extracting reusable rule sets into importable modules
+- [ ] Reduce `.bumfuzzle/config.yml` size by extracting reusable rule sets into importable modules
 
 ---
 
@@ -132,7 +132,7 @@ How Bumfuzzle compares to other tools in the AI-agent-guardrail space:
 | | Bumfuzzle | [agentlint](https://github.com/mauhpr/agentlint) | [agent-governance-toolkit](https://github.com/microsoft/agent-governance-toolkit) | [drift-guard](https://dev.to/hwaninet/how-i-built-drift-guard-a-cli-to-stop-ai-agents-from-destroying-your-design-3egc) | Plain `pre-commit` |
 |---|---|---|---|---|---|
 | Enforcement point | Git commit (pre-commit hook) | Real-time, tool-call time | Git commit (hook templates) | Git commit / CLI | Git commit |
-| Config format | Single `bumfuzzle.yml` | Rule packs (JS/JSON config) | Docs + hook templates, no single schema | Zero-config | `.pre-commit-config.yaml` + per-hook config |
+| Config format | Single `.bumfuzzle/config.yml` | Rule packs (JS/JSON config) | Docs + hook templates, no single schema | Zero-config | `.pre-commit-config.yaml` + per-hook config |
 | Structural checks (files, dirs, env drift) | ✅ built-in | Partial (code-quality/security focus) | Governance/process focus, not file structure | Design/UI drift only | Only if you write custom hooks |
 | Visual setup wizard | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Zero prod footprint | ✅ (dev dependency only) | ✅ | ✅ (docs/process, not shipped) | ✅ | ✅ |

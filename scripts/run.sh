@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-
-RUN_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
-PREFLIGHT_FILE="bumfuzzle.yml"
-ERRORS=()
-WARNINGS=()
 VERBOSE=false
-_PENDING_HEADER=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -17,11 +10,56 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     *)
+      printf '[run.sh][ERROR] - [FAIL] unrecognized argument: %s\n' "$1"
       printf 'Usage: bumfuzzle run [--verbose|-v]\n'
       exit 1
       ;;
   esac
 done
+
+# millisecond-precision wall clock via `date +%s%N` (falls back to whole-second
+# precision via bash's SECONDS builtin on a `date` without %N support) so the
+# elapsed-time log below can show fractional seconds, not just whole ones.
+# Precision is probed once, here, and the decision logged here too — _now_ms()
+# itself must never print anything but the numeric value, since its stdout is
+# captured as the return value by every caller.
+_ns_probe=$(date +%s%N 2>/dev/null || true)
+if [[ "$_ns_probe" =~ ^[0-9]+$ ]]; then
+  _HAS_NS_PRECISION=true
+else
+  _HAS_NS_PRECISION=false
+fi
+if [[ "$VERBOSE" == true ]]; then
+  if [[ "$_HAS_NS_PRECISION" == true ]]; then
+    printf '[run.sh][DEBUG] - date supports %%N, using millisecond-precision timer\n'
+  else
+    printf '[run.sh][DEBUG] - date does not support %%N, falling back to whole-second timer precision\n'
+  fi
+fi
+
+_now_ms() {
+  if [[ "$_HAS_NS_PRECISION" == true ]]; then
+    printf '%s' "$(( $(date +%s%N) / 1000000 ))"
+  else
+    printf '%s' "$(( SECONDS * 1000 ))"
+  fi
+}
+
+# captured immediately after arg parsing (the earliest point VERBOSE is known)
+# so this is the earliest possible moment to both start and log the timer
+_RUN_START=$(_now_ms)
+if [[ "$VERBOSE" == true ]]; then
+  printf '[run.sh][DEBUG] - timer started\n'
+fi
+
+BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+RUN_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
+PREFLIGHT_FILE=".bumfuzzle/config.yml"
+ERRORS=()
+WARNINGS=()
+_PASS_COUNT=0
+_PENDING_HEADER=""
 
 is_blank() { [[ -z "${1// }" || "${1:-}" == "null" ]]; }
 
@@ -35,6 +73,7 @@ _flush_header() {
 }
 
 pass() {
+  _PASS_COUNT=$((_PASS_COUNT + 1))
   if [[ "$VERBOSE" == true ]]; then
     _flush_header
     printf '[run.sh][DEBUG] - [PASS] %s\n' "$1"
@@ -67,6 +106,9 @@ fail() {
   esac
 }
 
+printf '[run.sh][INFO] - starting bumfuzzle run v%s\n' "$RUN_VERSION"
+
+printf '[run.sh][INFO] - starting prerequisites check\n'
 section '-- Prerequisites --------------------------------------------------------'
 
 if ! command -v yq &>/dev/null; then
@@ -82,14 +124,26 @@ if [[ ! -f "$PREFLIGHT_FILE" ]]; then
     printf '[run.sh][ERROR] - [FAIL] %s not found and template missing - cannot run validation\n' "$PREFLIGHT_FILE"
     exit 1
   fi
+  if [[ "$VERBOSE" == true ]]; then
+    printf '[run.sh][DEBUG] - creating directory %s\n' "$(dirname "$PREFLIGHT_FILE")"
+  fi
+  mkdir -p "$(dirname "$PREFLIGHT_FILE")"
+  if [[ "$VERBOSE" == true ]]; then
+    printf '[run.sh][DEBUG] - copying %s to %s\n' "$TEMPLATE" "$PREFLIGHT_FILE"
+  fi
   cp "$TEMPLATE" "$PREFLIGHT_FILE"
   _flush_header
-  printf '[run.sh][INFO] - %s not found - scaffolded from template\n' "$PREFLIGHT_FILE"
+  printf '[run.sh][INFO] - %s not found - scaffolded from template (success)\n' "$PREFLIGHT_FILE"
+else
+  if [[ "$VERBOSE" == true ]]; then
+    printf '[run.sh][DEBUG] - %s already present, using existing config\n' "$PREFLIGHT_FILE"
+  fi
 fi
 
 pass "yq is installed"
 pass "$PREFLIGHT_FILE is present"
 pass "run v$RUN_VERSION"
+printf '[run.sh][INFO] - prerequisites satisfied\n'
 
 # PREFLIGHT_FILE becomes absolute below so checks work regardless of any cwd
 # change; PREFLIGHT_FILE_DISPLAY keeps the plain relative name for messages,
@@ -100,11 +154,29 @@ PREFLIGHT_FILE="$(pwd)/$PREFLIGHT_FILE"
 . "$BUMFUZZLE_ROOT/scripts/eval-rules.sh"
 
 # config lint runs as part of Prerequisites (see eval-rules.sh): it validates
-# bumfuzzle.yml's own structure and is exempt from the enabled-rules gating
+# .bumfuzzle/config.yml's own structure and is exempt from the enabled-rules gating
 # that applies to user-defined rules — it always runs.
+printf '[run.sh][INFO] - starting config lint\n'
 config_lint_check
 
+printf '[run.sh][INFO] - starting rule evaluation\n'
+_pre_rules_pass=$_PASS_COUNT
+_pre_rules_err=${#ERRORS[@]}
+_pre_rules_warn=${#WARNINGS[@]}
 user_rules_check
+printf '[run.sh][INFO] - rule evaluation finished: %d passed, %d failed, %d warned\n' \
+  "$(( _PASS_COUNT - _pre_rules_pass ))" "$(( ${#ERRORS[@]} - _pre_rules_err ))" "$(( ${#WARNINGS[@]} - _pre_rules_warn ))"
+
+if [[ "$VERBOSE" == true ]]; then
+  _elapsed_ms=$(( $(_now_ms) - _RUN_START ))
+  printf '[run.sh][DEBUG] - timer stopped: scripts finished in %d.%03ds\n' "$(( _elapsed_ms / 1000 ))" "$(( _elapsed_ms % 1000 ))"
+fi
+
+if [[ ${#ERRORS[@]} -eq 0 ]]; then
+  printf '[run.sh][INFO] - bumfuzzle run finished: PASS\n'
+else
+  printf '[run.sh][INFO] - bumfuzzle run finished: FAIL\n'
+fi
 
 printf '%s\n' '-----------------------------------------------------------------------'
 if [[ ${#ERRORS[@]} -eq 0 && ${#WARNINGS[@]} -eq 0 ]]; then

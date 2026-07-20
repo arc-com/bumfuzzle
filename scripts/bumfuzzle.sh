@@ -14,14 +14,14 @@ usage() {
   printf 'bumfuzzle v%s\n\n' "$BUMFUZZLE_VERSION"
   printf 'Usage: bumfuzzle <command> [options]\n\n'
   printf 'Commands:\n'
-  printf '  init                 Create bumfuzzle.yml in the current project from the template\n'
+  printf '  init                 Create .bumfuzzle/config.yml in the current project from the template\n'
   printf '  wizard               Start the browser-based config wizard\n'
-  printf '  run                  Run every enabled check in bumfuzzle.yml\n'
+  printf '  run                  Run every enabled check in .bumfuzzle/config.yml\n'
   printf '    -v, --verbose        Show passing checks\n'
   printf '  validate-schema      Check a config'"'"'s severity/on_missing/type values against schema.yml\n'
-  printf '    [file]               Defaults to bumfuzzle.yml in the current directory\n'
+  printf '    [file]               Defaults to .bumfuzzle/config.yml in the current directory\n'
   printf '  lint-config          Check a config'"'"'s structure: duplicate ids, dangling references, required fields\n'
-  printf '    [file]               Defaults to bumfuzzle.yml in the current directory\n'
+  printf '    [file]               Defaults to .bumfuzzle/config.yml in the current directory\n'
   printf '    -v, --verbose        Show DEBUG-level detail on stderr\n'
   printf '\n'
 }

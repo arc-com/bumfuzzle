@@ -1,9 +1,10 @@
+schema_version: 1
 scripts:
   - group: "File Meta Checks"
     scripts:
       - id: file-or-dir-existence
-        name: "File or directory existence"
-        description: "Checks whether a file or directory exists at each path in FILE_PATH (glob-capable; accepts a YAML list to check multiple paths in one rule). FAIL_ON_ABSENCE: true requires every path to exist, false requires every path to be absent."
+        name: "File/directory presence check"
+        description: "Checks that a file or directory exists at each path in FILE_PATH."
         command: |
           _failed=false
           while IFS= read -r _p; do
@@ -19,11 +20,7 @@ scripts:
             else
               _hit=$(find "." -name "$_p" 2>/dev/null | head -1)
             fi
-            if [[ "$FAIL_ON_ABSENCE" == "true" ]]; then
-              [[ -n "$_hit" ]] || { printf 'missing: %s (expected present)\n' "$_p"; _failed=true; }
-            else
-              [[ -z "$_hit" ]] || { printf '%s exists (expected absent)\n' "$_p"; _failed=true; }
-            fi
+            [[ -n "$_hit" ]] || { printf 'missing: %s\n' "$_p"; _failed=true; }
           done <<< "$FILE_PATH"
           [[ "$_failed" == "false" ]]
         args:
@@ -34,11 +31,6 @@ scripts:
             list: true
             placeholder: README.md
             description: "Glob-capable path. Provide a YAML list to check multiple files/directories in one rule."
-          - key: FAIL_ON_ABSENCE
-            label: Fail on absence
-            type: bool
-            required: true
-            description: true = fail when a path is absent (must exist); false = fail when a path is present (must be absent)
       - id: file-syntax-valid
         name: "File syntax valid"
         description: "Checks that all files matching INCLUDE_FILES_GLOB (and not matching EXCLUDE_FILES_GLOB; both accept YAML lists) under SEARCH_ROOT parse/compile cleanly as the selected FILE_TYPE (YAML via yq, JSON via jq, Bash via bash -n). Searches up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. Every matched file must pass; no matches is a pass unless FAIL_ON_NO_FILES_MATCHED."
@@ -1262,7 +1254,6 @@ rules:
         instruction: "Create README.md in the project root"
         args:
           FILE_PATH: README.md
-          FAIL_ON_ABSENCE: true
       - type: script_clean
         name: "Single manifest file"
         description: "At most one package manifest (package.json, Cargo.toml, go.mod, etc.) exists at the root — multiple manifests indicate a misconfigured or hybrid project"
@@ -1322,7 +1313,6 @@ rules:
         instruction: "Create the missing directories listed"
         args:
           FILE_PATH: [tmp, export, migrations, src, scripts, docs, logs, dist, out]
-          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "Required files are present"
         description: "Each required file listed in FILE_PATH exists"
@@ -1331,7 +1321,6 @@ rules:
         instruction: "Create the missing files listed"
         args:
           FILE_PATH: [./config, ./docs/SKILL.md]
-          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "VERSION file present"
         description: "A VERSION file exists at the project root — the single source of truth for the project version"
@@ -1340,7 +1329,6 @@ rules:
         instruction: "Create a VERSION file at the project root containing the semver version"
         args:
           FILE_PATH: VERSION
-          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "VERSION is valid semver"
         description: "The VERSION file contains a valid semantic version line (MAJOR.MINOR.PATCH with optional pre-release/build metadata)"
@@ -1438,7 +1426,6 @@ rules:
             instruction: "Create .gitignore at the project root"
             args:
               FILE_PATH: .gitignore
-              FAIL_ON_ABSENCE: true
           - type: script_clean
             name: "bumfuzzle extra patterns gitignored"
             description: "Every extra pattern declared in bumfuzzle.yml under gitignore.extra_patterns is also listed in .gitignore"
@@ -1555,7 +1542,6 @@ rules:
         instruction: "Create .env at the project root with the base configuration"
         args:
           FILE_PATH: .env
-          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: ".env.local present"
         description: ".env.local exists at the project root for machine-local overrides"
@@ -1564,7 +1550,6 @@ rules:
         instruction: "Create .env.local at the project root for machine-local overrides"
         args:
           FILE_PATH: .env.local
-          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: ".env.template present"
         description: ".env.template exists at the project root and declares all required environment variable keys"
@@ -1573,7 +1558,6 @@ rules:
         instruction: "Create .env.template declaring all required environment variables"
         args:
           FILE_PATH: .env.template
-          FAIL_ON_ABSENCE: true
       - type: script_clean
         name: "All template keys in every .env.* file"
         description: "Every key declared in .env.template is present in each .env.* file — no environment is missing a declared variable"
@@ -1650,7 +1634,6 @@ rules:
         instruction: "Create a Dockerfile at the project root"
         args:
           FILE_PATH: Dockerfile
-          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "Compose file present"
         description: "A docker-compose*.yml file exists at the project root"
@@ -1659,7 +1642,6 @@ rules:
         instruction: "Create docker-compose.yml at the project root"
         args:
           FILE_PATH: 'docker-compose*.yml'
-          FAIL_ON_ABSENCE: true
       - type: script_clean
         name: "Compose files render without errors"
         description: "All docker-compose*.yml files in the project pass docker compose config — no unresolved variables or syntax errors"
@@ -1720,7 +1702,6 @@ rules:
         instruction: "Create config.yml in the project root"
         args:
           FILE_PATH: config.yml
-          FAIL_ON_ABSENCE: true
       - type: script_reusable
         name: "Config file is valid YAML"
         description: "config.yml can be parsed by yq without errors"
@@ -1849,6 +1830,56 @@ rules:
         instruction: "Rename the listed directories to flat lowercase, or add them to EXCLUDE_DIRS"
         args:
           NAMING_CONVENTION: '^[a-z0-9]+$'
+      - type: script_reusable
+        name: "Python files are snake_case"
+        description: "All .py file names are snake_case"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed Python files to snake_case"
+        args:
+          INCLUDE_FILES_GLOB: "*.py"
+          NAMING_CONVENTION: '^[a-z0-9]+([_.][a-z0-9]+)*$'
+          FAIL_ON_NO_FILES_MATCHED: false
+      - type: script_reusable
+        name: "TOML files are flat lowercase"
+        description: "All .toml file names are flat lowercase (dots allowed via the stripped extension)"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed .toml files to flat lowercase"
+        args:
+          INCLUDE_FILES_GLOB: "*.toml"
+          NAMING_CONVENTION: '^[a-z0-9]+$'
+          FAIL_ON_NO_FILES_MATCHED: false
+      - type: script_reusable
+        name: "JS/TS files are kebab-case"
+        description: "All .js and .ts file names are kebab-case"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed files to kebab-case"
+        args:
+          INCLUDE_FILES_GLOB: ["*.js", "*.ts"]
+          NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
+          FAIL_ON_NO_FILES_MATCHED: false
+      - type: script_reusable
+        name: "Component files are PascalCase"
+        description: "All .jsx, .tsx, .vue and .svelte component file names are PascalCase"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed component files to PascalCase"
+        args:
+          INCLUDE_FILES_GLOB: ["*.jsx", "*.tsx", "*.vue", "*.svelte"]
+          NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
+          FAIL_ON_NO_FILES_MATCHED: false
+      - type: script_reusable
+        name: "Java/Kotlin files are PascalCase"
+        description: "All .java and .kt file names are PascalCase"
+        script: file-naming-convention-check
+        severity: warn
+        instruction: "Rename the listed Java/Kotlin files to PascalCase"
+        args:
+          INCLUDE_FILES_GLOB: ["*.java", "*.kt"]
+          NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
+          FAIL_ON_NO_FILES_MATCHED: false
 
   - group: Docs & SQL
     rules:
@@ -1882,26 +1913,6 @@ rules:
 
   - group: Python
     rules:
-      - type: script_reusable
-        name: "Python files are snake_case"
-        description: "All .py file names are snake_case"
-        script: file-naming-convention-check
-        severity: warn
-        instruction: "Rename the listed Python files to snake_case"
-        args:
-          INCLUDE_FILES_GLOB: "*.py"
-          NAMING_CONVENTION: '^[a-z0-9]+([_.][a-z0-9]+)*$'
-          FAIL_ON_NO_FILES_MATCHED: false
-      - type: script_reusable
-        name: "TOML files are flat lowercase"
-        description: "All .toml file names are flat lowercase (dots allowed via the stripped extension)"
-        script: file-naming-convention-check
-        severity: warn
-        instruction: "Rename the listed .toml files to flat lowercase"
-        args:
-          INCLUDE_FILES_GLOB: "*.toml"
-          NAMING_CONVENTION: '^[a-z0-9]+$'
-          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_clean
         name: "Python files parse"
         description: "Every .py file parses into a valid abstract syntax tree (read-only equivalent of check-ast)"
@@ -1984,26 +1995,6 @@ rules:
 
   - group: JavaScript & Web
     rules:
-      - type: script_reusable
-        name: "JS/TS files are kebab-case"
-        description: "All .js and .ts file names are kebab-case"
-        script: file-naming-convention-check
-        severity: warn
-        instruction: "Rename the listed files to kebab-case"
-        args:
-          INCLUDE_FILES_GLOB: ["*.js", "*.ts"]
-          NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          FAIL_ON_NO_FILES_MATCHED: false
-      - type: script_reusable
-        name: "Component files are PascalCase"
-        description: "All .jsx, .tsx, .vue and .svelte component file names are PascalCase"
-        script: file-naming-convention-check
-        severity: warn
-        instruction: "Rename the listed component files to PascalCase"
-        args:
-          INCLUDE_FILES_GLOB: ["*.jsx", "*.tsx", "*.vue", "*.svelte"]
-          NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
-          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_clean
         name: "ESLint passes"
         description: "eslint finds no code-quality violations"
@@ -2105,26 +2096,6 @@ rules:
 
   - group: Java & Kotlin
     rules:
-      - type: script_reusable
-        name: "Java files are PascalCase"
-        description: "All .java file names are PascalCase"
-        script: file-naming-convention-check
-        severity: warn
-        instruction: "Rename the listed Java files to PascalCase"
-        args:
-          INCLUDE_FILES_GLOB: "*.java"
-          NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
-          FAIL_ON_NO_FILES_MATCHED: false
-      - type: script_reusable
-        name: "Kotlin files are PascalCase"
-        description: "All .kt file names are PascalCase"
-        script: file-naming-convention-check
-        severity: warn
-        instruction: "Rename the listed Kotlin files to PascalCase"
-        args:
-          INCLUDE_FILES_GLOB: "*.kt"
-          NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
-          FAIL_ON_NO_FILES_MATCHED: false
       - type: script_clean
         name: "Maven project compiles"
         description: "mvn compile -q exits cleanly"
@@ -2140,7 +2111,6 @@ rules:
         instruction: "Run: gradle wrapper, and commit the generated files"
         args:
           FILE_PATH: gradlew
-          FAIL_ON_ABSENCE: true
       - type: script_clean
         name: "Gradle project builds"
         description: "./gradlew build exits cleanly"
@@ -2188,7 +2158,6 @@ rules:
             instruction: "Create .claude/settings.json with the desired Claude Code configuration"
             args:
               FILE_PATH: .claude/settings.json
-              FAIL_ON_ABSENCE: true
           - group: Model & Thinking
             rules:
               - type: script_reusable

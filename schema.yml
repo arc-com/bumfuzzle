@@ -1,7 +1,7 @@
 # schema.yml — the single source of truth for the FULL structure of
-# bumfuzzle-template.yml and bumfuzzle.yml: every top-level section, every
-# node shape, every property on every node, which are required, and how
-# nesting works.
+# bumfuzzle-template.yml and .bumfuzzle/config.yml: every top-level section,
+# every node shape, every property on every node, which are required, and
+# how nesting works.
 #
 # Written in JSON Schema (2020-12) vocabulary, YAML-encoded to match this
 # project's convention. $defs are read directly (via yq/JS path queries) by
@@ -11,10 +11,16 @@
 "$schema": "https://json-schema.org/draft/2020-12/schema"
 "$id": "bumfuzzle-config"
 title: "Bumfuzzle config"
-description: "Shared by bumfuzzle-template.yml (the full catalog: scripts + rules + enums) and a project's bumfuzzle.yml (any subset of the same three sections)."
+description: "Shared by bumfuzzle-template.yml (the full catalog: scripts + rules + enums) and a project's .bumfuzzle/config.yml (any subset of the same three sections)."
+schema_version: 1
 type: object
 additionalProperties: false
+required: [schema_version]
 properties:
+  schema_version:
+    type: integer
+    minimum: 1
+    description: "Format revision this config was written against; must equal this file's own schema_version above (checked by scripts/validate-schema.sh, since JSON Schema alone can't compare a document's value against its schema's)."
   scripts:
     type: array
     items: { "$ref": "#/$defs/scriptNode" }

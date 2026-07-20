@@ -9,34 +9,43 @@ BUMFUZZLE_HTML="$BUMFUZZLE_ROOT/index.html"
 BUMFUZZLE_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
 PORT=7373
 
+SCRIPT_NAME="wizard.sh"
+_log() { printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$1" "$2" >&2; }
+
 if ! command -v yq &>/dev/null; then
+  _log ERROR "yq is required"
   printf 'Error: yq is required\n' >&2; exit 1
 fi
 if ! command -v python3 &>/dev/null; then
+  _log ERROR "python3 is required"
   printf 'Error: python3 is required\n' >&2; exit 1
 fi
 if [[ ! -f "$BUMFUZZLE_HTML" ]]; then
+  _log ERROR "bumfuzzle template not found: $BUMFUZZLE_HTML"
   printf 'Error: bumfuzzle template not found: %s\n' "$BUMFUZZLE_HTML" >&2; exit 1
 fi
 if [[ ! -f "$SCHEMA" ]]; then
+  _log ERROR "bumfuzzle schema not found: $SCHEMA"
   printf 'Error: bumfuzzle schema not found: %s\n' "$SCHEMA" >&2; exit 1
 fi
 if lsof -i ":$PORT" -sTCP:LISTEN -t &>/dev/null 2>&1; then
+  _log ERROR "port $PORT is already in use"
   printf 'Error: port %d is already in use\n' "$PORT" >&2; exit 1
 fi
 
 PROJECT_DIR="$(pwd)"
 PROJECT_DIR_NAME="$(basename "$PROJECT_DIR")"
 
-if [[ ! -f "$PROJECT_DIR/bumfuzzle.yml" ]]; then
-  printf 'Error: bumfuzzle.yml not found in %s\n' "$PROJECT_DIR" >&2
+if [[ ! -f "$PROJECT_DIR/.bumfuzzle/config.yml" ]]; then
+  _log ERROR ".bumfuzzle/config.yml not found in $PROJECT_DIR"
+  printf 'Error: .bumfuzzle/config.yml not found in %s\n' "$PROJECT_DIR" >&2
   printf 'Run `bumfuzzle init` to create it, then re-run `bumfuzzle wizard`.\n' >&2
   exit 1
 fi
 
 # ── Build CONFIG JSON ──────────────────────────────────────────────────────────
 
-CURRENT_JSON=$(yq -o=json '.' "$PROJECT_DIR/bumfuzzle.yml")
+CURRENT_JSON=$(yq -o=json '.' "$PROJECT_DIR/.bumfuzzle/config.yml")
 SCHEMA_JSON=$(yq -o=json '.' "$SCHEMA")
 
 META_JSON=$(printf '{"projectDir":"%s","projectDirName":"%s","version":"%s"}' \
@@ -58,6 +67,7 @@ export BUMFUZZLE_SETTINGS="$SETTINGS"
 
 # ── Start server ──────────────────────────────────────────────────────────────
 
+_log INFO "serving http://localhost:$PORT for project $PROJECT_DIR"
 printf '\n  bumfuzzle v%s\n' "$BUMFUZZLE_VERSION"
 printf '  %s\n\n' "$(printf '%.0s─' {1..48})"
 printf '  Project: %s\n' "$PROJECT_DIR"

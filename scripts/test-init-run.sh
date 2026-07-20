@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression test for the package.json script-injection (scripts/init.sh)
-# and bumfuzzle.yml auto-scaffold (scripts/run.sh) behavior. Run standalone
+# and .bumfuzzle/config.yml auto-scaffold (scripts/run.sh) behavior. Run standalone
 # (scripts/test-init-run.sh).
 set -euo pipefail
 
@@ -15,11 +15,11 @@ rm -rf "$FIXTURE_DIR"
 mkdir -p "$FIXTURE_DIR"
 trap 'rm -rf "$FIXTURE_DIR"' EXIT
 
-# -- init: no package.json in the project -> bumfuzzle.yml only ------------
+# -- init: no package.json in the project -> .bumfuzzle/config.yml only ----
 d="$FIXTURE_DIR/no-pkg"
 mkdir -p "$d"
 out=$(cd "$d" && "$INIT" 2>&1) || fail "init (no package.json) exited non-zero: $out"
-[[ -f "$d/bumfuzzle.yml" ]] || fail "init (no package.json): bumfuzzle.yml was not created"
+[[ -f "$d/.bumfuzzle/config.yml" ]] || fail "init (no package.json): .bumfuzzle/config.yml was not created"
 grep -q 'Added "bf"' <<< "$out" && fail "init (no package.json): unexpectedly reported adding a script"
 echo "OK init: no package.json present"
 
@@ -47,27 +47,27 @@ grep -q 'package.json already has a "bf" script - leaving it as-is' <<< "$out" \
   || fail "init (pkg, existing bf script): pre-existing bf script was overwritten"
 echo "OK init: package.json with an existing bf script"
 
-# -- init: bumfuzzle.yml already present -> refuses to overwrite (no regression) --
-d="$FIXTURE_DIR/no-pkg" # reuse the dir from the first case; bumfuzzle.yml already exists there
-(cd "$d" && "$INIT") > /dev/null 2>&1 && fail "init (bumfuzzle.yml exists): expected non-zero exit, got success"
-echo "OK init: refuses to overwrite an existing bumfuzzle.yml"
+# -- init: .bumfuzzle/config.yml already present -> refuses to overwrite (no regression) --
+d="$FIXTURE_DIR/no-pkg" # reuse the dir from the first case; .bumfuzzle/config.yml already exists there
+(cd "$d" && "$INIT") > /dev/null 2>&1 && fail "init (.bumfuzzle/config.yml exists): expected non-zero exit, got success"
+echo "OK init: refuses to overwrite an existing .bumfuzzle/config.yml"
 
-# -- run: no bumfuzzle.yml -> auto-scaffolds from template and continues ---
+# -- run: no .bumfuzzle/config.yml -> auto-scaffolds from template and continues ---
 d="$FIXTURE_DIR/run-no-config"
 mkdir -p "$d"
-out=$(cd "$d" && "$RUN" 2>&1) || fail "run (no bumfuzzle.yml) exited non-zero: $out"
-[[ -f "$d/bumfuzzle.yml" ]] || fail "run (no bumfuzzle.yml): bumfuzzle.yml was not scaffolded"
-grep -q '\[INFO\] - bumfuzzle.yml not found - scaffolded from template' <<< "$out" \
-  || fail "run (no bumfuzzle.yml): expected scaffold notice, got: $out"
-echo "OK run: auto-scaffolds bumfuzzle.yml when missing"
+out=$(cd "$d" && "$RUN" 2>&1) || fail "run (no .bumfuzzle/config.yml) exited non-zero: $out"
+[[ -f "$d/.bumfuzzle/config.yml" ]] || fail "run (no .bumfuzzle/config.yml): .bumfuzzle/config.yml was not scaffolded"
+grep -q '\[INFO\] - \.bumfuzzle/config\.yml not found - scaffolded from template' <<< "$out" \
+  || fail "run (no .bumfuzzle/config.yml): expected scaffold notice, got: $out"
+echo "OK run: auto-scaffolds .bumfuzzle/config.yml when missing"
 
-# -- run: bumfuzzle.yml already present -> no scaffold notice (no regression) --
+# -- run: .bumfuzzle/config.yml already present -> no scaffold notice (no regression) --
 d="$FIXTURE_DIR/run-existing-config"
-mkdir -p "$d"
-cp "$ROOT/bumfuzzle-template.yml" "$d/bumfuzzle.yml"
-out=$(cd "$d" && "$RUN" 2>&1) || fail "run (existing bumfuzzle.yml) exited non-zero: $out"
+mkdir -p "$d/.bumfuzzle"
+cp "$ROOT/bumfuzzle-template.yml" "$d/.bumfuzzle/config.yml"
+out=$(cd "$d" && "$RUN" 2>&1) || fail "run (existing .bumfuzzle/config.yml) exited non-zero: $out"
 grep -q '\[INFO\].*scaffolded from template' <<< "$out" \
-  && fail "run (existing bumfuzzle.yml): unexpectedly reported scaffolding, got: $out"
-echo "OK run: uses an existing bumfuzzle.yml as-is"
+  && fail "run (existing .bumfuzzle/config.yml): unexpectedly reported scaffolding, got: $out"
+echo "OK run: uses an existing .bumfuzzle/config.yml as-is"
 
 echo "OK $(basename "$0")"

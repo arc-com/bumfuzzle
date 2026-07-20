@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lint-config.sh — structural lint for a bumfuzzle config (default
-# bumfuzzle.yml): duplicate script/enum ids, dangling script/enum_ref
+# .bumfuzzle/config.yml): duplicate script/enum ids, dangling script/enum_ref
 # references, rules missing a required field for their type,
 # script_reusable arg mismatches against the script's declared args, bash
 # syntax errors in embedded commands, and (delegating to
@@ -26,14 +26,14 @@ VERBOSE=false
 _log() {
   local _level="$1" _msg="$2"
   [[ "$_level" == "DEBUG" && "$VERBOSE" != true ]] && return 0
-  printf '[%s][%s] %s\n' "$SCRIPT_NAME" "$_level" "$_msg" >&2
+  printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$_level" "$_msg" >&2
 }
 
 usage() {
   cat <<'EOF'
 Usage: lint-config.sh [-h|--help] [-v|--verbose] [TARGET]
 
-  TARGET         path to the bumfuzzle config to lint (default: bumfuzzle.yml)
+  TARGET         path to the bumfuzzle config to lint (default: .bumfuzzle/config.yml)
   -v, --verbose  show DEBUG-level detail on stderr
 
 Lints TARGET's structure: duplicate script/enum ids, dangling script/enum_ref
@@ -88,7 +88,7 @@ if [[ "$_SHOW_HELP" == true ]]; then
   exit 0
 fi
 
-TARGET="${TARGET:-bumfuzzle.yml}"
+TARGET="${TARGET:-.bumfuzzle/config.yml}"
 
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
@@ -261,8 +261,13 @@ _lint_script_commands() {
 # conform to schema.yml can't be trusted to drive rule evaluation.
 _lint_field_values() {
   _log DEBUG "checking field values against schema.yml (delegated to validate-schema.sh)"
+  # validate-schema.sh's own --verbose is passed through so its DEBUG detail
+  # follows ours; its stderr is never discarded since its INFO/ERROR lines
+  # must always reach the terminal regardless of our own verbosity
+  local _validate_args=("$TARGET")
+  [[ "$VERBOSE" == true ]] && _validate_args=(--verbose "$TARGET")
   local _out _rc=0
-  _out=$("$BUMFUZZLE_ROOT/scripts/validate-schema.sh" "$TARGET" 2>/dev/null) || _rc=$?
+  _out=$("$BUMFUZZLE_ROOT/scripts/validate-schema.sh" "${_validate_args[@]}") || _rc=$?
   [[ "$_rc" -eq 0 ]] && return 0
   while IFS= read -r _line; do
     [[ "$_line" == \[FAIL\]* ]] || continue
@@ -280,6 +285,8 @@ if [[ ! -f "$TARGET" ]]; then
   _log ERROR "$TARGET not found"
   exit 1
 fi
+
+_log INFO "starting lint of $TARGET"
 
 if ! yq '.' "$TARGET" > /dev/null 2>&1; then
   _report_structural "$TARGET is not parseable YAML"
