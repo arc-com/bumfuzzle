@@ -3,8 +3,8 @@
   "version": "1.5.0",
   "description": "Project scaffolding and validation",
   "bin": {
-    "bumfuzzle": "./scripts/bumfuzzle.sh",
-    "bf": "./scripts/bumfuzzle.sh"
+    "bumfuzzle": "scripts/bumfuzzle.sh",
+    "bf": "scripts/bumfuzzle.sh"
   },
   "files": [
     "scripts/",
