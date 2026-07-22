@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Regression test for schema.yml's own contract, run standalone
-# (scripts/test-schema.sh) or before a release alongside test_release.sh.
+# (scripts/tests/test-schema.sh) or before a release alongside test-release.sh.
 #
 # Exists because of a real incident: schema.yml once required every arg
 # object to literally contain a "required" key, while index.html's
-# generateYaml() (and scripts/eval-rules.sh's own `.required // false`
+# generateYaml() (and scripts/rule-runner.sh's own `.required // false`
 # reader) treat an absent "required" as false, same as every other optional
 # boolean flag on the node (list, multi_select, ...). That mismatch meant
 # any wizard-authored .bumfuzzle/config.yml with an optional arg failed schema
@@ -14,8 +14,8 @@
 # explicit) could ever have exercised that path.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VALIDATE="$ROOT/scripts/validate-schema.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+VALIDATE="$ROOT/scripts/prerequisites/validate-schema.sh"
 FIXTURE_DIR="$ROOT/tmp/test-schema-fixtures"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

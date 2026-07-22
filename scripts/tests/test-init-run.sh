@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Regression test for the package.json script-injection (scripts/init.sh)
 # and .bumfuzzle/config.yml auto-scaffold (scripts/run.sh) behavior. Run standalone
-# (scripts/test-init-run.sh).
+# (scripts/tests/test-init-run.sh).
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 INIT="$ROOT/scripts/init.sh"
 RUN="$ROOT/scripts/run.sh"
 FIXTURE_DIR="$ROOT/tmp/test-init-run-fixtures"

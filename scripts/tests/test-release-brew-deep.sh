@@ -4,7 +4,7 @@
 # actually works end to end. Requires Docker; see test-release-brew-shallow.sh
 # for a no-Docker formula-correctness check.
 set -euo pipefail
-source "$(cd "$(dirname "$0")/release" && pwd)/lib.sh"
+source "$(cd "$(dirname "$0")/../release" && pwd)/lib.sh"
 
 VERSION="$(current_version)"
 HOMEBREW_TAP="arc-com/tools"

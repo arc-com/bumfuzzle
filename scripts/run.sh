@@ -56,66 +56,13 @@ BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 RUN_VERSION="$(cat "$BUMFUZZLE_ROOT/VERSION" 2>/dev/null || printf 'unknown')"
 PREFLIGHT_FILE=".bumfuzzle/config.yml"
-ERRORS=()
-WARNINGS=()
-_PASS_COUNT=0
-_PENDING_HEADER=""
 
-is_blank() { [[ -z "${1// }" || "${1:-}" == "null" ]]; }
-
-section() { _PENDING_HEADER="$1"; }
-
-_flush_header() {
-  if [[ -n "$_PENDING_HEADER" ]]; then
-    printf '\n%s\n' "$_PENDING_HEADER"
-    _PENDING_HEADER=""
-  fi
-}
-
-pass() {
-  _PASS_COUNT=$((_PASS_COUNT + 1))
-  if [[ "$VERBOSE" == true ]]; then
-    _flush_header
-    printf '[run.sh][DEBUG] - [PASS] %s\n' "$1"
-  fi
-}
-
-fail() {
-  local _sev="${2:-error}"
-  local _details="${3:-}"
-  case "$_sev" in
-    warn)
-      _flush_header
-      printf '[run.sh][WARN] - [WARN] %s\n' "$1"
-      [[ -n "$_details" ]] && printf '%s\n' "$_details"
-      WARNINGS+=("$1")
-      ;;
-    hard-stop)
-      _flush_header
-      printf '[run.sh][ERROR] - [FAIL] %s\n' "$1"
-      [[ -n "$_details" ]] && printf '%s\n' "$_details"
-      printf '[run.sh][ERROR] - [HARD-STOP] aborting run\n'
-      exit 1
-      ;;
-    *)
-      _flush_header
-      printf '[run.sh][ERROR] - [FAIL] %s\n' "$1"
-      [[ -n "$_details" ]] && printf '%s\n' "$_details"
-      ERRORS+=("$1")
-      ;;
-  esac
-}
+. "$BUMFUZZLE_ROOT/scripts/reporting.sh"
 
 printf '[run.sh][INFO] - starting bumfuzzle run v%s\n' "$RUN_VERSION"
 
 printf '[run.sh][INFO] - starting prerequisites check\n'
 section '-- Prerequisites --------------------------------------------------------'
-
-if ! command -v yq &>/dev/null; then
-  _flush_header
-  printf '[run.sh][ERROR] - [FAIL] yq is not installed - required to parse %s\n' "$PREFLIGHT_FILE"
-  exit 1
-fi
 
 if [[ ! -f "$PREFLIGHT_FILE" ]]; then
   TEMPLATE="$BUMFUZZLE_ROOT/bumfuzzle-template.yml"
@@ -140,7 +87,6 @@ else
   fi
 fi
 
-pass "yq is installed"
 pass "$PREFLIGHT_FILE is present"
 pass "run v$RUN_VERSION"
 printf '[run.sh][INFO] - prerequisites satisfied\n'
@@ -151,9 +97,9 @@ printf '[run.sh][INFO] - prerequisites satisfied\n'
 PREFLIGHT_FILE_DISPLAY="$PREFLIGHT_FILE"
 PREFLIGHT_FILE="$(pwd)/$PREFLIGHT_FILE"
 
-. "$BUMFUZZLE_ROOT/scripts/eval-rules.sh"
+. "$BUMFUZZLE_ROOT/scripts/rule-runner.sh"
 
-# config lint runs as part of Prerequisites (see eval-rules.sh): it validates
+# config lint runs as part of Prerequisites (see rule-runner.sh): it validates
 # .bumfuzzle/config.yml's own structure and is exempt from the enabled-rules gating
 # that applies to user-defined rules — it always runs.
 printf '[run.sh][INFO] - starting config lint\n'

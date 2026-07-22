@@ -111,13 +111,12 @@ scripts:
             required: false
             default: true
             description: true = zero files matched is a failure; false = zero files matched is a pass
-      - id: file-naming-convention-check
-        name: "File naming convention check"
-        description: "Checks that all file basenames matching includeFilesGlob (and not matching excludeFilesGlob; both accept YAML lists) comply with the selected NAMING_CONVENTION or a REGEX_PATTERN override (or don't, if FAIL_ON_CONVENTION_MISMATCH: false). The final extension is stripped before matching, so PascalCase matches Header.tsx. Searches under SEARCH_ROOT up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. FAIL_ON_NO_FILES_MATCHED controls whether zero matches is a fail (default true) or a pass (false)."
+      - id: file-naming-scan-check
+        name: "File name(s) (via pattern scan) matches pattern"
+        description: "Checks that all file basenames matching INCLUDE (and not matching EXCLUDE; both accept YAML lists) comply with the selected NAMING_CONVENTION. The final extension is stripped before matching, so PascalCase matches Header.tsx. Searches under SEARCH_ROOT up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. FAIL_ON_PATH_ABSENCE controls whether zero matches is a fail (default true) or a pass (false)."
         command: |
           [[ "${SEARCH_ROOT:-}" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
-          [[ -z "${NAMING_CONVENTION:-}" && -z "${REGEX_PATTERN:-}" ]] && { printf 'Provide NAMING_CONVENTION or REGEX_PATTERN\n'; exit 1; }
-          _pattern="${REGEX_PATTERN:-${NAMING_CONVENTION:-}}"
+          _pattern="$NAMING_CONVENTION"
           _depth_arg=""
           if [[ -n "${SEARCH_DEPTH:-}" && "$SEARCH_DEPTH" -ge 1 ]]; then
             _depth_arg="-maxdepth $SEARCH_DEPTH"
@@ -127,13 +126,13 @@ scripts:
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
             _inc_args="${_inc_args:+$_inc_args -o }-name $_g"
-          done <<< "${INCLUDE_FILES_GLOB:-}"
-          [[ -z "$_inc_args" ]] && { printf 'INCLUDE_FILES_GLOB is required\n'; exit 1; }
+          done <<< "${INCLUDE:-*}"
+          [[ -z "$_inc_args" ]] && _inc_args="-name *"
           _ex_args=""
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
             _ex_args="$_ex_args -not -name $_g"
-          done <<< "${EXCLUDE_FILES_GLOB:-}"
+          done <<< "${EXCLUDE:-}"
           _failed=false
           _any=false
           set -f
@@ -142,23 +141,14 @@ scripts:
             _base=$(basename "$_f")
             _stem="${_base%.*}"
             [[ -z "$_stem" ]] && _stem="$_base"
-            _match=false
-            echo "$_stem" | grep -qE "$_pattern" && _match=true
-            if [[ "${FAIL_ON_CONVENTION_MISMATCH:-true}" == "true" ]]; then
-              if [[ "$_match" == "false" ]]; then
-                printf '%s does not match naming convention %s\n' "$_f" "$_pattern"
-                _failed=true
-              fi
-            else
-              if [[ "$_match" == "true" ]]; then
-                printf '%s unexpectedly matches naming convention %s\n' "$_f" "$_pattern"
-                _failed=true
-              fi
+            if ! echo "$_stem" | grep -qE "$_pattern"; then
+              printf '%s does not match naming convention %s\n' "$_f" "$_pattern"
+              _failed=true
             fi
           done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
           set +f
-          if [[ "$_any" == "false" && "${FAIL_ON_NO_FILES_MATCHED:-true}" == "true" ]]; then
-            printf 'missing: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
+          if [[ "$_any" == "false" && "${FAIL_ON_PATH_ABSENCE:-true}" == "true" ]]; then
+            printf 'missing: no files matched %s under %s\n' "${INCLUDE:-*}" "$_from"
             _failed=true
           fi
           [[ "$_failed" == "false" ]]
@@ -175,15 +165,16 @@ scripts:
             required: false
             placeholder: "1"
             description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
-          - key: INCLUDE_FILES_GLOB
-            label: Include files glob
-            required: true
+          - key: INCLUDE
+            label: Include glob
+            required: false
             type: glob
             list: true
+            default: '*'
             placeholder: '*.java'
-            description: Glob pattern matched against file basenames to include (e.g. *.java, *Controller*). Provide a YAML list to match multiple globs.
-          - key: EXCLUDE_FILES_GLOB
-            label: Exclude files glob
+            description: Glob pattern matched against file basenames to include (e.g. *.java, *Controller*). Provide a YAML list to match multiple globs. Defaults to * (all files).
+          - key: EXCLUDE
+            label: Exclude glob
             required: false
             type: glob
             list: true
@@ -191,54 +182,53 @@ scripts:
             description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
           - key: NAMING_CONVENTION
             label: Naming convention
-            required: false
+            required: true
             type: enum
             enum_ref: file-naming-convention
-          - key: REGEX_PATTERN
-            label: Custom pattern (overrides convention)
-            required: false
-            type: regex
-            placeholder: ^[A-Z][a-zA-Z0-9]+$
-            description: Custom regex applied to each matched file's basename (extension stripped) instead of a predefined naming convention. Provide NAMING_CONVENTION or REGEX_PATTERN.
-          - key: FAIL_ON_CONVENTION_MISMATCH
-            label: Fail on convention mismatch
+          - key: FAIL_ON_PATH_ABSENCE
+            label: Fail when no matches found
             type: bool
             required: false
             default: true
-            description: true = fail when a matched file does not follow the convention; false = fail when it does (forbidden)
-          - key: FAIL_ON_NO_FILES_MATCHED
-            label: Fail when no files matched
-            type: bool
-            required: false
-            default: true
-            description: true = zero files matched is a failure; false = zero files matched is a pass
-      - id: dir-naming-convention-check
-        name: "Directory naming convention check"
-        description: "Checks that all directory names under 'from' (up to 'depth' levels) comply with the selected NAMING_CONVENTION or a REGEX_PATTERN override. Hidden directories and node_modules are always skipped; EXCLUDE_DIRS (accepts a YAML list of basename globs) skips more."
+            description: true = zero matches is a failure; false = zero matches is a pass
+      - id: dir-naming-scan-check
+        name: "Folder name(s) (via pattern scan) matches pattern"
+        description: "Checks that all directory basenames matching INCLUDE (and not matching EXCLUDE; both accept YAML lists of basename globs) under SEARCH_ROOT (up to SEARCH_DEPTH levels) comply with the selected NAMING_CONVENTION. Hidden directories and node_modules are always skipped. FAIL_ON_PATH_ABSENCE controls whether zero matches is a fail (default true) or a pass (false)."
         command: |
           _from="${SEARCH_ROOT:-.}"
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
-          [[ -z "${NAMING_CONVENTION:-}" && -z "${REGEX_PATTERN:-}" ]] && { printf 'Provide NAMING_CONVENTION or REGEX_PATTERN\n'; exit 1; }
-          _pattern="${REGEX_PATTERN:-${NAMING_CONVENTION:-}}"
+          _pattern="$NAMING_CONVENTION"
           _depth_arg=""
           if [[ -n "${SEARCH_DEPTH:-}" && "$SEARCH_DEPTH" -ge 1 ]]; then
             _depth_arg="-maxdepth $SEARCH_DEPTH"
           fi
           _failed=false
+          _any=false
           while IFS= read -r _d; do
             [[ -z "$_d" ]] && continue
             _base=$(basename "$_d")
+            _inc=false
+            while IFS= read -r _g; do
+              [[ -z "$_g" ]] && continue
+              [[ "$_base" == $_g ]] && _inc=true
+            done <<< "${INCLUDE:-*}"
+            [[ "$_inc" == "false" ]] && continue
             _skip=false
             while IFS= read -r _e; do
               [[ -z "$_e" ]] && continue
               [[ "$_base" == $_e ]] && _skip=true
-            done <<< "${EXCLUDE_DIRS:-}"
+            done <<< "${EXCLUDE:-}"
             [[ "$_skip" == "true" ]] && continue
+            _any=true
             if ! echo "$_base" | grep -qE "$_pattern"; then
               printf 'directory %s does not match naming convention %s\n' "$_d" "$_pattern"
               _failed=true
             fi
           done < <(find "$_from" $_depth_arg -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o -type d -print 2>/dev/null)
+          if [[ "$_any" == "false" && "${FAIL_ON_PATH_ABSENCE:-true}" == "true" ]]; then
+            printf 'missing: no directories matched %s under %s\n' "${INCLUDE:-*}" "$_from"
+            _failed=true
+          fi
           [[ "$_failed" == "false" ]]
         args:
           - key: SEARCH_ROOT
@@ -252,25 +242,117 @@ scripts:
             type: int
             required: false
             placeholder: "1"
-            description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
+            description: "Maximum directory depth to search. 1 = directories directly inside SEARCH_ROOT. Omit for unlimited depth."
+          - key: INCLUDE
+            label: Include glob
+            required: false
+            type: glob
+            list: true
+            default: '*'
+            placeholder: 'src'
+            description: Glob pattern matched against directory basenames to include. Provide a YAML list to match multiple globs. Defaults to * (all directories).
+          - key: EXCLUDE
+            label: Exclude glob
+            required: false
+            type: glob
+            list: true
+            placeholder: "Export"
+            description: "Glob pattern matched against directory basenames to exclude. Provide a YAML list for multiple globs."
           - key: NAMING_CONVENTION
             label: Naming convention
-            required: false
+            required: true
             type: enum
             enum_ref: file-naming-convention
-          - key: REGEX_PATTERN
-            label: Custom pattern (overrides convention)
+          - key: FAIL_ON_PATH_ABSENCE
+            label: Fail when no matches found
+            type: bool
             required: false
-            type: regex
-            placeholder: ^[a-z0-9]+$
-            description: Custom regex applied to each directory basename instead of a predefined naming convention. Provide NAMING_CONVENTION or REGEX_PATTERN.
-          - key: EXCLUDE_DIRS
-            label: "Exclude directories"
-            type: string
+            default: true
+            description: true = zero matches is a failure; false = zero matches is a pass
+      - id: file-naming-path-check
+        name: "File name(s) (via declared path) matches pattern"
+        description: "Checks that each file in PATH_LIST (a YAML list of paths) has a basename complying with NAMING_CONVENTION. The final extension is stripped before matching, so PascalCase matches Header.tsx. FAIL_ON_PATH_ABSENCE controls whether a declared path that doesn't exist (or isn't a file) is a fail (default true) or a skip (false)."
+        command: |
+          _failed=false
+          while IFS= read -r _p; do
+            [[ -z "$_p" ]] && continue
+            [[ "$_p" =~ \.\. ]] && { printf '%s must not contain ..\n' "$_p"; _failed=true; continue; }
+            if [[ ! -f "$_p" ]]; then
+              if [[ "${FAIL_ON_PATH_ABSENCE:-true}" == "true" ]]; then
+                printf 'missing: %s is not a file\n' "$_p"
+                _failed=true
+              fi
+              continue
+            fi
+            _base=$(basename "$_p")
+            _stem="${_base%.*}"
+            [[ -z "$_stem" ]] && _stem="$_base"
+            if ! echo "$_stem" | grep -qE "$NAMING_CONVENTION"; then
+              printf '%s does not match naming convention %s\n' "$_p" "$NAMING_CONVENTION"
+              _failed=true
+            fi
+          done <<< "${PATH_LIST:-}"
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: PATH_LIST
+            label: Path(s)
+            required: true
+            type: path
             list: true
+            placeholder: 'src/main/AppConfig.java'
+            description: File path(s) to check. Provide a YAML list for multiple.
+          - key: NAMING_CONVENTION
+            label: Naming convention
+            required: true
+            type: enum
+            enum_ref: file-naming-convention
+          - key: FAIL_ON_PATH_ABSENCE
+            label: Fail when path is missing
+            type: bool
             required: false
-            placeholder: "Export"
-            description: "Directory basename globs to skip. Provide a YAML list for multiple."
+            default: true
+            description: true = a declared path that isn't an existing file is a failure; false = it's silently skipped
+      - id: dir-naming-path-check
+        name: "Folder name(s) (via declared path) matches pattern"
+        description: "Checks that each directory in PATH_LIST (a YAML list of paths) has a basename complying with NAMING_CONVENTION. FAIL_ON_PATH_ABSENCE controls whether a declared path that doesn't exist (or isn't a directory) is a fail (default true) or a skip (false)."
+        command: |
+          _failed=false
+          while IFS= read -r _p; do
+            [[ -z "$_p" ]] && continue
+            [[ "$_p" =~ \.\. ]] && { printf '%s must not contain ..\n' "$_p"; _failed=true; continue; }
+            if [[ ! -d "$_p" ]]; then
+              if [[ "${FAIL_ON_PATH_ABSENCE:-true}" == "true" ]]; then
+                printf 'missing: %s is not a directory\n' "$_p"
+                _failed=true
+              fi
+              continue
+            fi
+            _base=$(basename "$_p")
+            if ! echo "$_base" | grep -qE "$NAMING_CONVENTION"; then
+              printf '%s does not match naming convention %s\n' "$_p" "$NAMING_CONVENTION"
+              _failed=true
+            fi
+          done <<< "${PATH_LIST:-}"
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: PATH_LIST
+            label: Path(s)
+            required: true
+            type: path
+            list: true
+            placeholder: 'src/main'
+            description: Directory path(s) to check. Provide a YAML list for multiple.
+          - key: NAMING_CONVENTION
+            label: Naming convention
+            required: true
+            type: enum
+            enum_ref: file-naming-convention
+          - key: FAIL_ON_PATH_ABSENCE
+            label: Fail when path is missing
+            type: bool
+            required: false
+            default: true
+            description: true = a declared path that isn't an existing directory is a failure; false = it's silently skipped
       - id: no-large-files
         name: "No large files"
         description: "Checks that no file in the project exceeds SIZE_AMOUNT SIZE_UNIT. .git and node_modules are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips additional basename globs."
@@ -839,7 +921,7 @@ scripts:
             description: true = fail when the pattern matches no file's content; false = fail when it does (forbidden)
       - id: files-content-scan
         name: "Files content scan"
-        description: "Greps every file matching INCLUDE_FILES_GLOB (basename globs; accepts a YAML list) under SEARCH_ROOT for one or more ERE REGEX_PATTERN (accepts a YAML list). FAIL_ON_NO_MATCHING_FILE: true passes when any pattern matches anywhere; false fails listing every offending file per pattern. .git, node_modules, .claude and bumfuzzle.yml are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more."
+        description: "Greps every file matching INCLUDE_FILES_GLOB (basename globs; accepts a YAML list) under SEARCH_ROOT for one or more ERE REGEX_PATTERN (accepts a YAML list). FAIL_ON_NO_MATCHING_FILE: true passes when any pattern matches anywhere; false fails listing every offending file per pattern. .git, node_modules, .claude and .bumfuzzle are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more."
         command: |
           _from="${SEARCH_ROOT:-.}"
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
@@ -849,7 +931,7 @@ scripts:
             [[ -z "$_g" ]] && continue
             _inc_args="$_inc_args --include=$_g"
           done <<< "${INCLUDE_FILES_GLOB:-*}"
-          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude=bumfuzzle.yml"
+          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=.bumfuzzle"
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
             _ex_args="$_ex_args --exclude=$_g"
@@ -911,7 +993,7 @@ scripts:
             description: true = fail when no file matches any required pattern; false = fail listing every offending file that matches a forbidden pattern
       - id: config-keys-used
         name: "Config keys used"
-        description: "Checks that every top-level key in a YAML config file is referenced somewhere in the codebase (word-boundary fixed-string grep). The config file itself, bumfuzzle.yml, lockfiles, .git, node_modules and .claude are skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more. The 'extends' key is ignored. Missing config file is a pass — pair with a file existence rule."
+        description: "Checks that every top-level key in a YAML config file is referenced somewhere in the codebase (word-boundary fixed-string grep). The config file itself, .bumfuzzle, lockfiles, .git, node_modules and .claude are skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more. The 'extends' key is ignored. Missing config file is a pass — pair with a file existence rule."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
@@ -919,7 +1001,7 @@ scripts:
           [ -f "$FILE_PATH" ] || exit 0
           _self=$(basename "$FILE_PATH")
           set -f
-          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude=$_self --exclude=bumfuzzle.yml --exclude=*.lock"
+          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=.bumfuzzle --exclude=$_self --exclude=*.lock"
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
             _ex_args="$_ex_args --exclude=$_g"
@@ -1188,7 +1270,7 @@ scripts:
   - group: "Package Manager Checks"
     scripts:
       - id: package-script-clean
-        name: "package.json script runs clean"
+        name: "Run package.json custom script"
         description: "Runs a named script from package.json via the selected package manager and requires it to exit cleanly. Delegates to whatever that script actually does, so the check stays in sync with the project's own definition instead of reimplementing the tool invocation (and its PATH resolution) here."
         command: |
           case "$PACKAGE_MANAGER" in
@@ -1224,25 +1306,6 @@ rules:
         args:
           FILE_PATH: .githooks/pre-commit
           REGEX_PATTERN: bumfuzzle run
-      - type: script_reusable
-        name: "bumfuzzle.yml parses cleanly"
-        description: "bumfuzzle.yml is syntactically valid YAML — yq can parse it without errors"
-        script: file-syntax-valid
-        severity: hard-stop
-        instruction: "Fix YAML syntax errors in bumfuzzle.yml"
-        args:
-          FILE_TYPE: yaml
-          SEARCH_ROOT: "."
-          SEARCH_DEPTH: 1
-          INCLUDE_FILES_GLOB: bumfuzzle.yml
-      - type: script_clean
-        name: "bumfuzzle.yml env.vars is a list"
-        description: "If env.vars is defined in bumfuzzle.yml it must be a YAML sequence, not a scalar or map"
-        command: |
-          t=$(yq '.env.vars | type' bumfuzzle.yml 2>/dev/null)
-          [[ "$t" == "null" || "$t" == "!!null" || "$t" == "!!seq" ]]
-        severity: hard-stop
-        instruction: "Change env.vars in bumfuzzle.yml to a list (or remove it)"
 
   - group: General
     rules:
@@ -1426,20 +1489,6 @@ rules:
             instruction: "Create .gitignore at the project root"
             args:
               FILE_PATH: .gitignore
-          - type: script_clean
-            name: "bumfuzzle extra patterns gitignored"
-            description: "Every extra pattern declared in bumfuzzle.yml under gitignore.extra_patterns is also listed in .gitignore"
-            command: |
-              count=$(yq '.gitignore.extra_patterns | length' bumfuzzle.yml 2>/dev/null || echo 0)
-              [[ "${count}" =~ ^[0-9]+$ ]] || count=0
-              [ "$count" -eq 0 ] && exit 0
-              rc=0
-              while IFS= read -r pat; do
-                grep -qF "$pat" .gitignore 2>/dev/null || { echo "Missing from .gitignore: $pat"; rc=1; }
-              done < <(yq '.gitignore.extra_patterns[]' bumfuzzle.yml 2>/dev/null)
-              exit $rc
-            severity: warn
-            instruction: "Add the missing pattern to .gitignore, or remove it from gitignore.extra_patterns in bumfuzzle.yml"
           - type: script_clean
             name: "No ignored files in git index"
             description: "No file currently tracked by git would be matched by .gitignore — no stale cached files that should be ignored"
@@ -1805,81 +1854,81 @@ rules:
       - type: script_reusable
         name: "Config-style files are kebab-case"
         description: "All .yml, .yaml, .xml and .properties file names are kebab-case"
-        script: file-naming-convention-check
+        script: file-naming-scan-check
         severity: warn
         instruction: "Rename the listed files to kebab-case"
         args:
-          INCLUDE_FILES_GLOB: ["*.yml", "*.yaml", "*.xml", "*.properties"]
+          INCLUDE: ["*.yml", "*.yaml", "*.xml", "*.properties"]
           NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          FAIL_ON_NO_FILES_MATCHED: false
+          FAIL_ON_PATH_ABSENCE: false
       - type: script_reusable
         name: "Shell script files are kebab-case"
         description: "All .sh file names are kebab-case"
-        script: file-naming-convention-check
+        script: file-naming-scan-check
         severity: warn
         instruction: "Rename the listed files to kebab-case"
         args:
-          INCLUDE_FILES_GLOB: ["*.sh"]
+          INCLUDE: ["*.sh"]
           NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          FAIL_ON_NO_FILES_MATCHED: false
+          FAIL_ON_PATH_ABSENCE: false
       - type: script_reusable
         name: "Directories are flat lowercase"
         description: "All directory names are flat lowercase (no separators). Hidden directories and node_modules are skipped"
-        script: dir-naming-convention-check
+        script: dir-naming-scan-check
         severity: warn
-        instruction: "Rename the listed directories to flat lowercase, or add them to EXCLUDE_DIRS"
+        instruction: "Rename the listed directories to flat lowercase, or add them to EXCLUDE"
         args:
           NAMING_CONVENTION: '^[a-z0-9]+$'
       - type: script_reusable
         name: "Python files are snake_case"
         description: "All .py file names are snake_case"
-        script: file-naming-convention-check
+        script: file-naming-scan-check
         severity: warn
         instruction: "Rename the listed Python files to snake_case"
         args:
-          INCLUDE_FILES_GLOB: "*.py"
+          INCLUDE: "*.py"
           NAMING_CONVENTION: '^[a-z0-9]+([_.][a-z0-9]+)*$'
-          FAIL_ON_NO_FILES_MATCHED: false
+          FAIL_ON_PATH_ABSENCE: false
       - type: script_reusable
         name: "TOML files are flat lowercase"
         description: "All .toml file names are flat lowercase (dots allowed via the stripped extension)"
-        script: file-naming-convention-check
+        script: file-naming-scan-check
         severity: warn
         instruction: "Rename the listed .toml files to flat lowercase"
         args:
-          INCLUDE_FILES_GLOB: "*.toml"
+          INCLUDE: "*.toml"
           NAMING_CONVENTION: '^[a-z0-9]+$'
-          FAIL_ON_NO_FILES_MATCHED: false
+          FAIL_ON_PATH_ABSENCE: false
       - type: script_reusable
         name: "JS/TS files are kebab-case"
         description: "All .js and .ts file names are kebab-case"
-        script: file-naming-convention-check
+        script: file-naming-scan-check
         severity: warn
         instruction: "Rename the listed files to kebab-case"
         args:
-          INCLUDE_FILES_GLOB: ["*.js", "*.ts"]
+          INCLUDE: ["*.js", "*.ts"]
           NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          FAIL_ON_NO_FILES_MATCHED: false
+          FAIL_ON_PATH_ABSENCE: false
       - type: script_reusable
         name: "Component files are PascalCase"
         description: "All .jsx, .tsx, .vue and .svelte component file names are PascalCase"
-        script: file-naming-convention-check
+        script: file-naming-scan-check
         severity: warn
         instruction: "Rename the listed component files to PascalCase"
         args:
-          INCLUDE_FILES_GLOB: ["*.jsx", "*.tsx", "*.vue", "*.svelte"]
+          INCLUDE: ["*.jsx", "*.tsx", "*.vue", "*.svelte"]
           NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
-          FAIL_ON_NO_FILES_MATCHED: false
+          FAIL_ON_PATH_ABSENCE: false
       - type: script_reusable
         name: "Java/Kotlin files are PascalCase"
         description: "All .java and .kt file names are PascalCase"
-        script: file-naming-convention-check
+        script: file-naming-scan-check
         severity: warn
         instruction: "Rename the listed Java/Kotlin files to PascalCase"
         args:
-          INCLUDE_FILES_GLOB: ["*.java", "*.kt"]
+          INCLUDE: ["*.java", "*.kt"]
           NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
-          FAIL_ON_NO_FILES_MATCHED: false
+          FAIL_ON_PATH_ABSENCE: false
 
   - group: Docs & SQL
     rules:
@@ -1995,22 +2044,33 @@ rules:
 
   - group: JavaScript & Web
     rules:
-      - type: script_clean
-        name: "ESLint passes"
-        description: "eslint finds no code-quality violations"
-        command: "eslint ."
-        requires: eslint
-        severity: error
-        instruction: "Run: eslint --fix ."
       - type: script_reusable
-        name: "ESLint passes (via package.json script)"
-        description: "Runs the project's own lint script through its package manager instead of invoking eslint directly. Alternative to the 'ESLint passes' preset — enable one or the other, not both"
+        name: "Run package.json lint script"
+        description: "Runs the project's own lint script (e.g. eslint) through its package manager instead of invoking the linter directly, so the check stays in sync with the project's own lint config and flags"
         script: package-script-clean
         severity: error
         instruction: "Run: npm run lint"
         args:
           PACKAGE_MANAGER: npm
           SCRIPT_NAME: lint
+      - type: script_reusable
+        name: "Run package.json build script"
+        description: "Runs the project's own build script through its package manager and requires it to exit cleanly"
+        script: package-script-clean
+        severity: error
+        instruction: "Run: npm run build"
+        args:
+          PACKAGE_MANAGER: npm
+          SCRIPT_NAME: build
+      - type: script_reusable
+        name: "Run package.json test script"
+        description: "Runs the project's own test script through its package manager and requires it to exit cleanly"
+        script: package-script-clean
+        severity: error
+        instruction: "Run: npm run test"
+        args:
+          PACKAGE_MANAGER: npm
+          SCRIPT_NAME: test
       - type: script_clean
         name: "Prettier format check"
         description: "All supported files are formatted per Prettier"
@@ -2025,13 +2085,15 @@ rules:
         requires: biome
         severity: warn
         instruction: "Run: biome check --write ."
-      - type: script_clean
-        name: "pnpm CI pipeline"
-        description: "The project's custom pnpm ci script exits cleanly (requires a ci script in package.json)"
-        command: "pnpm run ci"
-        requires: pnpm
+      - type: script_reusable
+        name: "Run package.json ci script"
+        description: "Runs the project's own ci script through its package manager and requires it to exit cleanly"
+        script: package-script-clean
         severity: error
-        instruction: "Fix the failures reported by: pnpm run ci"
+        instruction: "Run: pnpm run ci"
+        args:
+          PACKAGE_MANAGER: pnpm
+          SCRIPT_NAME: ci
       - type: script_clean
         name: "Lockfile integrity"
         description: "pnpm-lock.yaml is in sync with package.json — no drifted or missing lockfile records. Runs against a temp copy so the working tree is never written to"

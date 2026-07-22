@@ -2,7 +2,7 @@
 # Cuts a release end to end, entirely locally: bumps VERSION, tags, then runs
 # each atomic scripts/release/release-*.sh step (GitHub release, npm, PyPI,
 # Homebrew) in parallel. Does not verify the channels itself - run
-# scripts/test_release.sh afterward for that. No GitHub Actions
+# scripts/tests/test-release.sh afterward for that. No GitHub Actions
 # workflow is involved in publishing.
 #
 # The four publish steps only depend on the tag already existing - not on
@@ -74,4 +74,4 @@ done
 
 echo "==> Release v$NEW_VERSION published to all four channels."
 echo "==> Next step: verify it. Run:"
-echo "      scripts/test_release.sh"
+echo "      scripts/tests/test-release.sh"

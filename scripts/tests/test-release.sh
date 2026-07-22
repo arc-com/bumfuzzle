@@ -4,7 +4,7 @@
 # jobs pass) can't mask a customer-facing release that never actually shipped.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 VERSION="$(cat "$ROOT/VERSION")"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

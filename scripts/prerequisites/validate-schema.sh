@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # validate-schema.sh — validates a bumfuzzle config (default .bumfuzzle/config.yml)
 # against this project's schema.yml. Runs standalone (`bumfuzzle
-# validate-schema [file]`) or as a step of `bumfuzzle run`'s config lint
-# phase (see scripts/eval-rules.sh).
+# validate-schema [file]`) or as one of the checks in scripts/prerequisites.sh.
 #
 # Every structural rule — required fields, additionalProperties, if/then/else,
 # enum membership — lives entirely in schema.yml and is enforced by
@@ -10,13 +9,14 @@
 # bumfuzzle-specific knowledge. This script's only job is bumfuzzle's own
 # file conventions: resolving schema.yml's location, converting YAML to JSON,
 # defaulting TARGET, and reporting in this project's [PASS]/[FAIL] convention
-# (scripts/lint-config.sh's _lint_field_values parses this script's stdout for
-# lines starting with "[FAIL] "). Renaming a field or a $defs entry in
-# schema.yml needs no change here.
+# (scripts/prerequisites.sh parses this script's stdout for lines starting
+# with "[FAIL] "). Renaming a field or a $defs entry in schema.yml needs no
+# change here.
 #
 # Relational/cross-node checks JSON Schema cannot express at all (duplicate
 # ids, dangling id references) are NOT schema conformance and are not run
-# here — see scripts/lint-config.sh's _lint_duplicate_ids / _lint_reference_integrity.
+# here — see scripts/prerequisites/duplicate-ids.sh and
+# scripts/prerequisites/reference-integrity.sh.
 #
 # ONE DOCUMENTED EXCEPTION to the genericity below: the schema_version check
 # near the end of this file hardcodes the field name "schema_version". JSON
@@ -93,7 +93,7 @@ if [[ "$_SHOW_HELP" == true ]]; then
   exit 0
 fi
 
-BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 SCHEMA_FILE="$BUMFUZZLE_ROOT/schema.yml"
 SCHEMA_FILE_DISPLAY="schema.yml"
 VALIDATOR="$BUMFUZZLE_ROOT/scripts/json_schema_validate.py"

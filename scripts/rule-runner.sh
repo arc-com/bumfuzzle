@@ -1,11 +1,4 @@
-# eval-rules — walk the rules: tree from .bumfuzzle/config.yml and run each check
-
-# ruleType is read from the shared schema (schema.yml, $defs.ruleType)
-# — the single source of truth also read by the wizard (index.html) — instead
-# of being hardcoded here too. severity/onMissing/argType are likewise
-# schema-driven but validated by scripts/validate-schema.sh, not duplicated
-# here — see scripts/lint-config.sh's _lint_field_values.
-_URULE_VALID_TYPES=$(yq '.["$defs"].ruleType.enum | join(" ")' "$BUMFUZZLE_ROOT/schema.yml")
+# rule-runner — walk the rules: tree from .bumfuzzle/config.yml and run each check
 
 _urule_pass() {
   _PASS_COUNT=$((_PASS_COUNT + 1))
@@ -176,7 +169,7 @@ _urule_process_rule() {
       # (see schema.yml's ruleType enum) — kept so a future third type added to
       # the enum without a matching arm here fails loudly instead of silently
       # no-op'ing past the _known check above.
-      fail "$_label: type '$_type' passed validation but has no handler in eval-rules.sh" error
+      fail "$_label: type '$_type' passed validation but has no handler in rule-runner.sh" error
       ;;
   esac
 }
@@ -217,18 +210,29 @@ user_rules_check() {
     return 0
   fi
 
+  # computed here, not at source time: this is the earliest point config_lint_check
+  # (which hard-stops via prerequisites.sh's yq-installed gate if yq is missing)
+  # is guaranteed to have already run, so this is safe to call unconditionally.
+  # ruleType is read from the shared schema (schema.yml, $defs.ruleType) — the
+  # single source of truth also read by the wizard (index.html) — instead of
+  # being hardcoded here too. severity/onMissing/argType are likewise
+  # schema-driven but validated by scripts/prerequisites/validate-schema.sh,
+  # not duplicated here — see scripts/prerequisites.sh's _run_schema_check.
+  _URULE_VALID_TYPES=$(yq '.["$defs"].ruleType.enum | join(" ")' "$BUMFUZZLE_ROOT/schema.yml")
+
   section '-- Rules ----------------------------------------------------------------'
   _urule_walk '.rules'
 }
 
-# config lint — delegates to scripts/lint-config.sh, the atomic script that
-# checks .bumfuzzle/config.yml's own structure (duplicate ids, dangling references,
-# per-type required fields, script_reusable arg mismatches, embedded bash
-# syntax, and schema conformance) before any rule runs. This function only
-# translates lint-config.sh's tiered stdout ([FAIL:structural]/[FAIL:error]/
-# [FAIL:warn]) into run.sh's pass/fail/warn reporting: structural findings
-# make rule evaluation unreliable, so they abort preflight after all of them
-# are printed; error/warn findings are reported but don't block evaluation.
+# config lint — delegates to scripts/prerequisites.sh, the orchestrator that
+# runs each atomic check under scripts/prerequisites/ (duplicate ids,
+# dangling references, per-type required fields, script_reusable arg
+# mismatches, embedded bash syntax, and schema conformance) before any rule
+# runs. This function only translates prerequisites.sh's tiered stdout
+# ([FAIL:structural]/[FAIL:error]/[FAIL:warn]) into run.sh's pass/fail/warn
+# reporting: structural findings make rule evaluation unreliable, so they
+# abort preflight after all of them are printed; error/warn findings are
+# reported but don't block evaluation.
 
 _LINT_STRUCTURAL=0
 
@@ -245,21 +249,21 @@ config_lint_check() {
   _LINT_STRUCTURAL=0
 
   if [[ "$VERBOSE" == true ]]; then
-    printf '[run.sh][DEBUG] - running scripts/lint-config.sh against %s\n' "$PREFLIGHT_FILE_DISPLAY"
+    printf '[run.sh][DEBUG] - running scripts/prerequisites.sh against %s\n' "$PREFLIGHT_FILE_DISPLAY"
   fi
   local _lint_args=("$PREFLIGHT_FILE")
   [[ "$VERBOSE" == true ]] && _lint_args=(--verbose "$PREFLIGHT_FILE")
 
-  # lint-config.sh's own stderr is never discarded here: its _log() already
+  # prerequisites.sh's own stderr is never discarded here: its _log() already
   # self-gates DEBUG on its own --verbose (passed through above), and its
   # INFO/ERROR lines must always reach the terminal regardless of ours
   local _out _rc=0
-  _out=$("$BUMFUZZLE_ROOT/scripts/lint-config.sh" "${_lint_args[@]}") || _rc=$?
+  _out=$("$BUMFUZZLE_ROOT/scripts/prerequisites.sh" "${_lint_args[@]}") || _rc=$?
   if [[ "$VERBOSE" == true ]]; then
-    printf '[run.sh][DEBUG] - lint-config.sh exited %s\n' "$_rc"
+    printf '[run.sh][DEBUG] - prerequisites.sh exited %s\n' "$_rc"
   fi
   if [[ "$_rc" -eq 2 ]]; then
-    fail "lint-config.sh: usage error — see stderr" hard-stop
+    fail "prerequisites.sh: usage error — see stderr" hard-stop
     return
   fi
 
@@ -272,7 +276,7 @@ config_lint_check() {
       '') ;;
       *)
         if [[ "$VERBOSE" == true ]]; then
-          printf '[run.sh][DEBUG] - lint-config.sh: %s\n' "$_line"
+          printf '[run.sh][DEBUG] - prerequisites.sh: %s\n' "$_line"
         fi
         ;;
     esac
