@@ -131,11 +131,12 @@ properties:
   enumEntry:
     type: object
     additionalProperties: false
-    required: [id, name, description, values]
+    required: [id, name, description, type, values]
     properties:
       id: { type: string, description: "kebab-case, referenced from args via enum_ref" }
       name: { type: string }
       description: { type: string }
+      type: { "$ref": "#/$defs/argType", description: "the literal kind of value this enum holds; lets the wizard offer it as a pick-source for any arg whose own type matches, independent of enum_ref" }
       values:
         type: array
         items: { "$ref": "#/$defs/enumValue" }
@@ -182,6 +183,7 @@ properties:
       enabled: { type: boolean }
       requires: { type: string, description: "binary that must be installed for this rule to run" }
       on_missing: { "$ref": "#/$defs/onMissing" }
+      mutative: { type: boolean, description: "true if command edits/writes files instead of only checking them; omitted means false, same as every other optional boolean flag on this node" }
 
   ruleEntryReusable:
     type: object
@@ -200,6 +202,7 @@ properties:
       enabled: { type: boolean }
       requires: { type: string }
       on_missing: { "$ref": "#/$defs/onMissing" }
+      mutative: { type: boolean, description: "true if the referenced script edits/writes files instead of only checking them; omitted means false, same as every other optional boolean flag on this node" }
 
   ruleType:
     type: string

@@ -19,8 +19,10 @@ rules:
           grep -q '"bf"' package.json
       - type: script_clean
         name: "bf symlink declared in Homebrew formula"
+        description: "Checked only when the sibling ../homebrew-tools checkout is present alongside this repo; a no-op pass otherwise (e.g. in CI's single-repo checkout)"
         enabled: true
         command: |
+          [ -f ../homebrew-tools/Formula/bumfuzzle.rb ] || exit 0
           grep -q 'install_symlink.*=> "bf"' ../homebrew-tools/Formula/bumfuzzle.rb
   - group: "General"
     rules:

@@ -37,8 +37,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', 0))
         body   = self.rfile.read(length)
         if self.path == '/save':
-            with open(YAML_PATH, 'wb') as f:
+            tmp_path = YAML_PATH + '.tmp'
+            with open(tmp_path, 'wb') as f:
                 f.write(body)
+            errs = []
+            for check in ('script-args.sh', 'script-arg-types.sh'):
+                proc = subprocess.run(
+                    [os.path.join(PROJ_DIR, 'scripts', 'prerequisites', check), tmp_path],
+                    capture_output=True, text=True,
+                )
+                errs += [l for l in proc.stdout.splitlines() if l.startswith('[FAIL:')]
+            if errs:
+                os.remove(tmp_path)
+                msg = '\n'.join(e.split('] ', 1)[-1] for e in errs).encode()
+                self.send_response(400)
+                self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                self.send_header('Content-Length', str(len(msg)))
+                self.end_headers()
+                self.wfile.write(msg)
+                return
+            os.replace(tmp_path, YAML_PATH)
             try:
                 new_current = subprocess.check_output(['yq', '-o=json', '.', YAML_PATH], text=True)
                 old_cfg = json.loads(current_cfg[0].decode())

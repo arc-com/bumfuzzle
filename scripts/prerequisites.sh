@@ -13,9 +13,9 @@
 #      first, in order, and stop the whole run immediately on the first
 #      failure since nothing after them can produce a meaningful result.
 #   2. Checks (duplicate-ids, reference-integrity, rule-fields, script-args,
-#      script-commands, validate-schema): each runs regardless of whether
-#      an earlier one found something, so a single run surfaces every
-#      finding at once.
+#      script-arg-types, script-commands, no-redundant-enabled-false,
+#      validate-schema): each runs regardless of whether an earlier one
+#      found something, so a single run surfaces every finding at once.
 #
 # Findings are tiered, one line per finding on stdout:
 #   [FAIL:structural] msg — makes rule evaluation unreliable
@@ -171,7 +171,9 @@ _run_check duplicate-ids.sh
 _run_check reference-integrity.sh
 _run_check rule-fields.sh
 _run_check script-args.sh
+_run_check script-arg-types.sh
 _run_check script-commands.sh
+_run_check no-redundant-enabled-false.sh
 _run_schema_check
 
 if [[ "$_FINDINGS_STRUCTURAL" -gt 0 || "$_FINDINGS_ERROR" -gt 0 ]]; then

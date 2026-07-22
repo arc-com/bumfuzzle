@@ -33,7 +33,7 @@ scripts:
             description: "Glob-capable path. Provide a YAML list to check multiple files/directories in one rule."
       - id: file-syntax-valid
         name: "File syntax valid"
-        description: "Checks that all files matching INCLUDE_FILES_GLOB (and not matching EXCLUDE_FILES_GLOB; both accept YAML lists) under SEARCH_ROOT parse/compile cleanly as the selected FILE_TYPE (YAML via yq, JSON via jq, Bash via bash -n). Searches up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. Every matched file must pass; no matches is a pass unless FAIL_ON_NO_FILES_MATCHED."
+        description: "Checks that all files matching INCLUDE_FILES_GLOB (and not matching EXCLUDE_FILES_GLOB; both accept YAML lists) under SEARCH_ROOT parse/compile cleanly as the selected FILE_TYPE (YAML via yq, JSON via jq, Bash via bash -n). Searches up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. Every matched file must pass; no matches is a pass unless FAIL_ON_FILE_NOT_FOUND."
         command: |
           [[ "${SEARCH_ROOT:-}" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
           case "$FILE_TYPE" in
@@ -68,7 +68,7 @@ scripts:
             esac
           done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
           set +f
-          if [[ "$_any" == "false" && "${FAIL_ON_NO_FILES_MATCHED:-true}" == "true" ]]; then
+          if [[ "$_any" == "false" && "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
             printf 'missing: no files matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
             _failed=true
           fi
@@ -105,15 +105,14 @@ scripts:
             list: true
             placeholder: '*.generated.yml'
             description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
-          - key: FAIL_ON_NO_FILES_MATCHED
+          - key: FAIL_ON_FILE_NOT_FOUND
             label: Fail when no files matched
             type: bool
-            required: false
-            default: true
+            required: true
             description: true = zero files matched is a failure; false = zero files matched is a pass
       - id: file-naming-scan-check
         name: "File name(s) (via pattern scan) matches pattern"
-        description: "Checks that all file basenames matching INCLUDE (and not matching EXCLUDE; both accept YAML lists) comply with the selected NAMING_CONVENTION. The final extension is stripped before matching, so PascalCase matches Header.tsx. Searches under SEARCH_ROOT up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. FAIL_ON_PATH_ABSENCE controls whether zero matches is a fail (default true) or a pass (false)."
+        description: "Checks that all file basenames matching INCLUDE (and not matching EXCLUDE; both accept YAML lists) comply with the selected NAMING_CONVENTION. The final extension is stripped before matching, so PascalCase matches Header.tsx. Searches under SEARCH_ROOT up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped. FAIL_ON_FILE_NOT_FOUND controls whether zero matches is a fail (default true) or a pass (false)."
         command: |
           [[ "${SEARCH_ROOT:-}" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
           _pattern="$NAMING_CONVENTION"
@@ -147,7 +146,7 @@ scripts:
             fi
           done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
           set +f
-          if [[ "$_any" == "false" && "${FAIL_ON_PATH_ABSENCE:-true}" == "true" ]]; then
+          if [[ "$_any" == "false" && "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
             printf 'missing: no files matched %s under %s\n' "${INCLUDE:-*}" "$_from"
             _failed=true
           fi
@@ -185,15 +184,14 @@ scripts:
             required: true
             type: enum
             enum_ref: file-naming-convention
-          - key: FAIL_ON_PATH_ABSENCE
+          - key: FAIL_ON_FILE_NOT_FOUND
             label: Fail when no matches found
             type: bool
-            required: false
-            default: true
+            required: true
             description: true = zero matches is a failure; false = zero matches is a pass
       - id: dir-naming-scan-check
         name: "Folder name(s) (via pattern scan) matches pattern"
-        description: "Checks that all directory basenames matching INCLUDE (and not matching EXCLUDE; both accept YAML lists of basename globs) under SEARCH_ROOT (up to SEARCH_DEPTH levels) comply with the selected NAMING_CONVENTION. Hidden directories and node_modules are always skipped. FAIL_ON_PATH_ABSENCE controls whether zero matches is a fail (default true) or a pass (false)."
+        description: "Checks that all directory basenames matching INCLUDE (and not matching EXCLUDE; both accept YAML lists of basename globs) under SEARCH_ROOT (up to SEARCH_DEPTH levels) comply with the selected NAMING_CONVENTION. Hidden directories and node_modules are always skipped. FAIL_ON_FILE_NOT_FOUND controls whether zero matches is a fail (default true) or a pass (false)."
         command: |
           _from="${SEARCH_ROOT:-.}"
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
@@ -225,7 +223,7 @@ scripts:
               _failed=true
             fi
           done < <(find "$_from" $_depth_arg -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o -type d -print 2>/dev/null)
-          if [[ "$_any" == "false" && "${FAIL_ON_PATH_ABSENCE:-true}" == "true" ]]; then
+          if [[ "$_any" == "false" && "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
             printf 'missing: no directories matched %s under %s\n' "${INCLUDE:-*}" "$_from"
             _failed=true
           fi
@@ -263,22 +261,21 @@ scripts:
             required: true
             type: enum
             enum_ref: file-naming-convention
-          - key: FAIL_ON_PATH_ABSENCE
+          - key: FAIL_ON_FILE_NOT_FOUND
             label: Fail when no matches found
             type: bool
-            required: false
-            default: true
+            required: true
             description: true = zero matches is a failure; false = zero matches is a pass
       - id: file-naming-path-check
         name: "File name(s) (via declared path) matches pattern"
-        description: "Checks that each file in PATH_LIST (a YAML list of paths) has a basename complying with NAMING_CONVENTION. The final extension is stripped before matching, so PascalCase matches Header.tsx. FAIL_ON_PATH_ABSENCE controls whether a declared path that doesn't exist (or isn't a file) is a fail (default true) or a skip (false)."
+        description: "Checks that each file in PATH_LIST (a YAML list of paths) has a basename complying with NAMING_CONVENTION. The final extension is stripped before matching, so PascalCase matches Header.tsx. FAIL_ON_FILE_NOT_FOUND controls whether a declared path that doesn't exist (or isn't a file) is a fail (default true) or a skip (false)."
         command: |
           _failed=false
           while IFS= read -r _p; do
             [[ -z "$_p" ]] && continue
             [[ "$_p" =~ \.\. ]] && { printf '%s must not contain ..\n' "$_p"; _failed=true; continue; }
             if [[ ! -f "$_p" ]]; then
-              if [[ "${FAIL_ON_PATH_ABSENCE:-true}" == "true" ]]; then
+              if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
                 printf 'missing: %s is not a file\n' "$_p"
                 _failed=true
               fi
@@ -306,22 +303,21 @@ scripts:
             required: true
             type: enum
             enum_ref: file-naming-convention
-          - key: FAIL_ON_PATH_ABSENCE
+          - key: FAIL_ON_FILE_NOT_FOUND
             label: Fail when path is missing
             type: bool
-            required: false
-            default: true
+            required: true
             description: true = a declared path that isn't an existing file is a failure; false = it's silently skipped
       - id: dir-naming-path-check
         name: "Folder name(s) (via declared path) matches pattern"
-        description: "Checks that each directory in PATH_LIST (a YAML list of paths) has a basename complying with NAMING_CONVENTION. FAIL_ON_PATH_ABSENCE controls whether a declared path that doesn't exist (or isn't a directory) is a fail (default true) or a skip (false)."
+        description: "Checks that each directory in PATH_LIST (a YAML list of paths) has a basename complying with NAMING_CONVENTION. FAIL_ON_FILE_NOT_FOUND controls whether a declared path that doesn't exist (or isn't a directory) is a fail (default true) or a skip (false)."
         command: |
           _failed=false
           while IFS= read -r _p; do
             [[ -z "$_p" ]] && continue
             [[ "$_p" =~ \.\. ]] && { printf '%s must not contain ..\n' "$_p"; _failed=true; continue; }
             if [[ ! -d "$_p" ]]; then
-              if [[ "${FAIL_ON_PATH_ABSENCE:-true}" == "true" ]]; then
+              if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
                 printf 'missing: %s is not a directory\n' "$_p"
                 _failed=true
               fi
@@ -347,11 +343,10 @@ scripts:
             required: true
             type: enum
             enum_ref: file-naming-convention
-          - key: FAIL_ON_PATH_ABSENCE
+          - key: FAIL_ON_FILE_NOT_FOUND
             label: Fail when path is missing
             type: bool
-            required: false
-            default: true
+            required: true
             description: true = a declared path that isn't an existing directory is a failure; false = it's silently skipped
       - id: no-large-files
         name: "No large files"
@@ -396,9 +391,11 @@ scripts:
         command: |
           _from="${SEARCH_ROOT:-.}"
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          _any=false
           _failed=false
           while IFS= read -r _l; do
             [[ -z "$_l" ]] && continue
+            _any=true
             _t=$(readlink "$_l")
             if [[ ! -e "$_l" ]]; then
               printf 'broken symlink %s -> %s\n' "$_l" "$_t"
@@ -408,6 +405,14 @@ scripts:
               _failed=true
             fi
           done < <(find "$_from" -name .git -prune -o -type l -print 2>/dev/null)
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no symlinks found under %s\n' "$_from"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           [[ "$_failed" == "false" ]]
         args:
           - key: SEARCH_ROOT
@@ -416,16 +421,97 @@ scripts:
             required: false
             placeholder: "."
             description: "Directory to search from. Defaults to . (project root)."
-      - id: yaml-no-empty-values
-        name: "YAML no empty values"
-        description: "Checks that no key in files matching FILE_PATH (glob-capable) resolves to an empty string or null. Every matched file must pass; no matches is a pass."
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no symlinks found
+            type: bool
+            required: true
+            description: true = no symlink found under SEARCH_ROOT is a failure; false = it's a pass
+      - id: file-or-dir-size-compare
+        name: "File or directory size"
+        description: "Checks that all files/directories matching FILE_PATH (glob-capable) satisfy SIZE_AMOUNT SIZE_UNIT compared via COMPARISON_OPERATOR (e.g. AMOUNT=5, UNIT=MiB, OPERATOR=le means every match must be <= 5 MiB). Directories are measured as their recursive total size. Every match must comply. FAIL_ON_FILE_NOT_FOUND controls whether zero matches is a fail (default true) or a pass (false)."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          case "$COMPARISON_OPERATOR" in lt|le|eq|ge|gt) ;; *) printf 'Unrecognized COMPARISON_OPERATOR %s\n' "$COMPARISON_OPERATOR"; exit 1 ;; esac
+          _threshold=$((10#$SIZE_AMOUNT * SIZE_UNIT))
+          _failed=false
+          _any=false
+          while IFS= read -r _f; do
+            [[ -z "$_f" ]] && continue
+            _any=true
+            if [[ -d "$_f" ]]; then
+              _size=$(( $(du -sk "$_f" 2>/dev/null | awk '{print $1}') * 1024 ))
+            else
+              _size=$(stat -f%z "$_f" 2>/dev/null || stat -c%s "$_f" 2>/dev/null)
+            fi
+            _ok=false
+            case "$COMPARISON_OPERATOR" in
+              lt) [[ "$_size" -lt "$_threshold" ]] && _ok=true ;;
+              le) [[ "$_size" -le "$_threshold" ]] && _ok=true ;;
+              eq) [[ "$_size" -eq "$_threshold" ]] && _ok=true ;;
+              ge) [[ "$_size" -ge "$_threshold" ]] && _ok=true ;;
+              gt) [[ "$_size" -gt "$_threshold" ]] && _ok=true ;;
+            esac
+            if [[ "$_ok" == "false" ]]; then
+              printf '%s size %s does not satisfy %s %s\n' "$_f" "$_size" "$COMPARISON_OPERATOR" "$_threshold"
+              _failed=true
+            fi
+          done < <(
+            if [[ "$FILE_PATH" == *"**/"* ]]; then
+              _root="${FILE_PATH%%\*\*/*}"
+              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" 2>/dev/null
+            elif [[ "$FILE_PATH" == */* ]]; then
+              find "." -path "./$FILE_PATH" 2>/dev/null
+            else
+              find "." -name "$FILE_PATH" 2>/dev/null
+            fi
+          )
+          if [[ "$_any" == "false" && "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+            printf 'missing: no files matched %s\n' "$FILE_PATH"
+            _failed=true
+          fi
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: FILE_PATH
+            label: File or directory path or glob
+            required: true
+            type: path
+            placeholder: '**/*.log'
+          - key: COMPARISON_OPERATOR
+            label: "Operator"
+            type: enum
+            required: true
+            enum_ref: comparison-operator
+          - key: SIZE_AMOUNT
+            label: "Amount"
+            type: int
+            required: true
+            placeholder: "5"
+          - key: SIZE_UNIT
+            label: "Unit"
+            type: enum
+            required: true
+            enum_ref: size-unit
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no paths matched
+            type: bool
+            required: true
+            description: true = zero matches is a failure; false = zero matches is a pass
+  - group: "Key-value file actions"
+    scripts:
+      - id: yaml-no-empty-values
+        name: "YAML no empty values"
+        description: "Checks that no key in files matching FILE_PATH (glob-capable) resolves to an empty string or null. Every matched file must pass; FAIL_ON_FILE_NOT_FOUND controls whether no matches is a failure or a pass."
+        command: |
+          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
+          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
+          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          _any=false
           _failed=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             while IFS= read -r _p; do
               [[ -z "$_p" ]] && continue
               printf '%s has empty value at %s\n' "$_f" "$_p"
@@ -441,6 +527,14 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           [[ "$_failed" == "false" ]]
         args:
           - key: FILE_PATH
@@ -448,6 +542,11 @@ scripts:
             required: true
             type: path
             placeholder: config.yml
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches FILE_PATH
+            type: bool
+            required: true
+            description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
       - id: yaml-no-duplicate-keys
         name: "YAML no duplicate keys"
         description: "Checks that no mapping in files matching FILE_PATH (glob-capable) declares the same key twice — YAML parsers silently keep only one. Indentation-based heuristic: block scalars and list items are handled; flow style and quoted keys are not inspected."
@@ -455,9 +554,11 @@ scripts:
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          _any=false
           _failed=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             _dups=$(awk '
               /^[ \t]*#/ { next }
               /^[ \t]*$/ { next }
@@ -504,6 +605,14 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           [[ "$_failed" == "false" ]]
         args:
           - key: FILE_PATH
@@ -511,79 +620,11 @@ scripts:
             required: true
             type: path
             placeholder: config.yml
-      - id: file-or-dir-size-compare
-        name: "File or directory size"
-        description: "Checks that all files/directories matching FILE_PATH (glob-capable) satisfy SIZE_AMOUNT SIZE_UNIT compared via COMPARISON_OPERATOR (e.g. AMOUNT=5, UNIT=MiB, OPERATOR=le means every match must be <= 5 MiB). Directories are measured as their recursive total size. Every match must comply. FAIL_ON_NO_PATHS_MATCHED controls whether zero matches is a fail (default true) or a pass (false)."
-        command: |
-          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
-          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
-          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
-          case "$COMPARISON_OPERATOR" in lt|le|eq|ge|gt) ;; *) printf 'Unrecognized COMPARISON_OPERATOR %s\n' "$COMPARISON_OPERATOR"; exit 1 ;; esac
-          _threshold=$((10#$SIZE_AMOUNT * SIZE_UNIT))
-          _failed=false
-          _any=false
-          while IFS= read -r _f; do
-            [[ -z "$_f" ]] && continue
-            _any=true
-            if [[ -d "$_f" ]]; then
-              _size=$(( $(du -sk "$_f" 2>/dev/null | awk '{print $1}') * 1024 ))
-            else
-              _size=$(stat -f%z "$_f" 2>/dev/null || stat -c%s "$_f" 2>/dev/null)
-            fi
-            _ok=false
-            case "$COMPARISON_OPERATOR" in
-              lt) [[ "$_size" -lt "$_threshold" ]] && _ok=true ;;
-              le) [[ "$_size" -le "$_threshold" ]] && _ok=true ;;
-              eq) [[ "$_size" -eq "$_threshold" ]] && _ok=true ;;
-              ge) [[ "$_size" -ge "$_threshold" ]] && _ok=true ;;
-              gt) [[ "$_size" -gt "$_threshold" ]] && _ok=true ;;
-            esac
-            if [[ "$_ok" == "false" ]]; then
-              printf '%s size %s does not satisfy %s %s\n' "$_f" "$_size" "$COMPARISON_OPERATOR" "$_threshold"
-              _failed=true
-            fi
-          done < <(
-            if [[ "$FILE_PATH" == *"**/"* ]]; then
-              _root="${FILE_PATH%%\*\*/*}"
-              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" 2>/dev/null
-            elif [[ "$FILE_PATH" == */* ]]; then
-              find "." -path "./$FILE_PATH" 2>/dev/null
-            else
-              find "." -name "$FILE_PATH" 2>/dev/null
-            fi
-          )
-          if [[ "$_any" == "false" && "${FAIL_ON_NO_PATHS_MATCHED:-true}" == "true" ]]; then
-            printf 'missing: no files matched %s\n' "$FILE_PATH"
-            _failed=true
-          fi
-          [[ "$_failed" == "false" ]]
-        args:
-          - key: FILE_PATH
-            label: File or directory path or glob
-            required: true
-            type: path
-            placeholder: '**/*.log'
-          - key: COMPARISON_OPERATOR
-            label: "Operator"
-            type: enum
-            required: true
-            enum_ref: comparison-operator
-          - key: SIZE_AMOUNT
-            label: "Amount"
-            type: int
-            required: true
-            placeholder: "5"
-          - key: SIZE_UNIT
-            label: "Unit"
-            type: enum
-            required: true
-            enum_ref: size-unit
-          - key: FAIL_ON_NO_PATHS_MATCHED
-            label: Fail when no paths matched
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches FILE_PATH
             type: bool
-            required: false
-            default: true
-            description: true = zero matches is a failure; false = zero matches is a pass
+            required: true
+            description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
       - id: json-path-value
         name: "JSON path value"
         description: "Checks that a dot-separated key path in a JSON file resolves to EXPECTED_VALUE (JSON-encoded, e.g. \"foo\", 42, true, null). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set FAIL_ON_JSON_VALUE_MISMATCH: false to invert."
@@ -593,9 +634,11 @@ scripts:
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
           [[ "$JSON_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'JSON_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
           jq empty <<<"$EXPECTED_VALUE" > /dev/null 2>&1 || { printf 'EXPECTED_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          _any=false
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             jq -e --argjson v "$EXPECTED_VALUE" ".${JSON_PATH} == \$v" "$_f" > /dev/null 2>&1 && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
@@ -607,6 +650,14 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           if [[ "${FAIL_ON_JSON_VALUE_MISMATCH:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
@@ -630,6 +681,11 @@ scripts:
             required: false
             default: true
             description: true = fail when the value does not equal EXPECTED_VALUE; false = fail when it does (forbidden)
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches FILE_PATH
+            type: bool
+            required: true
+            description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
       - id: yaml-path-value
         name: "YAML path value"
         description: "Checks that a dot-separated key path in a YAML file resolves to EXPECTED_VALUE (JSON-encoded, e.g. \"foo\", 42, true, null). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set FAIL_ON_YAML_VALUE_MISMATCH: false to invert."
@@ -639,9 +695,11 @@ scripts:
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
           [[ "$YAML_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'YAML_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
           jq empty <<<"$EXPECTED_VALUE" > /dev/null 2>&1 || { printf 'EXPECTED_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          _any=false
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             yq -o=json "$_f" 2>/dev/null | jq -e --argjson v "$EXPECTED_VALUE" ".${YAML_PATH} == \$v" > /dev/null 2>&1 && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
@@ -653,6 +711,14 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           if [[ "${FAIL_ON_YAML_VALUE_MISMATCH:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
@@ -676,6 +742,11 @@ scripts:
             required: false
             default: true
             description: true = fail when the value does not equal EXPECTED_VALUE; false = fail when it does (forbidden)
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches FILE_PATH
+            type: bool
+            required: true
+            description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
       - id: json-array-contains
         name: "JSON array contains"
         description: "Checks that the array at a dot-separated key path in a JSON file contains EXPECTED_VALUE (JSON-encoded, e.g. \"foo\", 42). Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set FAIL_ON_MISSING_ARRAY_VALUE: false to invert."
@@ -685,9 +756,11 @@ scripts:
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
           [[ "$JSON_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'JSON_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
           jq empty <<<"$EXPECTED_VALUE" > /dev/null 2>&1 || { printf 'EXPECTED_VALUE is not valid JSON (strings need quotes, e.g. "foo")\n'; exit 1; }
+          _any=false
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             jq -e --argjson v "$EXPECTED_VALUE" ".${JSON_PATH} // [] | index(\$v) != null" "$_f" > /dev/null 2>&1 && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
@@ -699,6 +772,14 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           if [[ "${FAIL_ON_MISSING_ARRAY_VALUE:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
@@ -722,6 +803,11 @@ scripts:
             required: false
             default: true
             description: true = fail when the array does not contain EXPECTED_VALUE; false = fail when it does (forbidden)
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches FILE_PATH
+            type: bool
+            required: true
+            description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
       - id: json-path-exists
         name: "JSON path exists"
         description: "Checks that a dot-separated key path resolves to a non-null value in a JSON file. FAIL_ON_KEY_ABSENCE: true passes if at least one file matching FILE_PATH (glob-capable) has it; false requires it in none."
@@ -730,9 +816,11 @@ scripts:
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
           [[ "$JSON_PATH" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]] || { printf 'JSON_PATH contains invalid characters (each segment must start with a letter or underscore)\n'; exit 1; }
+          _any=false
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             jq -e ".${JSON_PATH} != null" "$_f" > /dev/null 2>&1 && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
@@ -744,6 +832,14 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
+          if [[ "$_any" == "false" ]]; then
+            if [[ "$FAIL_ON_FILE_NOT_FOUND" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           if [[ "$FAIL_ON_KEY_ABSENCE" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
@@ -761,57 +857,25 @@ scripts:
             type: bool
             required: true
             description: true = fail when the key is absent from every matching file (must exist somewhere); false = fail when it's present in any matching file (must be absent everywhere)
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches FILE_PATH
+            type: bool
+            required: true
+            description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
   - group: "File Content Checks"
     scripts:
-      - id: file-line-contains
-        name: "File line contains"
-        description: "Checks that a regex pattern matches (or does not match) a substring of at least one line in a file. Defaults to match; set FAIL_ON_PATTERN_NOT_FOUND: false to invert."
-        command: |
-          [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
-          [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
-          [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
-          _found=false
-          while IFS= read -r _f; do
-            [[ -z "$_f" ]] && continue
-            grep -qE "$REGEX_PATTERN" "$_f" 2>/dev/null && _found=true && break
-          done < <(
-            if [[ "$FILE_PATH" == *"**/"* ]]; then
-              _root="${FILE_PATH%%\*\*/*}"
-              find "${_root:-.}" -name "${FILE_PATH#*\*\*/}" -type f 2>/dev/null
-            elif [[ "$FILE_PATH" == */* ]]; then
-              find "." -path "./$FILE_PATH" -type f 2>/dev/null
-            else
-              find "." -name "$FILE_PATH" -type f 2>/dev/null
-            fi
-          )
-          if [[ "${FAIL_ON_PATTERN_NOT_FOUND:-true}" == "true" ]]; then $_found; else ! $_found; fi
-        args:
-          - key: FILE_PATH
-            label: File path or glob
-            required: true
-            type: path
-            placeholder: .gitignore
-          - key: REGEX_PATTERN
-            label: Pattern (regex)
-            required: true
-            type: regex
-            placeholder: \.DS_Store
-          - key: FAIL_ON_PATTERN_NOT_FOUND
-            label: Fail when pattern not found
-            type: bool
-            required: false
-            default: true
-            description: true = fail when the pattern is found in no line; false = fail when it's found in some line (forbidden)
       - id: file-line-match
-        name: "File line match"
-        description: "Checks that a regex pattern matches (or does not match) an entire line in a file. Defaults to match; set FAIL_ON_LINE_NOT_MATCHED: false to invert."
+        name: "File line matches"
+        description: "Checks that a regex pattern matches an entire line in a file."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          _any=false
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             grep -qxE "$REGEX_PATTERN" "$_f" 2>/dev/null && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
@@ -823,7 +887,15 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${FAIL_ON_LINE_NOT_MATCHED:-true}" == "true" ]]; then $_found; else ! $_found; fi
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
+          $_found
         args:
           - key: FILE_PATH
             label: File path or glob
@@ -835,22 +907,23 @@ scripts:
             required: true
             type: regex
             placeholder: \.DS_Store
-          - key: FAIL_ON_LINE_NOT_MATCHED
-            label: Fail when no line matches
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches FILE_PATH
             type: bool
-            required: false
-            default: true
-            description: true = fail when no entire line matches the pattern; false = fail when one does (forbidden)
-      - id: file-word-match
-        name: "File word match"
-        description: "Checks that a regex pattern matches (or does not match) a whole word in a file. Defaults to match; set FAIL_ON_WORD_NOT_FOUND: false to invert."
+            required: true
+            description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
+      - id: file-contains-word
+        name: "File contains word"
+        description: "Checks that a regex pattern matches a whole word in at least one file matching FILE_PATH (glob-capable). FAIL_ON_FILE_NOT_FOUND controls whether zero matching files is a failure (default true) or a pass (false)."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          _any=false
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             grep -qwE "$REGEX_PATTERN" "$_f" 2>/dev/null && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
@@ -862,7 +935,15 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
-          if [[ "${FAIL_ON_WORD_NOT_FOUND:-true}" == "true" ]]; then $_found; else ! $_found; fi
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
+          $_found
         args:
           - key: FILE_PATH
             label: File path or glob
@@ -874,22 +955,23 @@ scripts:
             required: true
             type: regex
             placeholder: TODO
-          - key: FAIL_ON_WORD_NOT_FOUND
-            label: Fail when word not found
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matched
             type: bool
-            required: false
-            default: true
-            description: true = fail when the pattern matches no whole word; false = fail when it does (forbidden)
+            required: true
+            description: true = zero matching files is a failure; false = zero matching files is a pass
       - id: file-content-match
-        name: "File content match"
+        name: "File content matches"
         description: "Checks that a regex pattern matches (or does not match) anywhere across a file's whole content, not line-by-line. Passes if at least one file matching FILE_PATH (glob-capable) satisfies it; set FAIL_ON_CONTENT_NOT_MATCHED: false to invert."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./*?-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
+          _any=false
           _found=false
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             REGEX_PATTERN="$REGEX_PATTERN" perl -0777 -ne 'exit(/$ENV{REGEX_PATTERN}/ ? 0 : 1)' "$_f" 2>/dev/null && _found=true && break
           done < <(
             if [[ "$FILE_PATH" == *"**/"* ]]; then
@@ -901,6 +983,14 @@ scripts:
               find "." -name "$FILE_PATH" -type f 2>/dev/null
             fi
           )
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           if [[ "${FAIL_ON_CONTENT_NOT_MATCHED:-true}" == "true" ]]; then $_found; else ! $_found; fi
         args:
           - key: FILE_PATH
@@ -919,6 +1009,11 @@ scripts:
             required: false
             default: true
             description: true = fail when the pattern matches no file's content; false = fail when it does (forbidden)
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches FILE_PATH
+            type: bool
+            required: true
+            description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
       - id: files-content-scan
         name: "Files content scan"
         description: "Greps every file matching INCLUDE_FILES_GLOB (basename globs; accepts a YAML list) under SEARCH_ROOT for one or more ERE REGEX_PATTERN (accepts a YAML list). FAIL_ON_NO_MATCHING_FILE: true passes when any pattern matches anywhere; false fails listing every offending file per pattern. .git, node_modules, .claude and .bumfuzzle are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more."
@@ -927,15 +1022,28 @@ scripts:
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
           set -f
           _inc_args=""
+          _find_inc_args=""
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
             _inc_args="$_inc_args --include=$_g"
+            _find_inc_args="${_find_inc_args:+$_find_inc_args -o }-name $_g"
           done <<< "${INCLUDE_FILES_GLOB:-*}"
           _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=.bumfuzzle"
+          _find_ex_args=""
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
             _ex_args="$_ex_args --exclude=$_g"
+            _find_ex_args="$_find_ex_args -not -name $_g"
           done <<< "${EXCLUDE_FILES_GLOB:-}"
+          _any=$(find "$_from" \( -name .git -o -name node_modules -o -name .claude -o -name .bumfuzzle \) -prune -o \( $_find_inc_args \) $_find_ex_args -type f -print 2>/dev/null | head -1)
+          if [[ -z "$_any" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s under %s\n' "${INCLUDE_FILES_GLOB:-*}" "$_from"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           _found=false
           _failed=false
           while IFS= read -r _pat; do
@@ -991,14 +1099,49 @@ scripts:
             required: false
             default: true
             description: true = fail when no file matches any required pattern; false = fail listing every offending file that matches a forbidden pattern
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches INCLUDE_FILES_GLOB
+            type: bool
+            required: true
+            description: true = no file matching INCLUDE_FILES_GLOB under SEARCH_ROOT is a failure; false = it's a pass
+      - id: git-diff-content-scan
+        name: "Git diff content scan"
+        description: "Greps every file in the staged git diff (added, copied, modified or renamed, deletions skipped) for one or more ERE REGEX_PATTERN (accepts a YAML list). Fails listing every offending file and line. No staged changes is a pass, since there is nothing to check."
+        command: |
+          _files=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)
+          [ -z "$_files" ] && exit 0
+          _failed=false
+          while IFS= read -r _f; do
+            [[ -z "$_f" || ! -f "$_f" ]] && continue
+            while IFS= read -r _pat; do
+              [[ -z "$_pat" ]] && continue
+              grep -nHE "$_pat" "$_f" 2>/dev/null && _failed=true
+            done <<< "$REGEX_PATTERN"
+          done <<< "$_files"
+          [[ "$_failed" == "false" ]]
+        args:
+          - key: REGEX_PATTERN
+            label: Patterns (regex)
+            required: true
+            type: regex
+            list: true
+            placeholder: '<<<<<<<'
+            description: ERE patterns grepped against each staged file's content. Provide a YAML list for multiple; entries may contain spaces.
       - id: config-keys-used
         name: "Config keys used"
-        description: "Checks that every top-level key in a YAML config file is referenced somewhere in the codebase (word-boundary fixed-string grep). The config file itself, .bumfuzzle, lockfiles, .git, node_modules and .claude are skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more. The 'extends' key is ignored. Missing config file is a pass — pair with a file existence rule."
+        description: "Checks that every top-level key in a YAML config file is referenced somewhere in the codebase (word-boundary fixed-string grep). The config file itself, .bumfuzzle, lockfiles, .git, node_modules and .claude are skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more. The 'extends' key is ignored. FAIL_ON_FILE_NOT_FOUND controls whether a missing config file is a failure or a pass."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
           [[ "$FILE_PATH" =~ ^[a-zA-Z0-9_./-]+$ ]] || { printf 'FILE_PATH contains invalid characters\n'; exit 1; }
-          [ -f "$FILE_PATH" ] || exit 0
+          if [ ! -f "$FILE_PATH" ]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: %s not found\n' "$FILE_PATH"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           _self=$(basename "$FILE_PATH")
           set -f
           _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=.bumfuzzle --exclude=$_self --exclude=*.lock"
@@ -1026,6 +1169,51 @@ scripts:
             list: true
             placeholder: '*Test.java'
             description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when config file not found
+            type: bool
+            required: true
+            description: true = a missing FILE_PATH is a failure; false = it's a pass
+      - id: run-tool-over-matched-files
+        name: "Run tool over matched files"
+        description: "Finds files matching INCLUDE_FILES_GLOB under SEARCH_ROOT, skipping .git, node_modules, .claude and .bumfuzzle, and runs TOOL_COMMAND against the list. FAIL_ON_FILE_NOT_FOUND controls whether no matching files is a failure or a pass."
+        command: |
+          _from="${SEARCH_ROOT:-.}"
+          [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          _files=$(find "$_from" \( -name .git -o -name node_modules -o -name .claude -o -name .bumfuzzle \) -prune -o -name "$INCLUDE_FILES_GLOB" -type f -print 2>/dev/null)
+          if [ -z "$_files" ]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s under %s\n' "$INCLUDE_FILES_GLOB" "$_from"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
+          $TOOL_COMMAND $_files
+        args:
+          - key: SEARCH_ROOT
+            label: "Search root"
+            type: path
+            required: false
+            placeholder: "."
+            description: "Directory to search from. Defaults to . (project root)."
+          - key: INCLUDE_FILES_GLOB
+            label: "Include files glob"
+            required: true
+            type: glob
+            placeholder: '*.md'
+            description: "Glob pattern matched against file basenames to include."
+          - key: TOOL_COMMAND
+            label: "Tool command"
+            required: true
+            type: string
+            placeholder: "proselint"
+            description: "The command to run against the matched file list, e.g. proselint or sqlfluff lint --dialect ansi"
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches INCLUDE_FILES_GLOB
+            type: bool
+            required: true
+            description: true = no file matching INCLUDE_FILES_GLOB under SEARCH_ROOT is a failure; false = it's a pass
       - id: file-location-restriction
         name: "File location restriction"
         description: "Checks that every file whose basename matches INCLUDE_FILES_GLOB (accepts a YAML list, minus EXCLUDE_FILES_GLOB) lives under FILE_LOCATION_ALLOWED_DIR — a match found anywhere else fails. Searches under SEARCH_ROOT up to SEARCH_DEPTH levels deep; .git, node_modules, .venv and .claude are always skipped."
@@ -1050,10 +1238,12 @@ scripts:
             [[ -z "$_g" ]] && continue
             _ex_args="$_ex_args -not -name $_g"
           done <<< "${EXCLUDE_FILES_GLOB:-}"
+          _any=false
           _failed=false
           set -f
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
+            _any=true
             _rel="${_f#./}"
             case "$_rel" in
               "$_allowed"/*) ;;
@@ -1061,6 +1251,14 @@ scripts:
             esac
           done < <(find "$_from" $_depth_arg \( -name .git -o -name node_modules -o -name .venv -o -name .claude \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
           set +f
+          if [[ "$_any" == "false" ]]; then
+            if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
+              printf 'missing: no file matched %s under %s\n' "${INCLUDE_FILES_GLOB:-}" "$_from"
+              exit 1
+            else
+              exit 0
+            fi
+          fi
           [[ "$_failed" == "false" ]]
         args:
           - key: SEARCH_ROOT
@@ -1095,6 +1293,11 @@ scripts:
             required: true
             placeholder: "scripts"
             description: "Directory, relative to the project root, that every matching file must live under. A match found anywhere else fails."
+          - key: FAIL_ON_FILE_NOT_FOUND
+            label: Fail when no file matches INCLUDE_FILES_GLOB
+            type: bool
+            required: true
+            description: true = no file matching INCLUDE_FILES_GLOB under SEARCH_ROOT is a failure; false = it's a pass
   - group: "Claude Settings"
     scripts:
       - id: permission-mode
@@ -1294,18 +1497,92 @@ scripts:
             type: string
             placeholder: lint
             description: "Name of the script in package.json's scripts block to run"
+      - id: lockfile-in-sync
+        name: "Lockfile matches package.json"
+        description: "Confirms the selected package manager's lockfile is in sync with package.json, without installing into or writing to the project's working tree."
+        command: |
+          case "$PACKAGE_MANAGER" in
+            npm|pnpm|yarn) ;;
+            *) printf 'Unsupported PACKAGE_MANAGER: %s\n' "$PACKAGE_MANAGER"; exit 1 ;;
+          esac
+          case "$PACKAGE_MANAGER" in
+            npm) _lockfile=package-lock.json ;;
+            pnpm) _lockfile=pnpm-lock.yaml ;;
+            yarn) _lockfile=yarn.lock ;;
+          esac
+          [ -f package.json ] || { printf 'package.json not found\n'; exit 1; }
+          _tmp=$(mktemp -d)
+          cp package.json "$_tmp"/
+          [ -f "$_lockfile" ] && cp "$_lockfile" "$_tmp"/
+          [ -f .npmrc ] && cp .npmrc "$_tmp"/
+          [ -f .yarnrc.yml ] && cp .yarnrc.yml "$_tmp"/
+          _ec=0
+          case "$PACKAGE_MANAGER" in
+            npm) (cd "$_tmp" && npm ci --ignore-scripts --no-audit --no-fund) > /dev/null 2>&1 || _ec=1 ;;
+            pnpm) (cd "$_tmp" && pnpm install --frozen-lockfile --lockfile-only --ignore-scripts) > /dev/null 2>&1 || _ec=1 ;;
+            yarn) (cd "$_tmp" && yarn install --frozen-lockfile --ignore-scripts) > /dev/null 2>&1 || _ec=1 ;;
+          esac
+          rm -rf "$_tmp"
+          [ "$_ec" -eq 0 ] || printf '%s is missing or out of sync with package.json\n' "$_lockfile"
+          exit $_ec
+        args:
+          - key: PACKAGE_MANAGER
+            label: Package manager
+            required: true
+            type: enum
+            enum_ref: package-manager
+      - id: package-manager-install-write
+        name: "Package manager install (writes to working tree)"
+        description: "Runs the selected package manager's install command directly in the project, allowed to write to node_modules and update the lockfile."
+        command: |
+          case "$PACKAGE_MANAGER" in
+            npm|pnpm|yarn) ;;
+            *) printf 'Unsupported PACKAGE_MANAGER: %s\n' "$PACKAGE_MANAGER"; exit 1 ;;
+          esac
+          [ -f package.json ] || { printf 'package.json not found\n'; exit 1; }
+          case "$PACKAGE_MANAGER" in
+            npm) npm install ;;
+            pnpm) pnpm install ;;
+            yarn) yarn install ;;
+          esac
+        args:
+          - key: PACKAGE_MANAGER
+            label: Package manager
+            required: true
+            type: enum
+            enum_ref: package-manager
+      - id: package-manager-audit
+        name: "Package manager dependency audit"
+        description: "Runs the selected package manager's audit command and requires no high or critical vulnerabilities."
+        command: |
+          case "$PACKAGE_MANAGER" in
+            npm|pnpm|yarn) ;;
+            *) printf 'Unsupported PACKAGE_MANAGER: %s\n' "$PACKAGE_MANAGER"; exit 1 ;;
+          esac
+          case "$PACKAGE_MANAGER" in
+            npm) npm audit --audit-level=high ;;
+            pnpm) pnpm audit --audit-level=high ;;
+            yarn) yarn audit --level high ;;
+          esac
+        args:
+          - key: PACKAGE_MANAGER
+            label: Package manager
+            required: true
+            type: enum
+            enum_ref: package-manager
 rules:
   - group: Bumfuzzle
     rules:
       - type: script_reusable
         name: "Run wired into pre-commit"
         description: "bumfuzzle run is called inside the pre-commit hook so checks run before every commit"
-        script: file-line-contains
+        script: file-line-match
         severity: hard-stop
         instruction: "Add a call to 'bumfuzzle run' in .githooks/pre-commit"
         args:
+          FAIL_ON_FILE_NOT_FOUND: true
           FILE_PATH: .githooks/pre-commit
-          REGEX_PATTERN: bumfuzzle run
+          REGEX_PATTERN: '.*bumfuzzle run.*'
 
   - group: General
     rules:
@@ -1318,11 +1595,40 @@ rules:
         args:
           FILE_PATH: README.md
       - type: script_clean
-        name: "Single manifest file"
+        name: "No conflicting manifests at root"
         description: "At most one package manifest (package.json, Cargo.toml, go.mod, etc.) exists at the root — multiple manifests indicate a misconfigured or hybrid project"
         command: "test $(find . -maxdepth 1 \\( -name 'package.json' -o -name 'Cargo.toml' -o -name 'pom.xml' -o -name 'go.mod' -o -name 'pyproject.toml' \\) | wc -l | tr -d ' ') -le 1"
         severity: warn
         instruction: "Remove duplicate manifest files from the project root"
+      - type: script_clean
+        name: "No unmanaged polyglot monorepo"
+        description: "Manifests from more than one language ecosystem exist in the repository only if a recognized monorepo workspace is declared at the root (pnpm-workspace.yaml, a package.json workspaces field, a Cargo.toml [workspace] section, lerna.json, nx.json, or turbo.json) — otherwise it looks like accidental cross-ecosystem drift rather than a deliberate monorepo"
+        command: |
+          _ecosystems=""
+          while IFS= read -r _f; do
+            [ -z "$_f" ] && continue
+            case "$(basename "$_f")" in
+              package.json) _e=node ;;
+              Cargo.toml) _e=rust ;;
+              pom.xml) _e=java ;;
+              go.mod) _e=go ;;
+              pyproject.toml) _e=python ;;
+              *) continue ;;
+            esac
+            case " $_ecosystems " in *" $_e "*) ;; *) _ecosystems="$_ecosystems $_e" ;; esac
+          done < <(find . \( -name .git -o -name node_modules -o -name .venv -o -name vendor -o -name target -o -name dist -o -name build \) -prune -o -type f \( -name 'package.json' -o -name 'Cargo.toml' -o -name 'pom.xml' -o -name 'go.mod' -o -name 'pyproject.toml' \) -print 2>/dev/null)
+          _count=$(printf '%s\n' $_ecosystems | grep -vc '^$')
+          [ "$_count" -le 1 ] && exit 0
+          [ -f pnpm-workspace.yaml ] && exit 0
+          [ -f lerna.json ] && exit 0
+          [ -f nx.json ] && exit 0
+          [ -f turbo.json ] && exit 0
+          [ -f package.json ] && grep -q '"workspaces"' package.json && exit 0
+          [ -f Cargo.toml ] && grep -q '\[workspace\]' Cargo.toml && exit 0
+          printf 'found manifests from %d ecosystems (%s) with no monorepo workspace declaration at root\n' "$_count" "$_ecosystems"
+          exit 1
+        severity: warn
+        instruction: "Declare a workspace at root (pnpm-workspace.yaml, package.json workspaces, Cargo.toml [workspace], or an nx/turbo/lerna config), or remove the unused ecosystem's manifest"
       - type: script_reusable
         name: "No oversized files"
         description: "No file in the project exceeds 5 MiB — large binaries belong in artifact storage or Git LFS, not the repository"
@@ -1338,6 +1644,8 @@ rules:
         script: symlinks-valid
         severity: error
         instruction: "Fix or remove the broken symlinks listed"
+        args:
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "No destructive commands"
         description: "Shell scripts and build files contain no destructive commands (rm -rf, git push --force, git reset --hard, git clean -f, mkfs, truncate -s 0)"
@@ -1348,6 +1656,7 @@ rules:
           INCLUDE_FILES_GLOB: ["*.sh", "*.bash", "*.zsh", "Makefile", "Justfile"]
           REGEX_PATTERN: ['rm[[:space:]]+-[a-zA-Z]*r[a-zA-Z]*f', 'git[[:space:]]+push[^|;&]*(--force|[[:space:]]-f)([[:space:]]|$)', 'git[[:space:]]+reset[[:space:]]+--hard', 'git[[:space:]]+clean[[:space:]]+-[a-zA-Z]*f', '\bmkfs\b', '\btruncate[[:space:]]+-s[[:space:]]+0\b']
           FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "Shell scripts confined to scripts/"
         description: "Every .sh file in the project lives under scripts/ — no shell scripts scattered elsewhere in the tree"
@@ -1357,6 +1666,7 @@ rules:
         args:
           INCLUDE_FILES_GLOB: "*.sh"
           FILE_LOCATION_ALLOWED_DIR: scripts
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "Shell scripts in scripts/ compile cleanly"
         description: "Every .sh file under scripts/ passes bash -n syntax validation"
@@ -1367,7 +1677,7 @@ rules:
           FILE_TYPE: bash
           SEARCH_ROOT: scripts
           INCLUDE_FILES_GLOB: "*.sh"
-          FAIL_ON_NO_FILES_MATCHED: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "Required directories are present"
         description: "Each required project-root directory listed in FILE_PATH exists"
@@ -1399,8 +1709,17 @@ rules:
         severity: error
         instruction: "Set the VERSION file content to a semver string like 1.4.2"
         args:
+          FAIL_ON_FILE_NOT_FOUND: true
           FILE_PATH: VERSION
           REGEX_PATTERN: '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?'
+      - type: script_reusable
+        name: "export/openapi.yaml present"
+        description: "export/openapi.yaml exists"
+        script: file-or-dir-existence
+        severity: warn
+        instruction: "Generate and commit export/openapi.yaml"
+        args:
+          FILE_PATH: export/openapi.yaml
   - group: Git
     rules:
       - group: Commit Message
@@ -1427,16 +1746,55 @@ rules:
             command: "! git log --format='%b' | grep -qi 'co-authored-by: claude'"
             severity: error
             instruction: "Review and amend commits: git log --grep='Co-Authored-By: Claude' -i --oneline"
-          - type: script_reusable
+          - type: script_clean
             name: "No AI co-author in commit message"
             description: "The staged commit message does not contain a Co-Authored-By: Claude line"
-            script: file-line-contains
+            command: "! grep -qi 'Co-Authored-By: Claude' .git/COMMIT_EDITMSG"
             severity: hard-stop
             instruction: "Remove Co-Authored-By lines from the commit message"
-            args:
-              FILE_PATH: .git/COMMIT_EDITMSG
-              REGEX_PATTERN: 'Co-Authored-By: Claude'
-              FAIL_ON_PATTERN_NOT_FOUND: false
+          - type: script_clean
+            name: "Last commit author, committer, and co-author match mandate"
+            description: "The last commit's author, committer, and co-author trailer all match the project's mandated git identities, with no other co-author present"
+            command: |
+              _mandated_author_name="Release Manager"
+              _mandated_author_email="release@archicode.ai"
+              _mandated_committer_name="Release Manager"
+              _mandated_committer_email="release@archicode.ai"
+              _mandated_coauthor_name="Alan"
+              _mandated_coauthor_email="noreply@archicode.ai"
+
+              _an=$(git log -1 --format='%an')
+              _ae=$(git log -1 --format='%ae')
+              _cn=$(git log -1 --format='%cn')
+              _ce=$(git log -1 --format='%ce')
+              _body=$(git log -1 --format='%b')
+
+              _failed=false
+
+              if [[ "$_an" != "$_mandated_author_name" || "$_ae" != "$_mandated_author_email" ]]; then
+                printf 'author is %s <%s>, expected %s <%s>\n' "$_an" "$_ae" "$_mandated_author_name" "$_mandated_author_email"
+                _failed=true
+              fi
+
+              if [[ "$_cn" != "$_mandated_committer_name" || "$_ce" != "$_mandated_committer_email" ]]; then
+                printf 'committer is %s <%s>, expected %s <%s>\n' "$_cn" "$_ce" "$_mandated_committer_name" "$_mandated_committer_email"
+                _failed=true
+              fi
+
+              _mandated_trailer="Co-Authored-By: ${_mandated_coauthor_name} <${_mandated_coauthor_email}>"
+              if ! grep -qF "$_mandated_trailer" <<< "$_body"; then
+                printf 'missing mandated co-author trailer: %s\n' "$_mandated_trailer"
+                _failed=true
+              fi
+
+              while IFS= read -r _line; do
+                [[ -z "$_line" ]] && continue
+                grep -qiF "co-authored-by: ${_mandated_coauthor_name} <${_mandated_coauthor_email}>" <<< "$_line" || { printf 'unauthorized co-author trailer: %s\n' "$_line"; _failed=true; }
+              done < <(grep -i '^co-authored-by:' <<< "$_body")
+
+              [[ "$_failed" == "false" ]]
+            severity: error
+            instruction: "Amend the last commit with the mandated author, committer, and co-author trailer, removing any other co-author"
       - group: Hooks
         rules:
           - type: script_clean
@@ -1455,30 +1813,33 @@ rules:
           - type: script_reusable
             name: "CONFIG_APPROVED guard declared"
             description: ".githooks/pre-commit references the CONFIG_APPROVED environment variable guard"
-            script: file-line-contains
+            script: file-line-match
             severity: warn
             instruction: "Add a CONFIG_APPROVED guard in .githooks/pre-commit"
             args:
+              FAIL_ON_FILE_NOT_FOUND: true
               FILE_PATH: .githooks/pre-commit
-              REGEX_PATTERN: CONFIG_APPROVED
+              REGEX_PATTERN: '.*CONFIG_APPROVED.*'
           - type: script_reusable
             name: "DOCS_APPROVED guard declared"
             description: ".githooks/pre-commit references the DOCS_APPROVED environment variable guard"
-            script: file-line-contains
+            script: file-line-match
             severity: warn
             instruction: "Add a DOCS_APPROVED guard in .githooks/pre-commit"
             args:
+              FAIL_ON_FILE_NOT_FOUND: true
               FILE_PATH: .githooks/pre-commit
-              REGEX_PATTERN: DOCS_APPROVED
+              REGEX_PATTERN: '.*DOCS_APPROVED.*'
           - type: script_reusable
             name: "ENV_APPROVED guard declared"
             description: ".githooks/pre-commit references the ENV_APPROVED environment variable guard"
-            script: file-line-contains
+            script: file-line-match
             severity: warn
             instruction: "Add an ENV_APPROVED guard in .githooks/pre-commit"
             args:
+              FAIL_ON_FILE_NOT_FOUND: true
               FILE_PATH: .githooks/pre-commit
-              REGEX_PATTERN: ENV_APPROVED
+              REGEX_PATTERN: '.*ENV_APPROVED.*'
       - group: Gitignore
         rules:
           - type: script_reusable
@@ -1521,66 +1882,73 @@ rules:
               - type: script_reusable
                 name: ".DS_Store ignored"
                 description: ".gitignore contains a pattern covering .DS_Store macOS metadata files"
-                script: file-line-contains
+                script: file-line-match
                 severity: warn
                 instruction: "Add '.DS_Store' to .gitignore"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .gitignore
-                  REGEX_PATTERN: 'DS_Store'
+                  REGEX_PATTERN: '.*DS_Store.*'
               - type: script_reusable
                 name: ".idea/ ignored"
                 description: ".gitignore contains a pattern covering the .idea/ IntelliJ project directory"
-                script: file-line-contains
+                script: file-line-match
                 severity: warn
                 instruction: "Add '.idea/' to .gitignore"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .gitignore
-                  REGEX_PATTERN: '\.idea/'
+                  REGEX_PATTERN: '.*\.idea/.*'
               - type: script_reusable
                 name: "*.iml ignored"
                 description: ".gitignore contains a pattern covering *.iml IntelliJ module files"
-                script: file-line-contains
+                script: file-line-match
                 severity: warn
                 instruction: "Add '*.iml' to .gitignore"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .gitignore
-                  REGEX_PATTERN: '\*\.iml'
+                  REGEX_PATTERN: '.*\*\.iml.*'
               - type: script_reusable
                 name: "*.iws ignored"
                 description: ".gitignore contains a pattern covering *.iws IntelliJ workspace files"
-                script: file-line-contains
+                script: file-line-match
                 severity: warn
                 instruction: "Add '*.iws' to .gitignore"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .gitignore
-                  REGEX_PATTERN: '\*\.iws'
+                  REGEX_PATTERN: '.*\*\.iws.*'
               - type: script_reusable
                 name: ".vscode/ ignored"
                 description: ".gitignore contains a pattern covering .vscode/ VS Code editor settings"
-                script: file-line-contains
+                script: file-line-match
                 severity: warn
                 instruction: "Add '.vscode/' to .gitignore"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .gitignore
-                  REGEX_PATTERN: '\.vscode/'
+                  REGEX_PATTERN: '.*\.vscode/.*'
               - type: script_reusable
                 name: ".env.* gitignored"
                 description: ".gitignore contains a pattern excluding .env.* environment files — real secrets must not be committed"
-                script: file-line-contains
+                script: file-line-match
                 severity: error
                 instruction: "Add '.env.*' to .gitignore"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .gitignore
-                  REGEX_PATTERN: '^\.env\.'
+                  REGEX_PATTERN: '^\.env\..*'
               - type: script_reusable
                 name: "tmp/ ignored"
                 description: ".gitignore contains 'tmp/' so its contents are never accidentally committed"
-                script: file-line-contains
+                script: file-line-match
                 severity: warn
                 instruction: "Add 'tmp/' to .gitignore"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .gitignore
-                  REGEX_PATTERN: '^tmp/'
+                  REGEX_PATTERN: '^tmp/.*'
   - group: Environment Variables
     rules:
       - type: script_reusable
@@ -1607,6 +1975,14 @@ rules:
         instruction: "Create .env.template declaring all required environment variables"
         args:
           FILE_PATH: .env.template
+      - type: script_clean
+        name: ".env.{APP_ENV} present"
+        description: "A .env file matching the current APP_ENV exists at the project root"
+        command: |
+          [ -z "$APP_ENV" ] && { printf 'APP_ENV is not set\n'; exit 1; }
+          [ -f ".env.$APP_ENV" ] || { printf '.env.%s not found\n' "$APP_ENV"; exit 1; }
+        severity: warn
+        instruction: "Create a .env.<APP_ENV> file for the currently configured environment"
       - type: script_clean
         name: "All template keys in every .env.* file"
         description: "Every key declared in .env.template is present in each .env.* file — no environment is missing a declared variable"
@@ -1700,13 +2076,14 @@ rules:
       - type: script_reusable
         name: "No :latest image tags"
         description: "No Docker image reference in *.yml files uses :latest — all images must be pinned to a specific version for reproducible builds"
-        script: file-line-contains
+        script: files-content-scan
         severity: error
         instruction: "Pin image tags to a specific version instead of :latest"
         args:
-          FILE_PATH: '*.yml'
+          INCLUDE_FILES_GLOB: '*.yml'
           REGEX_PATTERN: 'image:.*:latest'
-          FAIL_ON_PATTERN_NOT_FOUND: false
+          FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_clean
         name: "Docker env vars declared in .env.template"
         description: "Every environment variable referenced in Docker compose files is declared in .env.template — no undocumented container configuration"
@@ -1723,6 +2100,13 @@ rules:
               printf '%s\n' "$tmpl" | grep -qx "$var" || { printf 'Undeclared in .env.template: %s (found in %s)\n' "$var" "$cf"; rc=1; }
             done <<< "$vars"
           done
+          if [ -f Dockerfile ]; then
+            vars=$(grep -oE '^ARG[[:space:]]+[A-Za-z_][A-Za-z0-9_]*' Dockerfile | awk '{print $2}' | sort -u)
+            while IFS= read -r var; do
+              [ -z "$var" ] && continue
+              printf '%s\n' "$tmpl" | grep -qx "$var" || { printf 'Undeclared in .env.template: %s (found in Dockerfile)\n' "$var"; rc=1; }
+            done <<< "$vars"
+          fi
           exit $rc
         severity: error
         instruction: "Declare every environment variable used in Docker files in .env.template"
@@ -1740,6 +2124,44 @@ rules:
           exit $rc
         severity: warn
         instruction: "Set the 'name:' field in docker-compose.<stack>.yml to match the stack name"
+      - type: script_clean
+        name: "Dockerfile renders without errors"
+        description: "The Dockerfile passes a syntax/lint check with no unresolved instructions or errors"
+        command: |
+          [ -f Dockerfile ] || exit 0
+          docker build --check -f Dockerfile . > /dev/null 2>&1
+        requires: docker
+        severity: error
+        instruction: "Run: docker build --check to see the syntax errors"
+      - type: script_clean
+        name: "Dockerfile only uses env variables as values"
+        description: "Every ENV instruction's value is a variable reference, not a literal"
+        command: |
+          [ -f Dockerfile ] || exit 0
+          rc=0
+          while IFS= read -r line; do
+            val=$(printf '%s' "$line" | sed -E 's/^ENV[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[= ]//')
+            printf '%s' "$val" | grep -qE '^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$' || { printf 'Hardcoded value in: %s\n' "$line"; rc=1; }
+          done < <(grep -E '^ENV[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[= ]' Dockerfile)
+          exit $rc
+        severity: warn
+        instruction: "Reference a build ARG or runtime variable instead of a literal value in ENV"
+      - type: script_clean
+        name: "Compose only uses env variables as values"
+        description: "Every environment: entry in docker-compose*.yml is a variable reference, not a literal"
+        command: |
+          rc=0
+          for cf in docker-compose*.yml; do
+            [ -f "$cf" ] || continue
+            vals=$(yq '.services.*.environment[]? // (.services.*.environment | to_entries[]?.value)' "$cf" 2>/dev/null)
+            while IFS= read -r v; do
+              [ -z "$v" ] && continue
+              printf '%s' "$v" | grep -qE '^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$' || { printf 'Hardcoded value in %s: %s\n' "$cf" "$v"; rc=1; }
+            done <<< "$vals"
+          done
+          exit $rc
+        severity: warn
+        instruction: "Reference a variable (${VAR}) instead of a literal value under environment: in compose files"
 
   - group: Config
     rules:
@@ -1758,6 +2180,7 @@ rules:
         severity: error
         instruction: "Fix YAML syntax errors in config.yml"
         args:
+          FAIL_ON_FILE_NOT_FOUND: true
           FILE_TYPE: yaml
           SEARCH_ROOT: "."
           SEARCH_DEPTH: 1
@@ -1785,6 +2208,7 @@ rules:
         instruction: "Set a value for every empty key in config.yml, or remove the key"
         args:
           FILE_PATH: config.yml
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "No duplicate keys in config"
         description: "No mapping in config.yml declares the same key twice — parsers silently keep only one, hiding the other value"
@@ -1793,6 +2217,7 @@ rules:
         instruction: "Remove the duplicate key declarations from config.yml"
         args:
           FILE_PATH: config.yml
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "All config keys referenced in codebase"
         description: "Every top-level key in config.yml is referenced somewhere in the codebase — no dead configuration"
@@ -1801,11 +2226,13 @@ rules:
         instruction: "Remove unused keys from config.yml, or reference them in code"
         args:
           FILE_PATH: config.yml
-  - group: Security
+          FAIL_ON_FILE_NOT_FOUND: false
+
+  - group: Privacy & Security
     rules:
       - type: script_reusable
         name: "No AWS credentials"
-        description: "No file contains an AWS access key ID (AKIA…) — leaked cloud credentials are the most exploited secret type"
+        description: "No file contains a hardcoded AWS access key ID"
         script: files-content-scan
         severity: error
         instruction: "Remove the AWS credentials, rotate them immediately, and load them from the environment instead"
@@ -1813,9 +2240,10 @@ rules:
           INCLUDE_FILES_GLOB: "*"
           REGEX_PATTERN: ['AKIA[0-9A-Z]{16}']
           FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "No private key blocks"
-        description: "No file contains an unencrypted private key signature block (-----BEGIN … PRIVATE KEY-----)"
+        description: "No file contains an unencrypted private key signature block"
         script: files-content-scan
         severity: error
         instruction: "Remove the private key from the repository, rotate it, and reference it from a secret store instead"
@@ -1823,31 +2251,99 @@ rules:
           INCLUDE_FILES_GLOB: "*"
           REGEX_PATTERN: ['-----BEGIN [A-Z ]*PRIVATE KEY-----']
           FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "No hardcoded API keys"
-        description: "No file contains known API-key signatures (OpenAI sk-, GitHub ghp_/github_pat_, Google AIza, Slack xox, GitLab glpat-) or generic quoted api_key/secret/token assignments. Extend REGEX_PATTERN and EXCLUDE_FILES_GLOB per project."
+        description: "No file contains a known API-key signature or a generic quoted secret assignment"
         script: files-content-scan
         severity: error
         instruction: "Remove the hardcoded key, rotate it, and load it from the environment instead; extend EXCLUDE_FILES_GLOB for false positives"
         args:
           INCLUDE_FILES_GLOB: "*"
           EXCLUDE_FILES_GLOB: [".env.*", "*.lock", "*.min.js"]
-          REGEX_PATTERN: ['sk-[A-Za-z0-9]{20,}', 'ghp_[A-Za-z0-9]{36}', 'github_pat_[A-Za-z0-9_]{22,}', 'AIza[0-9A-Za-z_-]{35}', 'xox[baprs]-[0-9A-Za-z-]{10,}', 'glpat-[0-9A-Za-z_-]{20}', "(api_key|apikey|api_token|secret)[[:space:]]*[:=][[:space:]]*[\"'][A-Za-z0-9_/+-]{16,}[\"']"]
+          REGEX_PATTERN: ['sk-[A-Za-z0-9]{20,}', 'ghp_[A-Za-z0-9]{36}', 'ghs_[A-Za-z0-9]{36}', 'github_pat_[A-Za-z0-9_]{22,}', 'AIza[0-9A-Za-z_-]{35}', 'xox[baprs]-[0-9A-Za-z-]{10,}', 'glpat-[0-9A-Za-z_-]{20}', "(api_key|apikey|api_token|secret)[[:space:]]*[:=][[:space:]]*[\"'][A-Za-z0-9_/+-]{16,}[\"']"]
           FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
+      - type: script_reusable
+        name: "No hardcoded IPs"
+        description: "No file contains a literal IPv4 address"
+        script: files-content-scan
+        severity: warn
+        instruction: "Remove the hardcoded IP and load it from configuration or the environment instead; extend EXCLUDE_FILES_GLOB for false positives"
+        args:
+          INCLUDE_FILES_GLOB: "*"
+          EXCLUDE_FILES_GLOB: [".env.*", "*.lock", "*.min.js"]
+          REGEX_PATTERN: ['([0-9]{1,3}\.){3}[0-9]{1,3}']
+          FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
+      - type: script_reusable
+        name: "No hardcoded constant-style secrets"
+        description: "No file assigns a literal 16+ character string to an uppercase constant-style secret/password/token/api-key name"
+        script: files-content-scan
+        severity: error
+        instruction: "Load the value from the environment instead of assigning it as a literal"
+        args:
+          INCLUDE_FILES_GLOB: "*"
+          EXCLUDE_FILES_GLOB: [".env.*", "*.lock", "*.min.js"]
+          REGEX_PATTERN: ['[A-Z0-9_]*(SECRET|PASSWORD|TOKEN|API_KEY)[A-Z0-9_]*[[:space:]]*[:=][[:space:]]*["''][A-Za-z0-9_/+.-]{16,}["'']']
+          FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_clean
-        name: "gitleaks scan"
-        description: "gitleaks finds no hardcoded secrets, API keys, passwords, or tokens in the working tree (recommended scanner; the native pattern rules above are the zero-dependency fallback)"
+        name: "Gitleaks scan"
+        description: "Gitleaks finds no hardcoded secrets, API keys, passwords, or tokens in the working tree"
         command: "gitleaks detect --redact --no-banner"
         requires: gitleaks
         severity: error
         instruction: "Remove and rotate the secrets gitleaks reports; add false positives to .gitleaksignore"
       - type: script_clean
-        name: "semgrep scan"
-        description: "semgrep static analysis finds no bugs or security vulnerabilities using its auto-configured community rules"
-        command: "semgrep scan --config auto --error --quiet"
-        requires: semgrep
+        name: "Trufflehog scan"
+        description: "Trufflehog finds no verified secrets or high-entropy strings across the working tree and git history"
+        command: "trufflehog git file://. --fail --no-update"
+        requires: trufflehog
+        severity: error
+        instruction: "Remove and rotate the secrets trufflehog reports"
+      - type: script_clean
+        name: "Talisman scan"
+        description: "Talisman finds no secrets or oversized files across the full repository, validating outward-bound commit hygiene heuristics"
+        command: "talisman --scan"
+        requires: talisman
+        severity: error
+        instruction: "Remove and rotate the secrets talisman reports, or add accepted false positives to .talismanrc"
+      - type: script_clean
+        name: "Semgrep scan"
+        description: "Semgrep static analysis finds no bugs or security vulnerabilities"
+        command: "npx semgrep scan --config auto --error --quiet"
+        requires: npx
         severity: warn
         instruction: "Fix the findings semgrep reports, or suppress false positives with a # nosemgrep comment"
+      - type: script_clean
+        name: "SonarQube scan"
+        description: "SonarQube static analysis finds no bugs, vulnerabilities, or code smells"
+        command: "npx sonar-scanner -Dsonar.login=$SONAR_TOKEN"
+        requires: npx
+        severity: warn
+        instruction: "Fix the findings SonarQube reports, or mark accepted ones in the SonarQube UI"
+      - type: script_clean
+        name: "Bandit scan (Python)"
+        description: "Bandit finds no common Python security vulnerabilities (eval, unvalidated subprocess, etc.)"
+        command: "bandit -q -r ."
+        requires: bandit
+        severity: warn
+        instruction: "Fix the issues bandit reports, or mark accepted ones with # nosec"
+      - type: script_clean
+        name: "Detect-aws-credentials scan"
+        description: "Detect-aws-credentials finds AWS access keys and verifies them against locally configured credentials, catching live keys a pattern match alone can't confirm. Alternative to No AWS credentials — enable one or the other."
+        command: "detect-aws-credentials --allow-missing-credentials"
+        requires: detect-aws-credentials
+        severity: error
+        instruction: "Remove and rotate the credentials it reports"
+      - type: script_clean
+        name: "Detect-private-key scan"
+        description: "Detect-private-key validates a found private key signature is structurally a real key, not just matching text. Alternative to No private key blocks — enable one or the other."
+        command: "detect-private-key"
+        requires: detect-private-key
+        severity: error
+        instruction: "Remove the private key from the repository, rotate it, and reference it from a secret store instead"
 
   - group: Naming Conventions
     rules:
@@ -1860,7 +2356,7 @@ rules:
         args:
           INCLUDE: ["*.yml", "*.yaml", "*.xml", "*.properties"]
           NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          FAIL_ON_PATH_ABSENCE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "Shell script files are kebab-case"
         description: "All .sh file names are kebab-case"
@@ -1870,7 +2366,7 @@ rules:
         args:
           INCLUDE: ["*.sh"]
           NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          FAIL_ON_PATH_ABSENCE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "Directories are flat lowercase"
         description: "All directory names are flat lowercase (no separators). Hidden directories and node_modules are skipped"
@@ -1878,6 +2374,7 @@ rules:
         severity: warn
         instruction: "Rename the listed directories to flat lowercase, or add them to EXCLUDE"
         args:
+          FAIL_ON_FILE_NOT_FOUND: true
           NAMING_CONVENTION: '^[a-z0-9]+$'
       - type: script_reusable
         name: "Python files are snake_case"
@@ -1888,7 +2385,7 @@ rules:
         args:
           INCLUDE: "*.py"
           NAMING_CONVENTION: '^[a-z0-9]+([_.][a-z0-9]+)*$'
-          FAIL_ON_PATH_ABSENCE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "TOML files are flat lowercase"
         description: "All .toml file names are flat lowercase (dots allowed via the stripped extension)"
@@ -1898,7 +2395,7 @@ rules:
         args:
           INCLUDE: "*.toml"
           NAMING_CONVENTION: '^[a-z0-9]+$'
-          FAIL_ON_PATH_ABSENCE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "JS/TS files are kebab-case"
         description: "All .js and .ts file names are kebab-case"
@@ -1908,7 +2405,7 @@ rules:
         args:
           INCLUDE: ["*.js", "*.ts"]
           NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
-          FAIL_ON_PATH_ABSENCE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "Component files are PascalCase"
         description: "All .jsx, .tsx, .vue and .svelte component file names are PascalCase"
@@ -1918,7 +2415,7 @@ rules:
         args:
           INCLUDE: ["*.jsx", "*.tsx", "*.vue", "*.svelte"]
           NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
-          FAIL_ON_PATH_ABSENCE: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "Java/Kotlin files are PascalCase"
         description: "All .java and .kt file names are PascalCase"
@@ -1928,39 +2425,184 @@ rules:
         args:
           INCLUDE: ["*.java", "*.kt"]
           NAMING_CONVENTION: '^([A-Z][a-z0-9]*)+$'
-          FAIL_ON_PATH_ABSENCE: false
+          FAIL_ON_FILE_NOT_FOUND: false
 
-  - group: Docs & SQL
+  - group: Code Quality (Linting & Formatting)
     rules:
+      - group: JS & TS
+        rules:
+          - type: script_clean
+            name: "ESLint passes"
+            description: "eslint finds no code-quality violations"
+            command: "npx --no-install eslint ."
+            severity: error
+            instruction: "Fix the violations eslint reports"
+          - type: script_clean
+            name: "Biome check"
+            description: "biome linting and formatting pass. Alternative to ESLint + Prettier — enable one or the other"
+            command: "biome ci ."
+            requires: biome
+            severity: warn
+            instruction: "Run: biome check --write ."
+          - type: script_clean
+            name: "Prettier format check"
+            description: "All supported files are formatted per Prettier"
+            command: "prettier --check ."
+            requires: prettier
+            severity: warn
+            instruction: "Run: prettier --write ."
+          - type: script_clean
+            name: "Prettier run edit"
+            description: "Prettier reformats all supported files in place. Alternative to the check-only 'Prettier format check' — enable one or the other, not both"
+            command: "prettier --write ."
+            requires: prettier
+            severity: warn
+            mutative: true
+            instruction: "Review the changes Prettier made before committing"
+      - group: Python
+        rules:
+          - type: script_clean
+            name: "ruff lint"
+            description: "ruff finds no lint errors (recommended: subsumes flake8 and isort, and most style checks)"
+            command: "ruff check --no-cache ."
+            requires: ruff
+            severity: error
+            instruction: "Run: ruff check --fix ."
+          - type: script_clean
+            name: "ruff format check"
+            description: "All Python files are formatted per ruff-format (black-aligned; recommended over black)"
+            command: "ruff format --check --no-cache ."
+            requires: ruff
+            severity: warn
+            instruction: "Run: ruff format ."
+          - type: script_clean
+            name: "flake8 lint"
+            description: "flake8 finds no PEP 8 or logical errors. Legacy alternative — prefer ruff, which subsumes it"
+            command: "flake8 ."
+            requires: flake8
+            severity: warn
+            instruction: "Fix the style violations flake8 reports"
+          - type: script_clean
+            name: "black format check"
+            description: "All Python files are formatted per black. Legacy alternative — prefer ruff format"
+            command: "black --check ."
+            requires: black
+            severity: warn
+            instruction: "Run: black ."
+          - type: script_clean
+            name: "isort import order check"
+            description: "Python import statements are sorted per isort. Legacy alternative — prefer ruff, which subsumes it"
+            command: "isort --check-only ."
+            requires: isort
+            severity: warn
+            instruction: "Run: isort ."
+      - group: JVM
+        rules:
+          - type: script_clean
+            name: "Checkstyle passes"
+            description: "Checkstyle finds no JVM codestyle or formatting violations (requires the Checkstyle Gradle plugin)"
+            command: |
+              [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+              ./gradlew checkstyleMain
+            severity: warn
+            instruction: "Fix the violations Checkstyle reports"
       - type: script_clean
         name: "No typos in source"
         description: "The typos spell-checker finds no structural typos in source code and docs"
         command: "typos"
         requires: typos
         severity: warn
-        instruction: "Run: typos --write-changes to fix, or add false positives to _typos.toml"
+        instruction: "Fix the typos reported, or mark false positives in the typos config"
       - type: script_clean
+        name: "Oxipng PNG compression"
+        description: "oxipng losslessly recompresses every .png file in place to keep asset size lean"
+        command: |
+          _failed=false
+          while IFS= read -r _f; do
+            [ -z "$_f" ] && continue
+            oxipng -o 4 -q "$_f" || _failed=true
+          done < <(find . \( -name .git -o -name node_modules \) -prune -o -name '*.png' -type f -print 2>/dev/null)
+          [ "$_failed" = "false" ]
+        requires: oxipng
+        severity: warn
+        mutative: true
+        instruction: "Review the recompressed PNG files before committing"
+      - type: script_reusable
+        name: "No merge-conflict markers"
+        description: "No file in the staged diff contains leftover merge-conflict markers (<<<<<<<, =======, >>>>>>>)"
+        script: git-diff-content-scan
+        severity: error
+        instruction: "Resolve the conflict and remove the marker lines"
+        args:
+          REGEX_PATTERN: ['^<<<<<<< ', '^=======$', '^>>>>>>> ']
+      - type: script_clean
+        name: "No trailing whitespace in diff"
+        description: "No trailing whitespace or whitespace errors exist in staged changes"
+        command: "git diff --cached --check"
+        severity: warn
+        instruction: "Fix the whitespace issues git reports in the diff, then re-stage"
+
+  - group: Type Checking
+    rules:
+      - type: script_clean
+        name: "Mypy type check (Python)"
+        description: "Mypy static type checks pass against the project's type hints"
+        command: "mypy --cache-dir=/dev/null ."
+        requires: mypy
+        severity: warn
+        instruction: "Fix the type errors mypy reports"
+      - type: script_clean
+        name: "TypeScript type check"
+        description: "TypeScript compiler reports no type errors"
+        command: "npx tsc --noEmit -p tsconfig.json"
+        requires: npx
+        severity: warn
+        instruction: "Fix the type errors tsc reports"
+
+  - group: Documentation Coverage
+    rules:
+      - type: script_reusable
         name: "Prose lint on docs"
         description: "proselint finds no poor phrasing, cliches, or spelling irregularities in Markdown docs"
-        command: |
-          _files=$(find . \( -name .git -o -name node_modules \) -prune -o -name '*.md' -type f -print 2>/dev/null)
-          [ -z "$_files" ] && exit 0
-          proselint $_files
+        script: run-tool-over-matched-files
         requires: proselint
         severity: warn
         instruction: "Fix the phrasing issues proselint reports in the listed Markdown files"
+        args:
+          INCLUDE_FILES_GLOB: "*.md"
+          TOOL_COMMAND: proselint
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_clean
-        name: "SQL files pass sqlfluff"
-        description: "All .sql files pass sqlfluff linting (ANSI dialect by default — set your dialect in .sqlfluff)"
+        name: "Docstring coverage (Python)"
+        description: "interrogate reports sufficient docstring coverage on functions and classes"
+        command: "interrogate -q ."
+        requires: interrogate
+        severity: warn
+        instruction: "Add docstrings to the undocumented functions/classes: interrogate -v ."
+      - type: script_clean
+        name: "Javadoc coverage (JVM)"
+        description: "./gradlew javadoc exits cleanly (requires doclint configured to fail on missing or invalid Javadoc comments)"
         command: |
-          _files=$(find . \( -name .git -o -name node_modules \) -prune -o -name '*.sql' -type f -print 2>/dev/null)
-          [ -z "$_files" ] && exit 0
-          sqlfluff lint --dialect ansi $_files
+          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+          ./gradlew javadoc --no-daemon
+        severity: warn
+        instruction: "Add the missing Javadoc comments ./gradlew javadoc reports"
+
+  - group: SQL
+    rules:
+      - type: script_reusable
+        name: "SQL files pass sqlfluff"
+        description: "All .sql files pass sqlfluff linting (ANSI dialect by default)"
+        script: run-tool-over-matched-files
         requires: sqlfluff
         severity: warn
-        instruction: "Run: sqlfluff fix --dialect ansi <file>, or configure your dialect in .sqlfluff"
+        instruction: "Fix the SQL lint issues sqlfluff reports, or set your dialect in the project's sqlfluff config"
+        args:
+          INCLUDE_FILES_GLOB: "*.sql"
+          TOOL_COMMAND: "sqlfluff lint --dialect ansi"
+          FAIL_ON_FILE_NOT_FOUND: false
 
-  - group: Python
+  - group: Build & Compilation
     rules:
       - type: script_clean
         name: "Python files parse"
@@ -1975,93 +2617,106 @@ rules:
         requires: python3
         severity: error
         instruction: "Fix the Python syntax errors in the listed files"
-      - type: script_reusable
-        name: "No Python debug statements"
-        description: "No .py file contains forgotten debug statements (breakpoint(), pdb.set_trace, import pdb)"
-        script: files-content-scan
+      - type: script_clean
+        name: "Python package builds"
+        description: "pyproject-build produces a distribution without error"
+        command: "pyproject-build"
+        requires: pyproject-build
         severity: error
-        instruction: "Remove the debug statements from the listed files"
-        args:
-          INCLUDE_FILES_GLOB: "*.py"
-          REGEX_PATTERN: ['\bbreakpoint\(\)', 'pdb\.set_trace', '(^|[[:space:]])import[[:space:]]+pdb\b']
-          FAIL_ON_NO_MATCHING_FILE: false
-      - type: script_clean
-        name: "ruff lint"
-        description: "ruff finds no lint errors (recommended: subsumes flake8 and isort, and most style checks)"
-        command: "ruff check --no-cache ."
-        requires: ruff
-        severity: error
-        instruction: "Run: ruff check --fix ."
-      - type: script_clean
-        name: "ruff format check"
-        description: "All Python files are formatted per ruff-format (black-aligned; recommended over black)"
-        command: "ruff format --check --no-cache ."
-        requires: ruff
-        severity: warn
-        instruction: "Run: ruff format ."
-      - type: script_clean
-        name: "mypy type check"
-        description: "mypy static type checks pass against the project's type hints"
-        command: "mypy --cache-dir=/dev/null ."
-        requires: mypy
-        severity: warn
-        instruction: "Fix the type errors mypy reports"
-      - type: script_clean
-        name: "flake8 lint"
-        description: "flake8 finds no PEP 8 or logical errors. Legacy alternative — prefer ruff, which subsumes it"
-        command: "flake8 ."
-        requires: flake8
-        severity: warn
-        instruction: "Fix the style violations flake8 reports"
-      - type: script_clean
-        name: "black format check"
-        description: "All Python files are formatted per black. Legacy alternative — prefer ruff format"
-        command: "black --check ."
-        requires: black
-        severity: warn
-        instruction: "Run: black ."
-      - type: script_clean
-        name: "isort import order check"
-        description: "Python import statements are sorted per isort. Legacy alternative — prefer ruff, which subsumes it"
-        command: "isort --check-only ."
-        requires: isort
-        severity: warn
-        instruction: "Run: isort ."
-      - type: script_clean
-        name: "Docstring coverage"
-        description: "interrogate reports sufficient docstring coverage on functions and classes"
-        command: "interrogate -q ."
-        requires: interrogate
-        severity: warn
-        instruction: "Add docstrings to the undocumented functions/classes: interrogate -v ."
-      - type: script_clean
-        name: "bandit security scan"
-        description: "bandit finds no common Python security vulnerabilities (eval, unvalidated subprocess, etc.)"
-        command: "bandit -q -r ."
-        requires: bandit
-        severity: warn
-        instruction: "Fix the issues bandit reports, or mark accepted ones with # nosec"
-
-  - group: JavaScript & Web
-    rules:
-      - type: script_reusable
-        name: "Run package.json lint script"
-        description: "Runs the project's own lint script (e.g. eslint) through its package manager instead of invoking the linter directly, so the check stays in sync with the project's own lint config and flags"
-        script: package-script-clean
-        severity: error
-        instruction: "Run: npm run lint"
-        args:
-          PACKAGE_MANAGER: npm
-          SCRIPT_NAME: lint
+        instruction: "Fix the build errors reported by: pyproject-build"
       - type: script_reusable
         name: "Run package.json build script"
-        description: "Runs the project's own build script through its package manager and requires it to exit cleanly"
+        description: "Runs the project's own build script through the configured package manager and requires it to exit cleanly"
         script: package-script-clean
         severity: error
-        instruction: "Run: npm run build"
+        instruction: "Run: pnpm run build"
         args:
-          PACKAGE_MANAGER: npm
+          PACKAGE_MANAGER: pnpm
           SCRIPT_NAME: build
+      - type: script_clean
+        name: "Next.js production build (JS/TS)"
+        description: "next build exits cleanly — the production build is not broken (slow; enable when build breakage must block commits)"
+        command: "pnpm exec next build"
+        requires: pnpm
+        severity: error
+        instruction: "Fix the build errors reported by: pnpm exec next build"
+      - type: script_clean
+        name: "Vercel build (JS/TS)"
+        description: "vercel build exits cleanly — the Vercel production build is not broken (slow; enable when build breakage must block commits)"
+        command: "pnpm exec vercel build"
+        requires: pnpm
+        severity: error
+        instruction: "Fix the build errors reported by: pnpm exec vercel build"
+      - type: script_clean
+        name: "Maven project compiles (JVM)"
+        description: "mvn compile -q exits cleanly"
+        command: "mvn compile -q"
+        requires: mvn
+        severity: error
+        instruction: "Fix the compilation errors reported by: mvn compile"
+      - type: script_clean
+        name: "Gradle project builds (JVM)"
+        description: "./gradlew build exits cleanly"
+        command: |
+          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+          ./gradlew build -q --no-daemon
+        severity: error
+        instruction: "Fix the build errors reported by: ./gradlew build"
+      - type: script_clean
+        name: "Gradle project compiles (JVM)"
+        description: "./gradlew compileJava compileTestJava exits cleanly"
+        command: |
+          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+          ./gradlew compileJava compileTestJava -q --no-daemon
+        severity: error
+        instruction: "Fix the compilation errors reported by: ./gradlew compileJava compileTestJava"
+      - type: script_clean
+        name: "Generate OpenAPI spec (JVM)"
+        description: "./gradlew generateOpenApiDocs generates the OpenAPI specification document from the Spring application"
+        command: |
+          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+          ./gradlew generateOpenApiDocs --no-daemon
+        severity: warn
+        mutative: true
+        instruction: "Review the generated OpenAPI spec changes before committing"
+      - type: script_reusable
+        name: "Gradle wrapper present"
+        description: "The gradlew wrapper script exists — builds must not depend on a locally installed gradle"
+        script: file-or-dir-existence
+        severity: error
+        instruction: "Run: gradle wrapper, and commit the generated files"
+        args:
+          FILE_PATH: gradlew
+      - type: script_reusable
+        name: "No bare gradle invocations"
+        description: "Scripts and CI files invoke ./gradlew, never a bare gradle binary"
+        script: files-content-scan
+        severity: warn
+        instruction: "Replace bare gradle invocations with ./gradlew"
+        args:
+          INCLUDE_FILES_GLOB: ["*.sh", "*.yml", "*.yaml", "Makefile", "Justfile"]
+          REGEX_PATTERN: ['(^|[[:space:]])gradle[[:space:]]']
+          FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
+      - type: script_reusable
+        name: "Run package.json ci script"
+        description: "Runs the project's own ci script through its package manager and requires it to exit cleanly"
+        script: package-script-clean
+        severity: error
+        instruction: "Run: pnpm run ci"
+        args:
+          PACKAGE_MANAGER: pnpm
+          SCRIPT_NAME: ci
+
+  - group: Tests & Verification
+    rules:
+      - type: script_clean
+        name: "Pytest suite passes (Python)"
+        description: "pytest -q exits cleanly"
+        command: "pytest -q"
+        requires: pytest
+        severity: error
+        instruction: "Fix the failing tests reported by: pytest"
       - type: script_reusable
         name: "Run package.json test script"
         description: "Runs the project's own test script through its package manager and requires it to exit cleanly"
@@ -2072,58 +2727,104 @@ rules:
           PACKAGE_MANAGER: npm
           SCRIPT_NAME: test
       - type: script_clean
-        name: "Prettier format check"
-        description: "All supported files are formatted per Prettier"
-        command: "prettier --check ."
-        requires: prettier
-        severity: warn
-        instruction: "Run: prettier --write ."
-      - type: script_clean
-        name: "Biome check"
-        description: "biome linting and formatting pass. Alternative to ESLint + Prettier — enable one or the other"
-        command: "biome ci ."
-        requires: biome
-        severity: warn
-        instruction: "Run: biome check --write ."
-      - type: script_reusable
-        name: "Run package.json ci script"
-        description: "Runs the project's own ci script through its package manager and requires it to exit cleanly"
-        script: package-script-clean
+        name: "Maven tests pass (JVM)"
+        description: "mvn test -q exits cleanly"
+        command: "mvn test -q"
+        requires: mvn
         severity: error
-        instruction: "Run: pnpm run ci"
-        args:
-          PACKAGE_MANAGER: pnpm
-          SCRIPT_NAME: ci
+        instruction: "Fix the failing tests reported by: mvn test"
       - type: script_clean
-        name: "Lockfile integrity"
-        description: "pnpm-lock.yaml is in sync with package.json — no drifted or missing lockfile records. Runs against a temp copy so the working tree is never written to"
+        name: "Gradle tests pass (JVM)"
+        description: "./gradlew test --no-daemon exits cleanly"
         command: |
-          _tmp=$(mktemp -d)
-          cp package.json "$_tmp"/ 2>/dev/null || { rm -rf "$_tmp"; printf 'package.json not found\n'; exit 1; }
-          [ -f pnpm-lock.yaml ] && cp pnpm-lock.yaml "$_tmp"/
-          [ -f .npmrc ] && cp .npmrc "$_tmp"/
-          _ec=0
-          (cd "$_tmp" && pnpm install --frozen-lockfile --lockfile-only --ignore-scripts) > /dev/null 2>&1 || _ec=1
-          rm -rf "$_tmp"
-          [ "$_ec" -eq 0 ] || printf 'pnpm-lock.yaml is missing or out of sync with package.json\n'
-          exit $_ec
+          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+          ./gradlew test --no-daemon
+        severity: error
+        instruction: "Fix the failing tests reported by: ./gradlew test"
+
+  - group: Installation & Dependencies
+    rules:
+      - type: script_reusable
+        name: "Lockfile matches package.json"
+        description: "The configured package manager's lockfile is in sync with package.json — no drifted or missing lockfile records. Runs against a temp copy so the working tree is never written to"
+        script: lockfile-in-sync
         requires: pnpm
         severity: error
         instruction: "Run: pnpm install to update the lockfile, then commit it"
-      - type: script_clean
-        name: "Dependency audit"
-        description: "pnpm audit finds no high or critical vulnerabilities in dependencies"
-        command: "pnpm audit --audit-level=high"
+        args:
+          PACKAGE_MANAGER: pnpm
+      - type: script_reusable
+        name: "Package manager install"
+        description: "The configured package manager's install resolves dependencies successfully and updates the lockfile. Alternative to the check-only 'Lockfile matches package.json' — enable one or the other, not both"
+        script: package-manager-install-write
         requires: pnpm
         severity: warn
-        instruction: "Run: pnpm audit --fix, or update the vulnerable dependencies"
-      - type: script_clean
-        name: "Next.js production build"
-        description: "next build exits cleanly — the production build is not broken (slow; enable when build breakage must block commits)"
-        command: "pnpm exec next build"
+        mutative: true
+        instruction: "Review the lockfile and node_modules changes install made before committing"
+        args:
+          PACKAGE_MANAGER: pnpm
+      - type: script_reusable
+        name: "Dependency audit"
+        description: "The configured package manager's audit finds no high or critical vulnerabilities in dependencies"
+        script: package-manager-audit
         requires: pnpm
+        severity: warn
+        instruction: "Update the vulnerable dependencies the audit reports"
+        args:
+          PACKAGE_MANAGER: pnpm
+      - type: script_clean
+        name: "Depcheck unused dependency scan"
+        description: "depcheck finds no unused dependencies in package.json. Complements Knip's own dependency coverage with a different detection heuristic"
+        command: "npx depcheck"
+        requires: npx
+        severity: warn
+        instruction: "Remove the unused dependencies depcheck reports, or add accepted false positives to a depcheck config"
+      - type: script_clean
+        name: "Knip dead export detection"
+        description: "No unused exported symbols, files, or dependencies (requires a check:dead script running knip in package.json)"
+        command: "pnpm run check:dead"
+        requires: pnpm
+        severity: warn
+        instruction: "Remove the unused exports/files/dependencies knip reports"
+      - type: script_clean
+        name: "OWASP dependency check (Maven)"
+        description: "mvn dependency-check:check finds no known vulnerabilities in dependencies"
+        command: "mvn dependency-check:check"
+        requires: mvn
+        severity: warn
+        instruction: "Update the vulnerable dependencies OWASP dependency-check reports"
+      - type: script_clean
+        name: "OWASP dependency check (Gradle)"
+        description: "./gradlew dependencyCheckAnalyze finds no known vulnerabilities in dependencies"
+        command: |
+          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
+          ./gradlew dependencyCheckAnalyze --no-daemon
+        severity: warn
+        instruction: "Update the vulnerable dependencies OWASP dependency-check reports"
+      - type: script_clean
+        name: "Poetry lockfile in sync"
+        description: "poetry.lock is in sync with pyproject.toml"
+        command: "poetry check --lock"
+        requires: poetry
         severity: error
-        instruction: "Fix the build errors reported by: pnpm exec next build"
+        instruction: "Run: poetry lock, then commit the updated lockfile"
+      - type: script_clean
+        name: "Pip-audit dependency scan"
+        description: "pip-audit finds no known vulnerabilities in installed dependencies"
+        command: "pip-audit"
+        requires: pip-audit
+        severity: warn
+        instruction: "Run: pip-audit --fix, or update the vulnerable dependencies"
+      - type: script_clean
+        name: "Vulture dead code detection"
+        description: "vulture finds no unused code, functions, or imports"
+        command: "vulture ."
+        requires: vulture
+        severity: warn
+        instruction: "Remove the unused code vulture reports, or add false positives to a vulture whitelist"
+
+  - group: Bundle & Debug Hygiene
+    rules:
       - type: script_reusable
         name: "No oversized JS chunks"
         description: "No single built JS chunk in .next/static exceeds 500 KiB"
@@ -2135,7 +2836,7 @@ rules:
           COMPARISON_OPERATOR: le
           SIZE_AMOUNT: 500
           SIZE_UNIT: 1024
-          FAIL_ON_NO_PATHS_MATCHED: false
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
         name: "Total static JS under limit"
         description: "The total size of .next/static stays under 3 MiB"
@@ -2147,69 +2848,53 @@ rules:
           COMPARISON_OPERATOR: le
           SIZE_AMOUNT: 3
           SIZE_UNIT: 1048576
-          FAIL_ON_NO_PATHS_MATCHED: false
-      - type: script_clean
-        name: "Knip dead export detection"
-        description: "No unused exported symbols, files, or dependencies (requires a check:dead script running knip in package.json)"
-        command: "pnpm run check:dead"
-        requires: pnpm
-        severity: warn
-        instruction: "Remove the unused exports/files/dependencies knip reports"
-
-  - group: Java & Kotlin
-    rules:
-      - type: script_clean
-        name: "Maven project compiles"
-        description: "mvn compile -q exits cleanly"
-        command: "mvn compile -q"
-        requires: mvn
-        severity: error
-        instruction: "Fix the compilation errors reported by: mvn compile"
+          FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
-        name: "Gradle wrapper present"
-        description: "The gradlew wrapper script exists — builds must not depend on a locally installed gradle"
-        script: file-or-dir-existence
-        severity: error
-        instruction: "Run: gradle wrapper, and commit the generated files"
-        args:
-          FILE_PATH: gradlew
-      - type: script_clean
-        name: "Gradle project builds"
-        description: "./gradlew build exits cleanly"
-        command: |
-          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
-          ./gradlew build -q --no-daemon
-        severity: error
-        instruction: "Fix the build errors reported by: ./gradlew build"
-      - type: script_clean
-        name: "Gradle tests pass"
-        description: "./gradlew test --no-daemon exits cleanly"
-        command: |
-          [ -x ./gradlew ] || { printf 'gradlew not found or not executable\n'; exit 1; }
-          ./gradlew test --no-daemon
-        severity: error
-        instruction: "Fix the failing tests reported by: ./gradlew test"
-      - type: script_reusable
-        name: "No bare gradle invocations"
-        description: "Scripts and CI files invoke ./gradlew, never a bare gradle binary"
+        name: "No console debug statements"
+        description: "No .js, .ts, .jsx, or .tsx file contains forgotten debug statements (console.log, console.debug, or a bare debugger statement)"
         script: files-content-scan
-        severity: warn
-        instruction: "Replace bare gradle invocations with ./gradlew"
+        severity: error
+        instruction: "Remove the debug statements from the listed files"
         args:
-          INCLUDE_FILES_GLOB: ["*.sh", "*.yml", "*.yaml", "Makefile", "Justfile"]
-          REGEX_PATTERN: ['(^|[[:space:]])gradle[[:space:]]']
+          INCLUDE_FILES_GLOB: ["*.js", "*.ts", "*.jsx", "*.tsx"]
+          REGEX_PATTERN: ['console\.(log|debug)\(', '(^|[[:space:]])debugger([[:space:]]|;|$)']
           FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
+      - type: script_reusable
+        name: "No System.out debug statements"
+        description: "No .java or .kt file contains forgotten debug statements (System.out.print, System.err.print, or printStackTrace)"
+        script: files-content-scan
+        severity: error
+        instruction: "Remove the debug statements from the listed files, and use the project's logger instead"
+        args:
+          INCLUDE_FILES_GLOB: ["*.java", "*.kt"]
+          REGEX_PATTERN: ['System\.(out|err)\.print', 'printStackTrace\(\)']
+          FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
+      - type: script_reusable
+        name: "No Python debug statements"
+        description: "No .py file contains forgotten debug statements (breakpoint(), pdb.set_trace, import pdb)"
+        script: files-content-scan
+        severity: error
+        instruction: "Remove the debug statements from the listed files"
+        args:
+          INCLUDE_FILES_GLOB: "*.py"
+          REGEX_PATTERN: ['\bbreakpoint\(\)', 'pdb\.set_trace', '(^|[[:space:]])import[[:space:]]+pdb\b']
+          FAIL_ON_NO_MATCHING_FILE: false
+          FAIL_ON_FILE_NOT_FOUND: false
+
   - group: Claude Settings
     rules:
       - type: script_reusable
         name: ".claude/ directory gitignored"
         description: ".gitignore contains '.claude/' so local Claude Code settings and memory are never committed"
-        script: file-line-contains
+        script: file-line-match
         severity: error
         instruction: "Add '.claude/' to .gitignore"
         args:
+          FAIL_ON_FILE_NOT_FOUND: true
           FILE_PATH: .gitignore
-          REGEX_PATTERN: '\.claude/'
+          REGEX_PATTERN: '.*\.claude/.*'
       - group: Shared Settings
         rules:
           - type: script_reusable
@@ -2255,6 +2940,7 @@ rules:
                 severity: warn
                 instruction: "Add \"sonnet\" to availableModels in .claude/settings.json"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: availableModels
                   EXPECTED_VALUE: '"sonnet"'
@@ -2313,6 +2999,7 @@ rules:
                 severity: warn
                 instruction: "Remove permissions.additionalDirectories from .claude/settings.json"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: false
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: permissions.additionalDirectories
                   FAIL_ON_KEY_ABSENCE: false
@@ -2344,6 +3031,7 @@ rules:
                 severity: warn
                 instruction: "Set statusLine to {\"type\": \"command\", \"command\": \"<script>\"} in .claude/settings.json"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: statusLine.command
                   FAIL_ON_KEY_ABSENCE: true
@@ -2385,6 +3073,7 @@ rules:
                 severity: warn
                 instruction: "Add \"git\" to sandbox.excludedCommands in .claude/settings.json"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: sandbox.excludedCommands
                   EXPECTED_VALUE: '"git"'
@@ -2395,6 +3084,7 @@ rules:
                 severity: warn
                 instruction: "Add \"github.com\" to sandbox.network.allowedDomains in .claude/settings.json"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: sandbox.network.allowedDomains
                   EXPECTED_VALUE: '"github.com"'
@@ -2454,6 +3144,7 @@ rules:
                 severity: warn
                 instruction: "Add \"node_modules/**\" to claudeMdExcludes in .claude/settings.json"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: claudeMdExcludes
                   EXPECTED_VALUE: '"node_modules/**"'
@@ -2475,6 +3166,7 @@ rules:
                 severity: warn
                 instruction: "Add \"github\" to enabledMcpjsonServers in .claude/settings.json"
                 args:
+                  FAIL_ON_FILE_NOT_FOUND: true
                   FILE_PATH: .claude/settings.json
                   JSON_PATH: enabledMcpjsonServers
                   EXPECTED_VALUE: '"github"'
@@ -2482,6 +3174,7 @@ enums:
   - id: file-naming-convention
     name: "File naming convention"
     description: "Regex patterns for identifier naming conventions — validates symbol casing across source code, configs, and file names. Underscore/hyphen-based variants additionally permit '.' as a separator character."
+    type: regex
     values:
       - name: camelCase
         value: "^[a-z]+([A-Z][a-z0-9]*)*$"
@@ -2529,6 +3222,7 @@ enums:
   - id: common-manifest
     name: "Common manifest"
     description: "Common project manifest filenames across ecosystems — use as FILE_PATH in file existence or file match rules"
+    type: path
     values:
       - name: package.json
         value: package.json
@@ -2609,6 +3303,7 @@ enums:
   - id: environments
     name: "App Environments"
     description: "Application deployment environments"
+    type: string
     values:
       - name: Development
         value: development
@@ -2626,6 +3321,7 @@ enums:
   - id: comparison-operator
     name: "Comparison operator"
     description: "Comparison operators for numeric or size-based rule conditions"
+    type: string
     values:
       - name: less
         value: lt
@@ -2646,6 +3342,7 @@ enums:
   - id: size-unit
     name: "Size unit"
     description: "Binary (1024-based) file/data size units"
+    type: int
     values:
       - name: B
         value: "1"
@@ -2666,6 +3363,7 @@ enums:
   - id: file-extensions
     name: "File extensions"
     description: "Common structured-data file extensions — use as FILE_PATH glob suffix or EXCLUDE_FILES_GLOB filter"
+    type: string
     values:
       - name: yaml
         value: yaml
@@ -2689,6 +3387,7 @@ enums:
   - id: verifiable-file-types
     name: "Verifiable file types"
     description: "File types the file-syntax-valid script can parse/compile-check — selects which validator command runs (yq, jq, or bash -n)"
+    type: string
     values:
       - name: YAML
         value: yaml
@@ -2702,6 +3401,7 @@ enums:
   - id: package-manager
     name: "Package manager"
     description: "Which package manager's script runner invokes the named script"
+    type: string
     values:
       - name: npm
         value: npm
@@ -2712,11 +3412,41 @@ enums:
       - name: yarn
         value: yarn
         description: "Runs via: yarn run <script>"
+  - id: api-key-signature
+    name: "API key signature"
+    description: "Known API-key/token prefix patterns by provider, for secret-scanning regex checks"
+    type: regex
+    values:
+      - name: AWS
+        value: 'AKIA[0-9A-Z]{16}'
+        description: "AWS access key ID"
+      - name: OpenAI
+        value: 'sk-[A-Za-z0-9]{20,}'
+        description: "OpenAI secret key"
+      - name: "GitHub (classic token)"
+        value: 'ghp_[A-Za-z0-9]{36}'
+        description: "GitHub classic personal access token"
+      - name: "GitHub (server token)"
+        value: 'ghs_[A-Za-z0-9]{36}'
+        description: "GitHub app installation / server-to-server token"
+      - name: "GitHub (fine-grained token)"
+        value: 'github_pat_[A-Za-z0-9_]{22,}'
+        description: "GitHub fine-grained personal access token"
+      - name: Google
+        value: 'AIza[0-9A-Za-z_-]{35}'
+        description: "Google API key"
+      - name: Slack
+        value: 'xox[baprs]-[0-9A-Za-z-]{10,}'
+        description: "Slack bot/user/app/refresh token"
+      - name: GitLab
+        value: 'glpat-[0-9A-Za-z_-]{20}'
+        description: "GitLab personal access token"
   - group: Claude Settings
     enums:
       - id: claude-permission-mode
         name: "Claude permission mode"
         description: "Valid values for permissions.defaultMode in .claude/settings.json"
+        type: string
         values:
           - name: Default
             value: default
@@ -2739,6 +3469,7 @@ enums:
       - id: claude-rule
         name: "Claude rule"
         description: "Permission rule types: deny blocks, allow auto-approves, ask always prompts"
+        type: string
         values:
           - name: Deny
             value: deny
@@ -2752,6 +3483,7 @@ enums:
       - id: claude-tool
         name: "Claude tool"
         description: "Claude Code tool names used in permission patterns"
+        type: string
         values:
           - name: Bash
             value: Bash
@@ -2777,6 +3509,7 @@ enums:
       - id: claude-default-shell
         name: "Claude default shell"
         description: "Valid values for the defaultShell key — the shell used for input-box ! commands (only these two are documented)"
+        type: string
         values:
           - name: bash
             value: bash
@@ -2787,6 +3520,7 @@ enums:
       - id: claude-editor-mode
         name: "Claude editor mode"
         description: "Valid values for the editorMode key — key binding mode for the input prompt"
+        type: string
         values:
           - name: Normal
             value: normal
@@ -2797,6 +3531,7 @@ enums:
       - id: claude-settings-file
         name: "Claude settings file"
         description: "Project-scope Claude Code settings files that rules can target"
+        type: path
         values:
           - name: Shared
             value: .claude/settings.json
@@ -2807,6 +3542,7 @@ enums:
       - id: claude-model
         name: "Claude model"
         description: "Model aliases accepted by the model key in settings.json (a full model ID is also valid but not offered here)"
+        type: string
         values:
           - name: Sonnet
             value: sonnet
@@ -2826,6 +3562,7 @@ enums:
       - id: claude-hook-event
         name: "Claude hook event"
         description: "Lifecycle events that hooks in settings.json can register on (hooks.<Event>[].hooks[].command)"
+        type: string
         values:
           - name: PreToolUse
             value: PreToolUse
@@ -2857,6 +3594,7 @@ enums:
       - id: claude-setting-key
         name: "Claude setting key"
         description: "Curated catalog of project-enforceable settings.json keys (scalar-valued, usable with the claude-setting-value script; array-valued keys like availableModels, sandbox.excludedCommands or sandbox.network.allowedDomains are checked with json-array-contains instead)"
+        type: string
         values:
           - name: "Model"
             value: model

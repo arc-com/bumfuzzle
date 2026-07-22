@@ -82,6 +82,7 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .rt-ln{display:none;align-items:center;justify-content:flex-end;width:20px;flex-shrink:0;font-size:10px;font-family:var(--mono);color:var(--td);padding-right:5px;user-select:none}
 .feat-line-numbers .rt-ln{display:flex}
 .rt-status{font-size:10px;color:var(--yl);margin-left:5px;margin-right:6px;flex-shrink:0;white-space:nowrap}
+.rt-tog.mut{border-color:rgba(210,153,34,.4);color:var(--or);cursor:default;margin:0 6px}
 .rt-grp-count{font-size:11px;color:var(--td);font-family:var(--mono);margin-left:6px;font-weight:400;white-space:nowrap}
 .rt-tog{background:none;border:1px solid rgba(63,185,80,.35);border-radius:3px;font-size:10px;font-family:var(--mono);padding:1px 5px;cursor:pointer;color:var(--gr);flex-shrink:0;transition:border-color .1s,color .1s,opacity .1s;line-height:1.4}
 .rt-tog.off{border-color:rgba(248,81,73,.3);color:var(--rd);opacity:.6}
@@ -337,6 +338,7 @@ function annotateEnums(items) {
       if (!item.id)          item.id          = '';
       if (!item.name)        item.name        = '';
       if (!item.description) item.description = '';
+      if (!item.type)        item.type        = 'string';
       if (!Array.isArray(item.values)) item.values = [];
       item.values = item.values.map(v => typeof v === 'string' ? { name: v, value: v, description: '' } : v);
       item.values.forEach(v => { if (!v.name) v.name = ''; if (!v.value) v.value = ''; if (v.description === undefined) v.description = ''; });
@@ -415,16 +417,17 @@ function scheduleSave() {
 async function doSave() {
   try {
     const res = await fetch('/save', { method: 'POST', body: generateYaml() });
-    if (!res.ok) throw new Error();
+    if (!res.ok) { setSaveStatus('err', await res.text().catch(() => '')); return; }
     setSaveStatus('ok');
   } catch { setSaveStatus('err'); }
 }
 
-function setSaveStatus(s) {
+function setSaveStatus(s, detail) {
   if (!saveEl) return;
   const labels = { idle: '', saving: 'Saving…', ok: 'Saved ✓', err: 'Save failed' };
   saveEl.textContent = labels[s] || '';
   saveEl.className = 'hdr-save ' + s;
+  saveEl.title = detail || '';
 }
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
@@ -530,6 +533,7 @@ function generateYaml() {
         if (item.on_missing)  lines.push(indent + '  on_missing: '  + item.on_missing);
         if (item.severity && item.severity !== 'error')
                               lines.push(indent + '  severity: '    + item.severity);
+        if (item.mutative === true) lines.push(indent + '  mutative: true');
         if (item.instruction) lines.push(indent + '  instruction: ' + JSON.stringify(item.instruction));
         if (item.args && Object.keys(item.args).length) {
           lines.push(indent + '  args:');
@@ -551,6 +555,7 @@ function generateYaml() {
         if (item.on_missing)  lines.push(indent + '  on_missing: '  + item.on_missing);
         if (item.severity && item.severity !== 'error')
                               lines.push(indent + '  severity: '    + item.severity);
+        if (item.mutative === true) lines.push(indent + '  mutative: true');
         if (item.instruction) lines.push(indent + '  instruction: ' + JSON.stringify(item.instruction));
       }
     }
@@ -566,6 +571,7 @@ function generateYaml() {
         lines.push(indent + '- id: '   + JSON.stringify(item.id));
         lines.push(indent + '  name: ' + JSON.stringify(item.name));
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
+        lines.push(indent + '  type: ' + JSON.stringify(item.type || 'string'));
         if (item.values.length) {
           lines.push(indent + '  values:');
           item.values.forEach(v => {
@@ -855,7 +861,7 @@ function makeSection(key, title) {
 
 // ── Snapshot helpers ──────────────────────────────────────────────────────────
 
-const SNAP_FIELDS = ['type','name','description','command','severity','instruction','script'];
+const SNAP_FIELDS = ['type','name','description','command','severity','instruction','script','mutative'];
 
 function ruleSnapshot(rule) {
   const s = {};
@@ -872,6 +878,7 @@ function enumSnapshot(item) {
     id:          item.id          || '',
     name:        item.name        || '',
     description: item.description || '',
+    type:        item.type        || 'string',
     values:      JSON.parse(JSON.stringify(item.values || [])),
   });
 }
@@ -918,6 +925,83 @@ function getEnumValues(enumRef) {
 
 function getResolvedArgs(script) {
   return (script && Array.isArray(script.args)) ? script.args : [];
+}
+
+// mirrors scripts/prerequisites/script-arg-types.sh's _valid_path: no .., no
+// doubled slashes, no redundant repeated ./ prefix, no trailing slash
+// (unless the whole path is just "/").
+function isValidPathArg(p) {
+  if (typeof p !== 'string' || !p) return true;
+  if (p.includes('..')) return false;
+  if (p.includes('//')) return false;
+  if (p.includes('././')) return false;
+  if (p.endsWith('/') && p !== '/') return false;
+  return true;
+}
+
+// mirrors scripts/prerequisites/script-arg-types.sh's _value_matches_type.
+// enum is not checked here since the wizard's own controls only ever let
+// the user pick from the enum's declared values, string/glob accept
+// anything, same as server-side.
+function argValueMatchesType(val, type) {
+  const s = String(val);
+  switch (type) {
+    case 'int': return /^-?[0-9]+$/.test(s);
+    case 'double': return /^-?[0-9]+(\.[0-9]+)?$/.test(s);
+    case 'bool': return s === 'true' || s === 'false';
+    case 'regex': try { new RegExp(s); return true; } catch { return false; }
+    case 'path': return isValidPathArg(s);
+    default: return true;
+  }
+}
+
+// enums whose declared type matches argType — pick-source candidates for any
+// arg of that type, independent of enum_ref (which stays a separate,
+// single-enum-only wiring used by type: enum args).
+function getTypeCompatibleEnums(argType) {
+  return flattenItems(state.enums || []).filter(isEnum).filter(e => e.type === argType);
+}
+
+// a single "+ enum" button that, on click, swaps itself for a dropdown across
+// every type-matching enum's values; selecting an option immediately calls
+// onPick with the literal value (never a persisted reference — resolved
+// immediately, same as every other enum pick in the wizard) and the dropdown
+// reverts back to the button. No separate confirm step.
+function buildEnumPickButton(argType, onPick) {
+  const matches = getTypeCompatibleEnums(argType);
+  if (!matches.length) return null;
+  const btn = el('button', { class: 'add-btn' }, '+ enum');
+  btn.addEventListener('click', () => {
+    const sel = el('select', { class: 'add-inp', style: 'flex:0 0 auto;width:auto' });
+    sel.append(el('option', { value: '' }, '— pick —'));
+    matches.forEach((en, ei) => {
+      const grp = el('optgroup', { label: en.name || en.id });
+      (en.values || []).forEach((v, vi) => grp.append(el('option', { value: ei + ' ' + vi }, v.name)));
+      sel.append(grp);
+    });
+    function onDocClick(e) { if (e.target !== sel) revert(); }
+    function revert() {
+      if (!sel.isConnected) return;
+      sel.replaceWith(btn);
+      document.removeEventListener('click', onDocClick, true);
+    }
+    sel.addEventListener('change', () => {
+      if (sel.value) {
+        const [ei, vi] = sel.value.split(' ').map(Number);
+        const v = matches[ei]?.values?.[vi];
+        if (v) onPick(v.value);
+      }
+      revert();
+    });
+    sel.addEventListener('blur', revert);
+    btn.replaceWith(sel);
+    sel.focus();
+    if (sel.showPicker) { try { sel.showPicker(); } catch (e) {} }
+    // deferred so the same click that opened the picker doesn't immediately
+    // count as an "outside" click and close it again
+    setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+  });
+  return btn;
 }
 
 function buildArgWidget(argDef, rule, onChange) {
@@ -1015,13 +1099,11 @@ function buildArgWidget(argDef, rule, onChange) {
     refreshList();
     const addInp = el('input', { class: 'add-inp mono', type: 'text', placeholder: argDef.placeholder || 'add value' });
     const addBtn = el('button', { class: 'add-btn' }, '+ add');
-    const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, 'Invalid regex');
+    const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, type === 'path' ? 'Invalid path' : 'Invalid regex');
     function tryAdd() {
       const v = addInp.value.trim();
       if (!v) return;
-      if (type === 'regex') {
-        try { new RegExp(v); } catch { errEl.style.display = ''; return; }
-      }
+      if (!argValueMatchesType(v, type)) { errEl.style.display = ''; return; }
       errEl.style.display = 'none';
       selected.push(v);
       set([...selected]);
@@ -1030,9 +1112,17 @@ function buildArgWidget(argDef, rule, onChange) {
     }
     addBtn.addEventListener('click', tryAdd);
     addInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tryAdd(); } });
-    wrap.append(chipsEl, el('div', { class: 'add-row' }, addInp, addBtn), errEl);
+    const addRowChildren = [addInp, addBtn];
+    const enumBtn = buildEnumPickButton(type, v => {
+      if (!argValueMatchesType(v, type) || selected.includes(v)) return;
+      selected.push(v);
+      set([...selected]);
+      refreshList();
+    });
+    if (enumBtn) addRowChildren.push(enumBtn);
+    wrap.append(chipsEl, el('div', { class: 'add-row' }, ...addRowChildren), errEl);
   } else if (type === 'int' || type === 'double') {
-    const inp = el('input', { class: 'inp mono', type: 'number' });
+    const inp = el('input', { class: 'inp mono', type: 'number', style: 'flex:1' });
     if (type === 'int') inp.step = '1';
     if (argDef.min !== undefined) inp.min = argDef.min;
     if (argDef.max !== undefined) inp.max = argDef.max;
@@ -1043,29 +1133,40 @@ function buildArgWidget(argDef, rule, onChange) {
       set(inp.value !== '' ? (type === 'int' ? parseInt(inp.value, 10) : parseFloat(inp.value)) : '');
       if (argDef.required) inp.style.borderColor = inp.value === '' ? 'var(--rd)' : '';
     });
-    wrap.append(inp);
+    const enumBtn = buildEnumPickButton(type, v => {
+      inp.value = v;
+      set(type === 'int' ? parseInt(v, 10) : parseFloat(v));
+      if (argDef.required) inp.style.borderColor = '';
+    });
+    wrap.append(enumBtn ? el('div', { class: 'add-row' }, inp, enumBtn) : inp);
   } else {
     // string, regex, path
-    const inp = el('input', { class: 'inp mono', type: 'text' });
+    const inp = el('input', { class: 'inp mono', type: 'text', style: 'flex:1' });
     inp.placeholder = argDef.placeholder ?? (def !== '' ? String(def) : '');
     inp.value = cur !== '' && cur !== undefined ? String(cur) : (def !== '' ? String(def) : '');
     if (argDef.required) inp.style.borderColor = inp.value === '' ? 'var(--rd)' : '';
-    if (type === 'regex') {
-      const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, 'Invalid regex');
-      function validateRx() {
-        try { if (inp.value) new RegExp(inp.value); errEl.style.display = 'none'; inp.style.borderColor = argDef.required && !inp.value ? 'var(--rd)' : ''; }
-        catch { errEl.style.display = ''; inp.style.borderColor = 'var(--rd)'; }
+    if (type === 'regex' || type === 'path') {
+      const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, type === 'path' ? 'Invalid path' : 'Invalid regex');
+      function validateVal() {
+        if (!inp.value || argValueMatchesType(inp.value, type)) { errEl.style.display = 'none'; inp.style.borderColor = argDef.required && !inp.value ? 'var(--rd)' : ''; }
+        else { errEl.style.display = ''; inp.style.borderColor = 'var(--rd)'; }
       }
-      inp.addEventListener('input', () => { set(inp.value); validateRx(); });
-      validateRx();
-      wrap.append(inp, errEl);
+      inp.addEventListener('input', () => { set(inp.value); validateVal(); });
+      validateVal();
+      const enumBtn = buildEnumPickButton(type, v => { inp.value = v; set(v); validateVal(); });
+      wrap.append(enumBtn ? el('div', { class: 'add-row' }, inp, enumBtn) : inp, errEl);
       return wrap;
     }
     inp.addEventListener('input', () => {
       set(inp.value);
       if (argDef.required) inp.style.borderColor = inp.value === '' ? 'var(--rd)' : '';
     });
-    wrap.append(inp);
+    const enumBtn = buildEnumPickButton(type, v => {
+      inp.value = v;
+      set(v);
+      if (argDef.required) inp.style.borderColor = '';
+    });
+    wrap.append(enumBtn ? el('div', { class: 'add-row' }, inp, enumBtn) : inp);
   }
   return wrap;
 }
@@ -1084,6 +1185,22 @@ function ruleRequiredArgsFilled(item) {
   return getResolvedArgs(s).filter(a => a.required).every(a => {
     const v = item.args?.[a.key];
     return v !== undefined && v !== '' && !(Array.isArray(v) && !v.length);
+  });
+}
+
+// every arg value actually present must match its declared type, not just
+// be non-empty; mirrors scripts/prerequisites/script-arg-types.sh so the
+// wizard can't save what that check would reject anyway.
+function ruleArgsValid(item) {
+  if (item.type !== 'script_reusable') return true;
+  if (!item.script) return true;
+  const s = flattenItems(state.scripts || []).find(x => isScript(x) && x.id === item.script);
+  if (!s || !Array.isArray(s.args)) return true;
+  return getResolvedArgs(s).every(a => {
+    const v = item.args?.[a.key];
+    if (v === undefined || v === '') return true;
+    const vals = Array.isArray(v) ? v : [v];
+    return vals.every(x => argValueMatchesType(x, a.type));
   });
 }
 
@@ -1235,10 +1352,26 @@ function buildRuleFields(rule, reRender, inModal = false) {
   iTa.value = rule.instruction || '';
   iTa.addEventListener('input', () => { rule.instruction = iTa.value; autoResize(iTa); updateStatus(); });
 
+  const mSeg = el('div', { class: 'seg' });
+  const mBtns = {};
+  [false, true].forEach(v => {
+    const on = (rule.mutative === true) === v;
+    const b = el('button', { class: 'seg-btn' + (on ? ' on t-on' : '') }, v ? 'Mutative' : 'Check only');
+    b.dataset.val = String(v);
+    b.addEventListener('click', () => {
+      rule.mutative = v;
+      Object.values(mBtns).forEach(x => x.className = 'seg-btn' + ((x.dataset.val === 'true') === v ? ' on t-on' : ''));
+      rule._updateRow?.();
+      updateStatus();
+    });
+    mBtns[String(v)] = b; mSeg.append(b);
+  });
+
   formView.append(
     panelSec('Name', nInp),
     panelSec('Description', dInp),
     panelSec('Severity on fail', sSeg),
+    panelSec('Mutative (edits files instead of only checking them)', mSeg),
     panelSec('Instructions on fail', iTa),
     panelSec('Type', typeSeg),
     typeViewEl,
@@ -1279,7 +1412,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
     const mode       = rule._mode;
     const isReusable = rule.type === 'script_reusable';
     const cmdOk      = isReusable || !!rule.command;
-    const canSave    = dirty && !!rule.name && cmdOk && hasRequiredArgsFilled();
+    const canSave    = dirty && !!rule.name && cmdOk && hasRequiredArgsFilled() && ruleArgsValid(rule);
     nInp.style.borderColor = rule.name ? '' : 'var(--rd)';
     cInp.style.borderColor = (!isReusable && !rule.command) ? 'var(--rd)' : '';
     const pickerEl = reusableEl?.querySelector('select.inp');
@@ -1305,7 +1438,7 @@ function buildRuleFields(rule, reRender, inModal = false) {
 
   btnSave.addEventListener('click', () => {
     const isReusable = rule.type === 'script_reusable';
-    if (!rule.name || !hasRequiredArgsFilled() || (!isReusable && !rule.command)) return;
+    if (!rule.name || !hasRequiredArgsFilled() || !ruleArgsValid(rule) || (!isReusable && !rule.command)) return;
     rule._saved = ruleSnapshot(rule);
     rule._updateRow?.();
     scheduleSave();
@@ -1335,6 +1468,9 @@ function buildRuleFields(rule, reRender, inModal = false) {
     typeReusBtn.className   = 'seg-btn' + (!nowCustom ? ' on t-on' : '');
     Object.values(sBtns).forEach(b => {
       b.className = 'seg-btn' + (b.dataset.val === (rule.severity || 'error') ? ' on t-' + b.dataset.val : '');
+    });
+    Object.values(mBtns).forEach(b => {
+      b.className = 'seg-btn' + ((b.dataset.val === 'true') === (rule.mutative === true) ? ' on t-on' : '');
     });
     rebuildTypeView();
     rule._updateRow?.();
@@ -1373,6 +1509,14 @@ function buildEnumPanel(item, reRender, inModal = false) {
   const dInp = el('input', { class: 'inp', type: 'text', placeholder: 'Description (optional)' });
   dInp.value = item.description || '';
   dInp.addEventListener('input', () => { item.description = dInp.value; item._updateRow?.(); updateStatus(); });
+
+  const tSel = el('select', { class: 'inp' });
+  ['string', 'int', 'double', 'regex', 'path', 'bool', 'enum', 'glob'].forEach(t => {
+    const opt = el('option', { value: t }, t);
+    if ((item.type || 'string') === t) opt.selected = true;
+    tSel.append(opt);
+  });
+  tSel.addEventListener('change', () => { item.type = tSel.value; item._updateRow?.(); updateStatus(); });
 
   const valsEl = el('div', { class: 'enum-vals' });
   function refreshVals() {
@@ -1417,6 +1561,7 @@ function buildEnumPanel(item, reRender, inModal = false) {
     panelSec('ID (slug, locked after first save)', idInp),
     panelSec('Name', nInp),
     panelSec('Description', dInp),
+    panelSec('Type (which arg types this enum can be picked into)', tSel),
     panelSec('Values', el('div', {}, valsEl, addValBtn)),
   );
 
@@ -1429,6 +1574,7 @@ function buildEnumPanel(item, reRender, inModal = false) {
     if ((from.id   || '') !== (item.id   || ''))               changes.push({ f: 'id',          from: from.id          || '(empty)', to: item.id          || '(empty)' });
     if ((from.name || '') !== (item.name || ''))               changes.push({ f: 'name',        from: from.name        || '(empty)', to: item.name        || '(empty)' });
     if ((from.description || '') !== (item.description || '')) changes.push({ f: 'description', from: from.description || '(empty)', to: item.description || '(empty)' });
+    if ((from.type || 'string') !== (item.type || 'string')) changes.push({ f: 'type', from: from.type || 'string', to: item.type || 'string' });
     const fv = (from.values || []).map(v => v.name || v.value || '').join(', '), tv = (item.values || []).map(v => v.name || v.value || '').join(', ');
     if (fv !== tv) changes.push({ f: 'values', from: fv || '(empty)', to: tv || '(empty)' });
     if (!changes.length) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No changes')); return; }
@@ -1582,7 +1728,7 @@ function buildArgFields(argDef, onChangeFn, opts = {}) {
   if (!showType) {
     return el('div', {},
       el('div', { class: 'arg-grid' },
-        el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Key (env var)'), keyInp),
+        el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Script arg env var name'), keyInp),
         el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Label'), lblInp),
       ),
       el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Required'), reqSeg),
@@ -1688,7 +1834,7 @@ function buildArgFields(argDef, onChangeFn, opts = {}) {
   rebuildConstraints();
 
   const identityRow = showIdentity ? el('div', { class: 'arg-grid' },
-    el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Key (env var)'), keyInp),
+    el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Script arg env var name'), keyInp),
     el('div', { class: 'rf-sec', style: 'margin:0' }, el('span', { class: 'rf-lbl' }, 'Label'), lblInp),
   ) : null;
   const requiredRow = showIdentity ? el('div', { style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Required'), reqSeg) : null;
@@ -1997,6 +2143,9 @@ function createTreeSection(opts) {
     subSpan.style.display = (item.name && item.description) ? '' : 'none';
     const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
 
+    const mutBadge = el('span', { class: 'rt-tog mut', title: 'This rule edits/writes files instead of only checking them' }, 'mutative');
+    mutBadge.style.display = item.mutative === true ? '' : 'none';
+
     let statusSpan = null;
     if (opts.hasStatus) {
       statusSpan = el('span', { class: 'rt-status' }, '●');
@@ -2006,12 +2155,14 @@ function createTreeSection(opts) {
         subSpan.textContent  = item.description || '';
         subSpan.style.display = (item.name && item.description) ? '' : 'none';
         statusSpan.style.display = opts.isItemDirty(item) ? '' : 'none';
+        mutBadge.style.display = item.mutative === true ? '' : 'none';
       };
     } else {
       item._updateRow = () => {
         nameSpan.textContent = opts.getItemName(item);
         subSpan.textContent  = item.description || '';
         subSpan.style.display = (item.name && item.description) ? '' : 'none';
+        mutBadge.style.display = item.mutative === true ? '' : 'none';
       };
     }
     nameLine.append(nameSpan);
@@ -2044,7 +2195,7 @@ function createTreeSection(opts) {
       });
     }
 
-    row.append(buildPrefix(cols), content, ...(statusSpan ? [statusSpan] : []), ...(togBtn ? [togBtn] : []), el('div', { class: 'rt-actions' }, rm));
+    row.append(buildPrefix(cols), content, ...(statusSpan ? [statusSpan] : []), mutBadge, ...(togBtn ? [togBtn] : []), el('div', { class: 'rt-actions' }, rm));
 
     attachDrag(row, item, section);
     registry.push({ item, el: row, section });
