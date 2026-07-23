@@ -28,12 +28,7 @@
 set -euo pipefail
 
 SCRIPT_NAME="prerequisites.sh"
-VERBOSE=false
-_log() {
-  local _level="$1" _msg="$2"
-  [[ "$_level" == "DEBUG" && "$VERBOSE" != true ]] && return 0
-  printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$_level" "$_msg" >&2
-}
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prerequisites/lib.sh"
 
 usage() {
   cat <<'EOF'
@@ -55,43 +50,8 @@ exit 0), 1 if it does, 2 on a usage error.
 EOF
 }
 
-TARGET=""
-_TARGET_SET=false
-_SHOW_HELP=false
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -h|--help)
-      _SHOW_HELP=true
-      shift
-      ;;
-    -v|--verbose)
-      VERBOSE=true
-      shift
-      ;;
-    -*)
-      printf 'prerequisites.sh: unknown flag: %s\n\n' "$1" >&2
-      usage >&2
-      exit 2
-      ;;
-    *)
-      if [[ "$_TARGET_SET" == true ]]; then
-        printf 'prerequisites.sh: unexpected extra argument: %s\n\n' "$1" >&2
-        usage >&2
-        exit 2
-      fi
-      TARGET="$1"
-      _TARGET_SET=true
-      shift
-      ;;
-  esac
-done
+parse_target_args "$@"
 
-if [[ "$_SHOW_HELP" == true ]]; then
-  usage
-  exit 0
-fi
-
-TARGET="${TARGET:-.bumfuzzle/config.yml}"
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 PREREQ_DIR="$BUMFUZZLE_ROOT/scripts/prerequisites"
 
@@ -106,8 +66,11 @@ _run_args=("$TARGET")
 # and stops the whole run immediately — nothing after it can produce a
 # meaningful result once yq is missing or TARGET can't be read as YAML.
 _run_gate() {
-  local _script="$1" _out _rc=0
+  local _script="$1" _out _rc=0 _start_ms _elapsed_ms
+  _start_ms=$(_now_ms)
   _out=$("$PREREQ_DIR/$_script" "${_run_args[@]}") || _rc=$?
+  _elapsed_ms=$(( $(_now_ms) - _start_ms ))
+  _log DEBUG "TAG::PERF $_script took ${_elapsed_ms}ms"
   if [[ "$_rc" -eq 2 ]]; then
     printf '%s\n' "$_out" >&2
     exit 2
@@ -120,17 +83,20 @@ _run_gate() {
         '[FAIL:structural] '*) _FINDINGS_STRUCTURAL=$((_FINDINGS_STRUCTURAL + 1)) ;;
       esac
     done <<< "$_out"
-    _log INFO "$_script failed - stopping before the remaining checks"
+    _log INFO "Stopping before the remaining checks - $_script failed"
     exit 1
   fi
-  _log DEBUG "$_script: $_out"
+  _log DEBUG "Output from $_script: $_out"
 }
 
 # _run_check runs a non-gate check and passes through its tiered findings,
 # but always continues to the next check regardless of the outcome.
 _run_check() {
-  local _script="$1" _out _rc=0
+  local _script="$1" _out _rc=0 _start_ms _elapsed_ms
+  _start_ms=$(_now_ms)
   _out=$("$PREREQ_DIR/$_script" "${_run_args[@]}") || _rc=$?
+  _elapsed_ms=$(( $(_now_ms) - _start_ms ))
+  _log DEBUG "TAG::PERF $_script took ${_elapsed_ms}ms"
   while IFS= read -r _line; do
     case "$_line" in
       '[FAIL:structural] '*) printf '%s\n' "$_line"; _FINDINGS_STRUCTURAL=$((_FINDINGS_STRUCTURAL + 1)) ;;
@@ -138,7 +104,7 @@ _run_check() {
       '[FAIL:warn] '*)       printf '%s\n' "$_line"; _FINDINGS_WARN=$((_FINDINGS_WARN + 1)) ;;
       '[PASS] '*)            printf '%s\n' "$_line" ;;
       '') ;;
-      *) _log DEBUG "$_script: $_line" ;;
+      *) _log DEBUG "Output from $_script: $_line" ;;
     esac
   done <<< "$_out"
 }
@@ -151,8 +117,11 @@ _run_check() {
 # own [PASS] line describes a narrower check ("matches schema.yml") than
 # this script's own final summary.
 _run_schema_check() {
-  local _out _rc=0
+  local _out _rc=0 _start_ms _elapsed_ms
+  _start_ms=$(_now_ms)
   _out=$("$PREREQ_DIR/validate-schema.sh" "${_run_args[@]}") || _rc=$?
+  _elapsed_ms=$(( $(_now_ms) - _start_ms ))
+  _log DEBUG "TAG::PERF validate-schema.sh took ${_elapsed_ms}ms"
   [[ "$_rc" -eq 0 ]] && return 0
   while IFS= read -r _line; do
     [[ "$_line" == \[FAIL\]* ]] || continue
@@ -161,7 +130,8 @@ _run_schema_check() {
   done <<< "$_out"
 }
 
-_log INFO "starting prerequisites check of $TARGET"
+_log DEBUG "Target: $TARGET"
+_log INFO "Starting prerequisites check"
 
 _run_gate yq-installed.sh
 _run_gate target-exists.sh
@@ -177,14 +147,14 @@ _run_check no-redundant-enabled-false.sh
 _run_schema_check
 
 if [[ "$_FINDINGS_STRUCTURAL" -gt 0 || "$_FINDINGS_ERROR" -gt 0 ]]; then
-  _log INFO "prerequisites failed: $_FINDINGS_STRUCTURAL structural, $_FINDINGS_ERROR error, $_FINDINGS_WARN warning finding(s)"
+  _log INFO "Prerequisites failed: $_FINDINGS_STRUCTURAL structural, $_FINDINGS_ERROR error, $_FINDINGS_WARN warning finding(s)"
   exit 1
 fi
 
 printf '[PASS] %s is structurally clean\n' "$TARGET"
 if [[ "$_FINDINGS_WARN" -gt 0 ]]; then
-  _log INFO "prerequisites passed with $_FINDINGS_WARN warning(s)"
+  _log INFO "Prerequisites passed with $_FINDINGS_WARN warning(s)"
 else
-  _log INFO "prerequisites passed"
+  _log INFO "Prerequisites passed"
 fi
 exit 0

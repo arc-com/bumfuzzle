@@ -2,9 +2,9 @@
 
 _urule_pass() {
   _PASS_COUNT=$((_PASS_COUNT + 1))
+  _flush_header
   if [[ "$VERBOSE" == true ]]; then
-    _flush_header
-    printf '[run.sh][DEBUG] - [PASS] %s\n' "$1"
+    _log DEBUG "[PASS] $1"
   fi
 }
 
@@ -32,22 +32,37 @@ _urule_report_failure() {
   fail "$_label: command exited $_ec" "$_sev" "$_details"
 }
 
+# _urule_lookup_manifest PATH — reads (enabled, name) for PATH out of
+# $_URULE_MANIFEST, a bulk-fetched "path|enabled|name" listing built once by
+# user_rules_check. Pure in-bash linear scan, no subprocess spawned, so a
+# rule's enabled/disabled decision never costs a yq call — with hundreds of
+# rules this used to be the dominant per-rule cost even for disabled ones.
+_urule_lookup_manifest() {
+  local _target_path="$1" _p _en _nm
+  while IFS='|' read -r _p _en _nm; do
+    if [[ "$_p" == "$_target_path" ]]; then
+      printf '%s\t%s\n' "$_en" "$_nm"
+      return 0
+    fi
+  done <<< "$_URULE_MANIFEST"
+  printf 'false\t\n'
+}
+
 _urule_process_rule() {
   local _path="$1"
 
-  local _type _name _desc _command _sev _enabled
-  _name=$(yq    "${_path}.name              // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
-  _enabled=$(yq "${_path}.enabled | tostring"         "$PREFLIGHT_FILE" 2>/dev/null || echo null)
+  local _type _name _desc _command _sev _enabled _looked_up
+  _looked_up=$(_urule_lookup_manifest "$_path")
+  _enabled="${_looked_up%%$'\t'*}"
+  _name="${_looked_up#*$'\t'}"
   if [[ "$_enabled" != "true" ]]; then
     if [[ "$VERBOSE" == true ]]; then
       _flush_header
-      printf '[run.sh][DEBUG] - [SKIP] %s (disabled)\n' "${_name:-$_path}"
+      _log DEBUG "[SKIP] ${_name:-$_path} (disabled)"
     fi
     return
   fi
-  if [[ "$VERBOSE" == true ]]; then
-    printf '[run.sh][DEBUG] - %s is enabled, proceeding\n' "${_name:-$_path}"
-  fi
+  _log DEBUG "Enabled, proceeding: ${_name:-$_path}"
   _type=$(yq    "${_path}.type              // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _desc=$(yq    "${_path}.description       // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _command=$(yq "${_path}.command           // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
@@ -60,9 +75,7 @@ _urule_process_rule() {
   [[ "$_known" == false ]] && { fail "${_path}: unknown type '$_type'" error; return; }
 
   local _label="${_name:-${_desc:-${_path} ($_type)}}"
-  if [[ "$VERBOSE" == true ]]; then
-    printf '[run.sh][DEBUG] - %s has known type '\''%s'\''\n' "$_label" "$_type"
-  fi
+  _log DEBUG "Known type '$_type' for $_label"
 
   # requires: <binary> gates the rule on an external tool being installed;
   # on_missing decides what happens when it is not: skip | warn (default) | fail
@@ -76,7 +89,7 @@ _urule_process_rule() {
         skip)
           if [[ "$VERBOSE" == true ]]; then
             _flush_header
-            printf '[run.sh][DEBUG] - [SKIP] %s (%s not installed)\n' "$_label" "$_requires"
+            _log DEBUG "[SKIP] $_label ($_requires not installed)"
           fi
           ;;
         fail)
@@ -89,22 +102,18 @@ _urule_process_rule() {
           ;;
       esac
       return
-    elif [[ "$VERBOSE" == true ]]; then
-      printf '[run.sh][DEBUG] - required tool '\''%s'\'' found for %s\n' "$_requires" "$_label"
+    else
+      _log DEBUG "Required tool '$_requires' found for $_label"
     fi
   fi
 
   case "$_type" in
     script_clean)
       is_blank "$_command" && { fail "$_label: 'command' is required" error; return; }
-      if [[ "$VERBOSE" == true ]]; then
-        printf '[run.sh][DEBUG] - running %s: %s\n' "$_label" "$_command"
-      fi
+      _log DEBUG "Running $_label: $_command"
       local _out _ec=0
       _out=$(eval "$_command" 2>&1) || _ec=$?
-      if [[ "$VERBOSE" == true ]]; then
-        printf '[run.sh][DEBUG] - %s exited %s\n' "$_label" "$_ec"
-      fi
+      _log DEBUG "Command for $_label exited $_ec"
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else
@@ -145,18 +154,12 @@ _urule_process_rule() {
         _args_summary="${_args_summary}${_args_summary:+, }${_ak}=${_av//$'\n'/;}"
       done <<< "$_arg_keys"
 
-      if [[ "$VERBOSE" == true && -n "$_args_summary" ]]; then
-        printf '[run.sh][DEBUG] - %s args: %s\n' "$_label" "$_args_summary"
-      fi
+      [[ -n "$_args_summary" ]] && _log DEBUG "Args for $_label: $_args_summary"
 
-      if [[ "$VERBOSE" == true ]]; then
-        printf '[run.sh][DEBUG] - running %s (script: %s): %s\n' "$_label" "$_script_id" "$_script_cmd"
-      fi
+      _log DEBUG "Running $_label (script: $_script_id): $_script_cmd"
       local _out _ec=0
       _out=$(eval "$_script_cmd" 2>&1) || _ec=$?
-      if [[ "$VERBOSE" == true ]]; then
-        printf '[run.sh][DEBUG] - %s exited %s\n' "$_label" "$_ec"
-      fi
+      _log DEBUG "Command for $_label exited $_ec"
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else
@@ -179,15 +182,13 @@ _urule_walk() {
   local _count
   _count=$(yq "${_base} | length" "$PREFLIGHT_FILE" 2>/dev/null || echo 0)
   if [[ "$_count" -eq 0 ]]; then
-    if [[ "$VERBOSE" == true ]]; then
-      printf '[run.sh][DEBUG] - %s is empty, nothing to walk\n' "$_base"
-    fi
+    _log DEBUG "Empty, nothing to walk: $_base"
     return 0
   fi
 
   local _i
   for _i in $(seq 0 $((_count - 1))); do
-    local _path="${_base}[${_i}]"
+    local _path="${_base}.${_i}"
     local _group_name
     _group_name=$(yq "${_path}.group // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
     if ! is_blank "$_group_name"; then
@@ -204,9 +205,7 @@ user_rules_check() {
   local _count
   _count=$(yq '.rules | length' "$PREFLIGHT_FILE" 2>/dev/null || echo 0)
   if [[ "$_count" -eq 0 ]]; then
-    if [[ "$VERBOSE" == true ]]; then
-      printf '[run.sh][DEBUG] - no rules configured, skipping rule evaluation\n'
-    fi
+    _log DEBUG "No rules configured, skipping rule evaluation"
     return 0
   fi
 
@@ -219,6 +218,12 @@ user_rules_check() {
   # schema-driven but validated by scripts/prerequisites/validate-schema.sh,
   # not duplicated here — see scripts/prerequisites.sh's _run_schema_check.
   _URULE_VALID_TYPES=$(yq '.["$defs"].ruleType.enum | join(" ")' "$BUMFUZZLE_ROOT/schema.yml")
+
+  local _manifest_start_ms _manifest_ms
+  _manifest_start_ms=$(_now_ms)
+  _URULE_MANIFEST=$(yq '.rules | .. | select(type == "!!map") | select(has("type")) | ("." + (path | join("."))) + "|" + ((.enabled // false) | tostring) + "|" + (.name // "unnamed")' "$PREFLIGHT_FILE" 2>/dev/null || true)
+  _manifest_ms=$(( $(_now_ms) - _manifest_start_ms ))
+  _log DEBUG "TAG::PERF Fetched enabled/name manifest for all rules in ${_manifest_ms}ms"
 
   section '-- Rules ----------------------------------------------------------------'
   _urule_walk '.rules'
@@ -238,7 +243,7 @@ _LINT_STRUCTURAL=0
 
 _lint_structural_fail() {
   _flush_header
-  printf '[run.sh][ERROR] - [FAIL] %s\n' "$1"
+  _log ERROR "[FAIL] $1"
   _LINT_STRUCTURAL=$((_LINT_STRUCTURAL + 1))
 }
 
@@ -248,9 +253,7 @@ _lint_structural_fail() {
 config_lint_check() {
   _LINT_STRUCTURAL=0
 
-  if [[ "$VERBOSE" == true ]]; then
-    printf '[run.sh][DEBUG] - running scripts/prerequisites.sh against %s\n' "$PREFLIGHT_FILE_DISPLAY"
-  fi
+  _log DEBUG "Running scripts/prerequisites.sh against $PREFLIGHT_FILE_DISPLAY"
   local _lint_args=("$PREFLIGHT_FILE")
   [[ "$VERBOSE" == true ]] && _lint_args=(--verbose "$PREFLIGHT_FILE")
 
@@ -259,9 +262,7 @@ config_lint_check() {
   # INFO/ERROR lines must always reach the terminal regardless of ours
   local _out _rc=0
   _out=$("$BUMFUZZLE_ROOT/scripts/prerequisites.sh" "${_lint_args[@]}") || _rc=$?
-  if [[ "$VERBOSE" == true ]]; then
-    printf '[run.sh][DEBUG] - prerequisites.sh exited %s\n' "$_rc"
-  fi
+  _log DEBUG "Prerequisites.sh exited $_rc"
   if [[ "$_rc" -eq 2 ]]; then
     fail "prerequisites.sh: usage error — see stderr" hard-stop
     return
@@ -275,9 +276,7 @@ config_lint_check() {
       '[FAIL:warn] '*)       fail "${_line#'[FAIL:warn] '}" warn ;;
       '') ;;
       *)
-        if [[ "$VERBOSE" == true ]]; then
-          printf '[run.sh][DEBUG] - prerequisites.sh: %s\n' "$_line"
-        fi
+        _log DEBUG "Prerequisites.sh: $_line"
         ;;
     esac
   done <<< "$_out"

@@ -8,12 +8,7 @@
 set -euo pipefail
 
 SCRIPT_NAME="target-parses-yaml.sh"
-VERBOSE=false
-_log() {
-  local _level="$1" _msg="$2"
-  [[ "$_level" == "DEBUG" && "$VERBOSE" != true ]] && return 0
-  printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$_level" "$_msg" >&2
-}
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 usage() {
   cat <<'EOF'
@@ -28,51 +23,16 @@ doesn't, 2 on a usage error.
 EOF
 }
 
-TARGET=""
-_TARGET_SET=false
-_SHOW_HELP=false
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -h|--help)
-      _SHOW_HELP=true
-      shift
-      ;;
-    -v|--verbose)
-      VERBOSE=true
-      shift
-      ;;
-    -*)
-      printf 'target-parses-yaml.sh: unknown flag: %s\n\n' "$1" >&2
-      usage >&2
-      exit 2
-      ;;
-    *)
-      if [[ "$_TARGET_SET" == true ]]; then
-        printf 'target-parses-yaml.sh: unexpected extra argument: %s\n\n' "$1" >&2
-        usage >&2
-        exit 2
-      fi
-      TARGET="$1"
-      _TARGET_SET=true
-      shift
-      ;;
-  esac
-done
+parse_target_args "$@"
 
-if [[ "$_SHOW_HELP" == true ]]; then
-  usage
-  exit 0
-fi
-
-TARGET="${TARGET:-.bumfuzzle/config.yml}"
-
-_log INFO "checking $TARGET parses as YAML"
+_log DEBUG "Target: $TARGET"
+_log INFO "Checking target parses as YAML"
 if ! yq '.' "$TARGET" > /dev/null 2>&1; then
-  _log INFO "$TARGET is not parseable YAML"
+  _log INFO "Target is not parseable YAML"
   printf '[FAIL:structural] %s is not parseable YAML\n' "$TARGET"
   exit 1
 fi
 
-_log INFO "$TARGET parses as YAML"
+_log INFO "Target parses as YAML"
 printf '[PASS] %s parses as YAML\n' "$TARGET"
 exit 0

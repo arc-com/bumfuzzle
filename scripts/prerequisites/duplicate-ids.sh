@@ -5,12 +5,7 @@
 set -euo pipefail
 
 SCRIPT_NAME="duplicate-ids.sh"
-VERBOSE=false
-_log() {
-  local _level="$1" _msg="$2"
-  [[ "$_level" == "DEBUG" && "$VERBOSE" != true ]] && return 0
-  printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$_level" "$_msg" >&2
-}
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 usage() {
   cat <<'EOF'
@@ -25,51 +20,14 @@ are, 2 on a usage error.
 EOF
 }
 
-TARGET=""
-_TARGET_SET=false
-_SHOW_HELP=false
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -h|--help)
-      _SHOW_HELP=true
-      shift
-      ;;
-    -v|--verbose)
-      VERBOSE=true
-      shift
-      ;;
-    -*)
-      printf 'duplicate-ids.sh: unknown flag: %s\n\n' "$1" >&2
-      usage >&2
-      exit 2
-      ;;
-    *)
-      if [[ "$_TARGET_SET" == true ]]; then
-        printf 'duplicate-ids.sh: unexpected extra argument: %s\n\n' "$1" >&2
-        usage >&2
-        exit 2
-      fi
-      TARGET="$1"
-      _TARGET_SET=true
-      shift
-      ;;
-  esac
-done
-
-if [[ "$_SHOW_HELP" == true ]]; then
-  usage
-  exit 0
-fi
-
-TARGET="${TARGET:-.bumfuzzle/config.yml}"
+parse_target_args "$@"
 
 _FINDINGS_ERROR=0
 _report_error() {
   printf '[FAIL:error] %s\n' "$1"
   _FINDINGS_ERROR=$((_FINDINGS_ERROR + 1))
-  _log DEBUG "error finding: $1"
+  _log DEBUG "Error finding: $1"
 }
-_lint_yq() { yq "$1" "$TARGET" 2>/dev/null || true; }
 
 _check() {
   local _ns _list _d
@@ -82,7 +40,8 @@ _check() {
   done
 }
 
-_log INFO "checking duplicate ids in scripts/enums of $TARGET"
+_log DEBUG "Target: $TARGET"
+_log INFO "Checking duplicate ids in scripts/enums"
 _check
 
 if [[ "$_FINDINGS_ERROR" -gt 0 ]]; then

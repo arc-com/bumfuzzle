@@ -25,9 +25,9 @@ _flush_header() {
 
 pass() {
   _PASS_COUNT=$((_PASS_COUNT + 1))
+  _flush_header
   if [[ "$VERBOSE" == true ]]; then
-    _flush_header
-    printf '[run.sh][DEBUG] - [PASS] %s\n' "$1"
+    _log DEBUG "[PASS] $1"
   fi
 }
 
@@ -37,20 +37,20 @@ fail() {
   case "$_sev" in
     warn)
       _flush_header
-      printf '[run.sh][WARN] - [WARN] %s\n' "$1"
+      _log WARN "[WARN] $1"
       [[ -n "$_details" ]] && printf '%s\n' "$_details"
       WARNINGS+=("$1")
       ;;
     hard-stop)
       _flush_header
-      printf '[run.sh][ERROR] - [FAIL] %s\n' "$1"
+      _log ERROR "[FAIL] $1"
       [[ -n "$_details" ]] && printf '%s\n' "$_details"
-      printf '[run.sh][ERROR] - [HARD-STOP] aborting run\n'
+      _log ERROR "[HARD-STOP] Aborting run"
       exit 1
       ;;
     *)
       _flush_header
-      printf '[run.sh][ERROR] - [FAIL] %s\n' "$1"
+      _log ERROR "[FAIL] $1"
       [[ -n "$_details" ]] && printf '%s\n' "$_details"
       ERRORS+=("$1")
       ;;

@@ -6,12 +6,7 @@
 set -euo pipefail
 
 SCRIPT_NAME="yq-installed.sh"
-VERBOSE=false
-_log() {
-  local _level="$1" _msg="$2"
-  [[ "$_level" == "DEBUG" && "$VERBOSE" != true ]] && return 0
-  printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$_level" "$_msg" >&2
-}
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 usage() {
   cat <<'EOF'
@@ -25,51 +20,15 @@ exits 0 if yq is installed, 1 if it isn't, 2 on a usage error.
 EOF
 }
 
-TARGET=""
-_TARGET_SET=false
-_SHOW_HELP=false
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -h|--help)
-      _SHOW_HELP=true
-      shift
-      ;;
-    -v|--verbose)
-      VERBOSE=true
-      shift
-      ;;
-    -*)
-      printf 'yq-installed.sh: unknown flag: %s\n\n' "$1" >&2
-      usage >&2
-      exit 2
-      ;;
-    *)
-      if [[ "$_TARGET_SET" == true ]]; then
-        printf 'yq-installed.sh: unexpected extra argument: %s\n\n' "$1" >&2
-        usage >&2
-        exit 2
-      fi
-      TARGET="$1"
-      _TARGET_SET=true
-      shift
-      ;;
-  esac
-done
+parse_target_args "$@"
 
-if [[ "$_SHOW_HELP" == true ]]; then
-  usage
-  exit 0
-fi
-
-TARGET="${TARGET:-.bumfuzzle/config.yml}"
-
-_log INFO "checking yq is installed"
+_log INFO "Checking yq is installed"
 if ! command -v yq &>/dev/null; then
-  _log ERROR "yq is not installed"
+  _log ERROR "Yq is not installed"
   printf '[FAIL:structural] yq is not installed - required to parse %s\n' "$TARGET"
   exit 1
 fi
 
-_log INFO "yq is installed"
+_log INFO "Yq is installed"
 printf '[PASS] yq is installed\n'
 exit 0

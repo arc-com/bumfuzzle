@@ -5,15 +5,17 @@
 # bool, regex, path, or enum membership; string/glob accept anything). A
 # list-typed arg's value is checked item by item. Key presence/matching is
 # script-args.sh's job, not this one's.
+#
+# TARGET is converted to JSON once and handed to
+# script_arg_types_validate.py, which does the actual per-rule/per-arg type
+# matching in a single in-process pass — looping this in bash with one yq
+# call per rule per arg was the dominant cost of `bumfuzzle run` on a config
+# with many rules (each yq call re-parses the whole file from scratch).
 set -euo pipefail
 
 SCRIPT_NAME="script-arg-types.sh"
-VERBOSE=false
-_log() {
-  local _level="$1" _msg="$2"
-  [[ "$_level" == "DEBUG" && "$VERBOSE" != true ]] && return 0
-  printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$_level" "$_msg" >&2
-}
+BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 usage() {
   cat <<'EOF'
@@ -28,141 +30,41 @@ exits 0 if none found, 1 if any are, 2 on a usage error.
 EOF
 }
 
-TARGET=""
-_TARGET_SET=false
-_SHOW_HELP=false
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -h|--help)
-      _SHOW_HELP=true
-      shift
-      ;;
-    -v|--verbose)
-      VERBOSE=true
-      shift
-      ;;
-    -*)
-      printf 'script-arg-types.sh: unknown flag: %s\n\n' "$1" >&2
-      usage >&2
-      exit 2
-      ;;
-    *)
-      if [[ "$_TARGET_SET" == true ]]; then
-        printf 'script-arg-types.sh: unexpected extra argument: %s\n\n' "$1" >&2
-        usage >&2
-        exit 2
-      fi
-      TARGET="$1"
-      _TARGET_SET=true
-      shift
-      ;;
-  esac
-done
+parse_target_args "$@"
 
-if [[ "$_SHOW_HELP" == true ]]; then
-  usage
-  exit 0
+if ! command -v python3 &>/dev/null; then
+  _log ERROR "Python3 is not installed"
+  printf '[FAIL:error] python3 is not installed - required to check arg types\n'
+  exit 1
 fi
 
-TARGET="${TARGET:-.bumfuzzle/config.yml}"
+_log DEBUG "Target: $TARGET"
+_log INFO "Checking script_reusable arg values against their declared types"
+
+_log DEBUG "Converting $TARGET to JSON"
+yaml_to_json_tmp "$TARGET" _CONFIG_JSON
+_log DEBUG "Temp file: $_CONFIG_JSON"
+
+_VALIDATOR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/script_arg_types_validate.py"
+_validator_args=("$_CONFIG_JSON")
+[[ "$VERBOSE" == true ]] && _validator_args=(--verbose "${_validator_args[@]}")
+
+_log DEBUG "Running $_VALIDATOR ${_validator_args[*]}"
+_RC=0
+_OUT=$(python3 "$_VALIDATOR" "${_validator_args[@]}") || _RC=$?
+_log DEBUG "Validator exited $_RC"
+
+if [[ "$_RC" -eq 2 ]]; then
+  _log ERROR "Validator could not run (see above)"
+  exit 1
+fi
 
 _FINDINGS_ERROR=0
-_report_error() {
-  printf '[FAIL:error] %s\n' "$1"
+while IFS= read -r _line; do
+  [[ -z "$_line" ]] && continue
+  printf '%s\n' "$_line"
   _FINDINGS_ERROR=$((_FINDINGS_ERROR + 1))
-  _log DEBUG "error finding: $1"
-}
-_lint_yq() { yq "$1" "$TARGET" 2>/dev/null || true; }
-
-# mirrors the three wrong examples in SKILL.md's Style Examples: no .., no
-# doubled slashes, no redundant repeated ./ prefix, no trailing slash
-# (unless the whole path is just "/").
-_valid_path() {
-  local _p="$1"
-  [[ "$_p" =~ \.\. ]] && return 1
-  [[ "$_p" == *"//"* ]] && return 1
-  [[ "$_p" == *"././"* ]] && return 1
-  [[ "$_p" == */ && "$_p" != "/" ]] && return 1
-  return 0
-}
-
-_value_matches_type() {
-  local _val="$1" _type="$2" _enum_ref="$3"
-  case "$_type" in
-    int)
-      [[ "$_val" =~ ^-?[0-9]+$ ]]
-      ;;
-    double)
-      [[ "$_val" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]
-      ;;
-    bool)
-      [[ "$_val" == "true" || "$_val" == "false" ]]
-      ;;
-    regex)
-      grep -E -e "$_val" </dev/null > /dev/null 2>&1
-      [[ $? -ne 2 ]]
-      ;;
-    path)
-      _valid_path "$_val"
-      ;;
-    enum)
-      [[ -z "$_enum_ref" ]] && return 0
-      local _ev _match=false
-      while IFS= read -r _ev; do
-        [[ -z "$_ev" ]] && continue
-        [[ "$_ev" == "$_val" ]] && _match=true
-      done < <(_lint_yq "\"$_enum_ref\" as \$eref | .enums | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$eref) | .values[].value")
-      [[ "$_match" == true ]]
-      ;;
-    *)
-      return 0
-      ;;
-  esac
-}
-
-_check() {
-  local _rc_count _ri _rn _sid _ak
-  _rc_count=$(_lint_yq '[.rules | .. | select(type == "!!map") | select(.type == "script_reusable")] | length')
-  [[ -z "$_rc_count" ]] && _rc_count=0
-  [[ "$_rc_count" -eq 0 ]] && return 0
-
-  for _ri in $(seq 0 $((_rc_count - 1))); do
-    _rn=$(_lint_yq "[.rules | .. | select(type == \"!!map\") | select(.type == \"script_reusable\")] | .[$_ri].name // \"unnamed\"")
-    _sid=$(_lint_yq "[.rules | .. | select(type == \"!!map\") | select(.type == \"script_reusable\")] | .[$_ri].script // \"\"")
-    [[ -z "$_sid" ]] && continue
-
-    while IFS= read -r _ak; do
-      [[ -z "$_ak" ]] && continue
-
-      local _meta _atype _aenumref
-      _meta=$(_lint_yq "\"$_sid\" as \$sid | \"$_ak\" as \$ak | .scripts | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$sid) | .args[] | select(.key == \$ak) | (.type // \"string\") + \"|\" + (.enum_ref // \"\")")
-      [[ -z "$_meta" ]] && continue # unknown arg key, script-args.sh's job to report
-      _atype="${_meta%%|*}"
-      _aenumref="${_meta##*|}"
-      [[ "$_atype" == "string" || "$_atype" == "glob" ]] && continue # accept anything
-
-      local _atag
-      _atag=$(_lint_yq "[.rules | .. | select(type == \"!!map\") | select(.type == \"script_reusable\")] | .[$_ri].args.$_ak | tag")
-
-      local _av
-      if [[ "$_atag" == "!!seq" ]]; then
-        while IFS= read -r _av; do
-          [[ -z "$_av" ]] && continue
-          _value_matches_type "$_av" "$_atype" "$_aenumref" \
-            || _report_error "rule '$_rn' passes '$_av' for arg '$_ak', not a valid $_atype"
-        done < <(_lint_yq "[.rules | .. | select(type == \"!!map\") | select(.type == \"script_reusable\")] | .[$_ri].args.$_ak[]")
-      else
-        _av=$(_lint_yq "[.rules | .. | select(type == \"!!map\") | select(.type == \"script_reusable\")] | .[$_ri].args.$_ak")
-        [[ -z "$_av" ]] && continue
-        _value_matches_type "$_av" "$_atype" "$_aenumref" \
-          || _report_error "rule '$_rn' passes '$_av' for arg '$_ak', not a valid $_atype"
-      fi
-    done < <(_lint_yq "[.rules | .. | select(type == \"!!map\") | select(.type == \"script_reusable\")] | .[$_ri].args // {} | keys | .[]")
-  done
-}
-
-_log INFO "checking script_reusable arg values against their declared types in $TARGET"
-_check
+done <<< "$_OUT"
 
 if [[ "$_FINDINGS_ERROR" -gt 0 ]]; then
   exit 1

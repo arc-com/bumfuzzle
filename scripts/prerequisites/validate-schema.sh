@@ -38,12 +38,7 @@
 set -euo pipefail
 
 SCRIPT_NAME="validate-schema.sh"
-VERBOSE=false
-_log() {
-  local _level="$1" _msg="$2"
-  [[ "$_level" == "DEBUG" && "$VERBOSE" != true ]] && return 0
-  printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$_level" "$_msg" >&2
-}
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 usage() {
   cat <<'EOF'
@@ -57,97 +52,56 @@ exits 0 if TARGET conforms, 1 if it doesn't, 2 on a usage error.
 EOF
 }
 
-TARGET=""
-_TARGET_SET=false
-_SHOW_HELP=false
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -h|--help)
-      _SHOW_HELP=true
-      shift
-      ;;
-    -v|--verbose)
-      VERBOSE=true
-      shift
-      ;;
-    -*)
-      printf 'validate-schema.sh: unknown flag: %s\n\n' "$1" >&2
-      usage >&2
-      exit 2
-      ;;
-    *)
-      if [[ "$_TARGET_SET" == true ]]; then
-        printf 'validate-schema.sh: unexpected extra argument: %s\n\n' "$1" >&2
-        usage >&2
-        exit 2
-      fi
-      TARGET="$1"
-      _TARGET_SET=true
-      shift
-      ;;
-  esac
-done
-
-if [[ "$_SHOW_HELP" == true ]]; then
-  usage
-  exit 0
-fi
+parse_target_args "$@"
 
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 SCHEMA_FILE="$BUMFUZZLE_ROOT/schema.yml"
 SCHEMA_FILE_DISPLAY="schema.yml"
 VALIDATOR="$BUMFUZZLE_ROOT/scripts/json_schema_validate.py"
 VALIDATOR_DISPLAY="scripts/json_schema_validate.py"
-TARGET="${TARGET:-.bumfuzzle/config.yml}"
 
 if ! command -v yq &>/dev/null; then
-  _log ERROR "yq is not installed"
+  _log ERROR "Yq is not installed"
   printf '[FAIL] yq is not installed - required to validate %s\n' "$TARGET"
   exit 1
 fi
 if ! command -v python3 &>/dev/null; then
-  _log ERROR "python3 is not installed"
+  _log ERROR "Python3 is not installed"
   printf '[FAIL] python3 is not installed - required to validate %s\n' "$TARGET"
   exit 1
 fi
 if [[ ! -f "$TARGET" ]]; then
-  _log ERROR "$TARGET not found"
+  _log ERROR "Target not found: $TARGET"
   printf '[FAIL] %s not found\n' "$TARGET"
   exit 1
 fi
 if [[ ! -f "$SCHEMA_FILE" ]]; then
-  _log ERROR "schema not found: $SCHEMA_FILE_DISPLAY"
+  _log ERROR "Schema not found: $SCHEMA_FILE_DISPLAY"
   printf '[FAIL] schema not found: %s\n' "$SCHEMA_FILE_DISPLAY"
   exit 1
 fi
 if [[ ! -f "$VALIDATOR" ]]; then
-  _log ERROR "validator not found: $VALIDATOR_DISPLAY"
+  _log ERROR "Validator not found: $VALIDATOR_DISPLAY"
   printf '[FAIL] validator not found: %s\n' "$VALIDATOR_DISPLAY"
   exit 1
 fi
-_log INFO "starting schema validation of $TARGET"
+_log DEBUG "Target: $TARGET"
+_log INFO "Starting schema validation"
 
-TMP_DIR="$BUMFUZZLE_ROOT/tmp"
-_log DEBUG "creating temp dir $TMP_DIR"
-mkdir -p "$TMP_DIR"
-SCHEMA_JSON="$(mktemp "$TMP_DIR/validate-schema.schema.XXXXXX.json")"
-TARGET_JSON="$(mktemp "$TMP_DIR/validate-schema.target.XXXXXX.json")"
-_log DEBUG "temp files: $SCHEMA_JSON, $TARGET_JSON"
-_cleanup() { rm -f "$SCHEMA_JSON" "$TARGET_JSON"; }
-trap '_cleanup' EXIT
-trap '_cleanup; exit 130' INT
-trap '_cleanup; exit 143' TERM
+_log DEBUG "Converting $SCHEMA_FILE and $TARGET to JSON"
+yaml_to_json_tmp "$SCHEMA_FILE" SCHEMA_JSON
+yaml_to_json_tmp "$TARGET" TARGET_JSON
+_log DEBUG "Temp files: $SCHEMA_JSON, $TARGET_JSON"
 
-_log DEBUG "converting $SCHEMA_FILE and $TARGET to JSON"
-yq -o=json '.' "$SCHEMA_FILE" > "$SCHEMA_JSON"
-yq -o=json '.' "$TARGET" > "$TARGET_JSON"
+_validator_args=("$SCHEMA_JSON" "$TARGET_JSON")
+[[ "$VERBOSE" == true ]] && _validator_args=(--verbose "${_validator_args[@]}")
 
-_log DEBUG "running $VALIDATOR $SCHEMA_JSON $TARGET_JSON"
-_ERRORS=$(python3 "$VALIDATOR" "$SCHEMA_JSON" "$TARGET_JSON") && _RC=0 || _RC=$?
-_log DEBUG "$VALIDATOR exited $_RC"
+_log DEBUG "Running $VALIDATOR ${_validator_args[*]}"
+_ERRORS=$(python3 "$VALIDATOR" "${_validator_args[@]}") && _RC=0 || _RC=$?
+_log DEBUG "Validator exited $_RC"
 
 if [[ "$_RC" -eq 2 ]]; then
-  _log ERROR "validator could not run (see above)"
+  _log ERROR "Validator could not run (see above)"
   printf '[FAIL] could not validate %s — see stderr for details\n' "$TARGET"
   exit 1
 fi
@@ -157,7 +111,7 @@ if [[ "$_RC" -eq 1 ]]; then
     [[ -z "$_line" ]] && continue
     printf '[FAIL] %s %s\n' "$TARGET" "$_line"
   done <<< "$_ERRORS"
-  _log INFO "validation failed"
+  _log INFO "Validation failed"
   exit 1
 fi
 
@@ -166,10 +120,11 @@ fi
 _SCHEMA_VERSION=$(yq '.schema_version' "$SCHEMA_FILE")
 _TARGET_VERSION=$(yq '.schema_version' "$TARGET")
 if [[ "$_TARGET_VERSION" != "$_SCHEMA_VERSION" ]]; then
-  _log INFO "schema_version mismatch: $TARGET=$_TARGET_VERSION $SCHEMA_FILE_DISPLAY=$_SCHEMA_VERSION"
+  _log DEBUG "Schema_version mismatch detail: $TARGET=$_TARGET_VERSION $SCHEMA_FILE_DISPLAY=$_SCHEMA_VERSION"
+  _log INFO "Schema_version mismatch between target and schema"
   printf '[FAIL] %s schema_version (%s) does not match %s schema_version (%s)\n' "$TARGET" "$_TARGET_VERSION" "$SCHEMA_FILE_DISPLAY" "$_SCHEMA_VERSION"
   exit 1
 fi
 
-_log INFO "validation passed"
+_log INFO "Validation passed"
 printf '[PASS] %s matches %s\n' "$TARGET" "$SCHEMA_FILE_DISPLAY"
