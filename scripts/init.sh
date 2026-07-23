@@ -46,4 +46,6 @@ if [[ -f "$PKG_JSON" ]]; then
   fi
 fi
 
+"$BUMFUZZLE_ROOT/scripts/sync-skill.sh" --target-dir "$(pwd)"
+
 printf 'Run `bumfuzzle wizard` to configure it, or `bumfuzzle run` to check it as-is.\n'
