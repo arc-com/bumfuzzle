@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # uninstall.sh — remove the global bumfuzzle install created by install.sh
 #
-# EXCEPTION: this script is the sole file in the repo (alongside install.sh)
-# permitted to write outside $PROJECT_DIR. It removes symlinks from
-# $HOME/.local/bin by design.
+# EXCEPTION: this is one of three files in the repo (alongside install.sh
+# and sync-skill.sh) permitted to write outside $PROJECT_DIR. It removes
+# symlinks from $HOME/.local/bin by design.
 # All other scripts must write only within the active project directory.
 set -euo pipefail
 

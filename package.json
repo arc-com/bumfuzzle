@@ -8,13 +8,15 @@
   },
   "files": [
     "scripts/",
+    "skills/",
     "index.html",
     "bumfuzzle-template.yml",
     "schema.yml",
     "VERSION"
   ],
   "scripts": {
-    "prepack": "npm pkg set version=$(cat VERSION)"
+    "prepack": "npm pkg set version=$(cat VERSION)",
+    "postinstall": "scripts/sync-skill.sh"
   },
   "engines": {
     "node": ">=18"

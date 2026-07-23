@@ -7,7 +7,7 @@
 # project's convention. $defs are read directly (via yq/JS path queries) by
 # scripts/rule-runner.sh, scripts/prerequisites/validate-schema.sh, and
 # index.html instead of any of them hardcoding these lists/shapes
-# themselves — see SKILL.md.
+# themselves — see skills/bumfuzzle/SKILL.md.
 
 "$schema": "https://json-schema.org/draft/2020-12/schema"
 "$id": "bumfuzzle-config"

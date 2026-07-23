@@ -1750,7 +1750,7 @@ rules:
         severity: warn
         instruction: "Create the missing files listed"
         args:
-          FILE_PATH: [./config, ./docs/SKILL.md]
+          FILE_PATH: [./config, .claude/skills/bumfuzzle/SKILL.md]
       - type: script_reusable
         name: "VERSION file present"
         description: "A VERSION file exists at the project root — the single source of truth for the project version"

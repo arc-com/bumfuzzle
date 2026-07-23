@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # install.sh — install bumfuzzle globally on this machine
 #
-# EXCEPTION: this script is the sole file in the repo permitted to write outside
-# $PROJECT_DIR. It installs symlinks into $HOME/.local/bin by design.
+# EXCEPTION: this is one of three files in the repo (alongside uninstall.sh
+# and sync-skill.sh) permitted to write outside $PROJECT_DIR. It installs
+# symlinks into $HOME/.local/bin by design.
 # All other scripts must write only within the active project directory.
 set -euo pipefail
 

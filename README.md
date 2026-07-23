@@ -91,6 +91,8 @@ Every command below works identically as `bumfuzzle` or `bf` — `bf` is just a 
 
 Installing from source adds `bumfuzzle` and `bf` to `~/.local/bin`. Run `scripts/uninstall.sh` to remove them.
 
+pnpm blocks third-party postinstall scripts by default (v10+), which is what syncs the bundled Claude Code skill into a project's existing `.claude/` directory. Run `pnpm approve-builds` and select `bumfuzzle` to allow it interactively, or pre-approve it before installing with `pnpm pkg set pnpm.onlyBuiltDependencies[0]=bumfuzzle`.
+
 ---
 
 ## How to use
