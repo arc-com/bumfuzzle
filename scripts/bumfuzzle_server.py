@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import http.server, json, os, shutil, socketserver, subprocess
+import http.server, json, os, shutil, socketserver, subprocess, tempfile
 
 PORT      = int(os.environ['BUMFUZZLE_PORT'])
 PROJ_DIR  = os.environ['BUMFUZZLE_PROJECT_DIR']
@@ -7,6 +7,10 @@ RUN_SH    = os.environ['BUMFUZZLE_RUN_SH']
 HTML_PATH = os.environ['BUMFUZZLE_HTML']
 YAML_PATH     = os.path.join(PROJ_DIR, '.bumfuzzle', 'config.yml')
 SETTINGS_PATH = os.environ['BUMFUZZLE_SETTINGS']
+# RUN_SH is BUMFUZZLE_ROOT/scripts/run.sh (wizard.sh), so its directory is
+# where the prerequisite check scripts actually live - never PROJ_DIR, which
+# is the arbitrary target project being edited and has no scripts/ of its own.
+SCRIPTS_DIR = os.path.dirname(RUN_SH)
 
 current_cfg = [os.environ['BUMFUZZLE_CONFIG_JSON'].encode()]
 
@@ -37,16 +41,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', 0))
         body   = self.rfile.read(length)
         if self.path == '/save':
-            tmp_path = YAML_PATH + '.tmp'
-            with open(tmp_path, 'wb') as f:
+            # unique per request: ThreadingServer handles concurrent POSTs on
+            # separate threads, and a fixed shared filename here raced two
+            # overlapping /save calls against the same temp file.
+            tmp_fd, tmp_path = tempfile.mkstemp(
+                suffix='.tmp', prefix='config.yml.', dir=os.path.dirname(YAML_PATH),
+            )
+            with os.fdopen(tmp_fd, 'wb') as f:
                 f.write(body)
             errs = []
-            for check in ('script-args.sh', 'script-arg-types.sh'):
+            # validate-schema.sh predates the [FAIL:tier] convention the other
+            # two use and reports plain "[FAIL] " lines instead (see its own
+            # header comment) - both forms are treated as findings here.
+            for check in ('script-args.sh', 'script-arg-types.sh', 'validate-schema.sh'):
                 proc = subprocess.run(
-                    [os.path.join(PROJ_DIR, 'scripts', 'prerequisites', check), tmp_path],
+                    [os.path.join(SCRIPTS_DIR, 'prerequisites', check), tmp_path],
                     capture_output=True, text=True,
                 )
-                errs += [l for l in proc.stdout.splitlines() if l.startswith('[FAIL:')]
+                errs += [l for l in proc.stdout.splitlines() if l.startswith('[FAIL:') or l.startswith('[FAIL] ')]
             if errs:
                 os.remove(tmp_path)
                 msg = '\n'.join(e.split('] ', 1)[-1] for e in errs).encode()

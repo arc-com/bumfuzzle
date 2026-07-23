@@ -60,6 +60,7 @@ properties:
       name: { type: string }
       description: { type: string }
       command: { type: string, description: "shell script; reads args as env vars" }
+      mutative: { type: boolean, description: "true if command edits/writes files instead of only checking them; omitted means false. Lives here, not on any rule referencing this script - every script_reusable rule instantiating this script shares this one flag." }
       args:
         type: array
         items: { "$ref": "#/$defs/arg" }
@@ -202,7 +203,6 @@ properties:
       enabled: { type: boolean }
       requires: { type: string }
       on_missing: { "$ref": "#/$defs/onMissing" }
-      mutative: { type: boolean, description: "true if the referenced script edits/writes files instead of only checking them; omitted means false, same as every other optional boolean flag on this node" }
 
   ruleType:
     type: string

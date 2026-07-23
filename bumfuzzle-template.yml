@@ -498,6 +498,59 @@ scripts:
             type: bool
             required: true
             description: true = zero matches is a failure; false = zero matches is a pass
+      - id: file-name-count-compare
+        name: "File name count compares"
+        description: "Compares the count of files under SEARCH_ROOT (up to SEARCH_DEPTH levels) whose basename matches any of FILE_NAMES (glob-capable list) against COUNT_THRESHOLD via COMPARISON_OPERATOR"
+        command: |
+          [[ "$SEARCH_ROOT" =~ [[:space:]] ]] && { printf 'SEARCH_ROOT must not contain spaces\n'; exit 1; }
+          [[ "$SEARCH_ROOT" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          [[ "$SEARCH_DEPTH" =~ ^[0-9]+$ ]] || { printf 'SEARCH_DEPTH must be a non-negative integer\n'; exit 1; }
+          [[ "$COUNT_THRESHOLD" =~ ^[0-9]+$ ]] || { printf 'COUNT_THRESHOLD must be a non-negative integer\n'; exit 1; }
+          case "$COMPARISON_OPERATOR" in lt|le|eq|ge|gt) ;; *) printf 'Unrecognized COMPARISON_OPERATOR %s\n' "$COMPARISON_OPERATOR"; exit 1 ;; esac
+          [[ -z "$FILE_NAMES" ]] && { printf 'FILE_NAMES must not be empty\n'; exit 1; }
+          _find_expr=()
+          while IFS= read -r _n; do
+            [[ -z "$_n" ]] && continue
+            [[ "$_n" =~ \.\. ]] && { printf 'FILE_NAMES entries must not contain ..\n'; exit 1; }
+            [[ ${#_find_expr[@]} -gt 0 ]] && _find_expr+=(-o)
+            _find_expr+=(-name "$_n")
+          done <<< "$FILE_NAMES"
+          _count=$(find "$SEARCH_ROOT" -maxdepth "$SEARCH_DEPTH" \( "${_find_expr[@]}" \) 2>/dev/null | wc -l | tr -d ' ')
+          _ok=false
+          case "$COMPARISON_OPERATOR" in
+            lt) [[ "$_count" -lt "$COUNT_THRESHOLD" ]] && _ok=true ;;
+            le) [[ "$_count" -le "$COUNT_THRESHOLD" ]] && _ok=true ;;
+            eq) [[ "$_count" -eq "$COUNT_THRESHOLD" ]] && _ok=true ;;
+            ge) [[ "$_count" -ge "$COUNT_THRESHOLD" ]] && _ok=true ;;
+            gt) [[ "$_count" -gt "$COUNT_THRESHOLD" ]] && _ok=true ;;
+          esac
+          if [[ "$_ok" == "false" ]]; then
+            printf 'matched count %s does not satisfy %s %s under %s\n' "$_count" "$COMPARISON_OPERATOR" "$COUNT_THRESHOLD" "$SEARCH_ROOT"
+            exit 1
+          fi
+        args:
+          - key: SEARCH_ROOT
+            label: Search root
+            required: true
+            type: path
+          - key: SEARCH_DEPTH
+            label: Search depth
+            required: true
+            type: int
+          - key: FILE_NAMES
+            label: File names
+            required: true
+            type: glob
+            list: true
+          - key: COMPARISON_OPERATOR
+            label: Operator
+            required: true
+            type: enum
+            enum_ref: comparison-operator
+          - key: COUNT_THRESHOLD
+            label: Count threshold
+            required: true
+            type: int
   - group: "Key-value file actions"
     scripts:
       - id: yaml-no-empty-values
@@ -1545,6 +1598,7 @@ scripts:
             pnpm) pnpm install ;;
             yarn) yarn install ;;
           esac
+        mutative: true
         args:
           - key: PACKAGE_MANAGER
             label: Package manager
@@ -1571,10 +1625,10 @@ scripts:
             type: enum
             enum_ref: package-manager
 rules:
-  - group: Bumfuzzle
+  - group: General
     rules:
       - type: script_reusable
-        name: "Run wired into pre-commit"
+        name: "Bumfuzzle wired into pre-commit"
         description: "bumfuzzle run is called inside the pre-commit hook so checks run before every commit"
         script: file-line-match
         severity: hard-stop
@@ -1583,9 +1637,6 @@ rules:
           FAIL_ON_FILE_NOT_FOUND: true
           FILE_PATH: .githooks/pre-commit
           REGEX_PATTERN: '.*bumfuzzle run.*'
-
-  - group: General
-    rules:
       - type: script_reusable
         name: "Readme present"
         description: "README.md exists at the project root"
@@ -1594,12 +1645,18 @@ rules:
         instruction: "Create README.md in the project root"
         args:
           FILE_PATH: README.md
-      - type: script_clean
+      - type: script_reusable
         name: "No conflicting manifests at root"
-        description: "At most one package manifest (package.json, Cargo.toml, go.mod, etc.) exists at the root — multiple manifests indicate a misconfigured or hybrid project"
-        command: "test $(find . -maxdepth 1 \\( -name 'package.json' -o -name 'Cargo.toml' -o -name 'pom.xml' -o -name 'go.mod' -o -name 'pyproject.toml' \\) | wc -l | tr -d ' ') -le 1"
+        description: "At most one package manifest exists at the root"
+        script: file-name-count-compare
         severity: warn
         instruction: "Remove duplicate manifest files from the project root"
+        args:
+          SEARCH_ROOT: "."
+          SEARCH_DEPTH: 1
+          FILE_NAMES: [package.json, Cargo.toml, pom.xml, go.mod, pyproject.toml]
+          COMPARISON_OPERATOR: le
+          COUNT_THRESHOLD: 1
       - type: script_clean
         name: "No unmanaged polyglot monorepo"
         description: "Manifests from more than one language ecosystem exist in the repository only if a recognized monorepo workspace is declared at the root (pnpm-workspace.yaml, a package.json workspaces field, a Cargo.toml [workspace] section, lerna.json, nx.json, or turbo.json) — otherwise it looks like accidental cross-ecosystem drift rather than a deliberate monorepo"
@@ -2759,7 +2816,6 @@ rules:
         script: package-manager-install-write
         requires: pnpm
         severity: warn
-        mutative: true
         instruction: "Review the lockfile and node_modules changes install made before committing"
         args:
           PACKAGE_MANAGER: pnpm
@@ -3221,8 +3277,8 @@ enums:
 
   - id: common-manifest
     name: "Common manifest"
-    description: "Common project manifest filenames across ecosystems — use as FILE_PATH in file existence or file match rules"
-    type: path
+    description: "Common project manifest filenames across ecosystems — usable anywhere a glob-type argument accepts a file name"
+    type: glob
     values:
       - name: package.json
         value: package.json

@@ -248,6 +248,17 @@ function flattenItems(items) {
   return out;
 }
 
+// A script_reusable rule has no mutative field of its own - it inherits
+// whatever the script it references declares. script_clean rules and script
+// catalog entries themselves still carry the flag directly.
+function resolveMutative(item) {
+  if (item && item.type === 'script_reusable') {
+    const s = flattenItems(state?.scripts || []).find(x => isScript(x) && x.id === item.script);
+    return s ? s.mutative === true : false;
+  }
+  return !!(item && item.mutative === true);
+}
+
 function getParentArr(path, rootArr) {
   let arr = rootArr;
   for (let i = 0; i < path.length - 1; i++) arr = arr[path[i]].rules;
@@ -504,6 +515,7 @@ function generateYaml() {
         lines.push(indent + '  name: ' + JSON.stringify(item.name));
         if (item.description) lines.push(indent + '  description: ' + JSON.stringify(item.description));
         if (item.command)     lines.push(indent + '  command: '     + JSON.stringify(item.command));
+        if (item.mutative === true) lines.push(indent + '  mutative: true');
         if (Array.isArray(item.args) && item.args.length) {
           lines.push(indent + '  args:');
           item.args.forEach(a => {
@@ -533,7 +545,6 @@ function generateYaml() {
         if (item.on_missing)  lines.push(indent + '  on_missing: '  + item.on_missing);
         if (item.severity && item.severity !== 'error')
                               lines.push(indent + '  severity: '    + item.severity);
-        if (item.mutative === true) lines.push(indent + '  mutative: true');
         if (item.instruction) lines.push(indent + '  instruction: ' + JSON.stringify(item.instruction));
         if (item.args && Object.keys(item.args).length) {
           lines.push(indent + '  args:');
@@ -585,6 +596,8 @@ function generateYaml() {
       }
     }
   }
+
+  lines.push('schema_version: ' + SCHEMA.schema_version);
 
   if (state.scripts && state.scripts.length) { lines.push('scripts:'); writeScriptItems(state.scripts, '  '); }
 
@@ -892,6 +905,7 @@ function scriptSnapshot(s) {
     name:        s.name        || '',
     description: s.description || '',
     command:     s.command     || '',
+    mutative:    s.mutative === true,
     args:        JSON.parse(JSON.stringify(s.args || [])),
   });
 }
@@ -1321,6 +1335,9 @@ function buildRuleFields(rule, reRender, inModal = false) {
   // ── Type view switcher ──
   const typeViewEl = el('div', {});
   let reusableEl = null;
+  // mutSec is created further below (needs mSeg first); rebuildTypeView runs
+  // once before that, so it guards on mutSec being assigned yet.
+  let mutSec = null;
 
   function rebuildTypeView() {
     typeViewEl.innerHTML = '';
@@ -1331,6 +1348,11 @@ function buildRuleFields(rule, reRender, inModal = false) {
     } else {
       typeViewEl.append(customViewEl);
     }
+    // Mutative is a property of the shared script itself once a rule picks
+    // one (see that script's own catalog entry) - showing/editing it again
+    // per-rule here would let a rule silently diverge from its own script.
+    // Inline (script_clean) rules have no separate script, so they keep it.
+    if (mutSec) mutSec.style.display = rule.type === 'script_reusable' ? 'none' : '';
   }
   rebuildTypeView();
 
@@ -1366,12 +1388,14 @@ function buildRuleFields(rule, reRender, inModal = false) {
     });
     mBtns[String(v)] = b; mSeg.append(b);
   });
+  mutSec = panelSec('Mutative (edits files instead of only checking them)', mSeg);
+  mutSec.style.display = rule.type === 'script_reusable' ? 'none' : '';
 
   formView.append(
     panelSec('Name', nInp),
     panelSec('Description', dInp),
     panelSec('Severity on fail', sSeg),
-    panelSec('Mutative (edits files instead of only checking them)', mSeg),
+    mutSec,
     panelSec('Instructions on fail', iTa),
     panelSec('Type', typeSeg),
     typeViewEl,
@@ -1951,11 +1975,29 @@ function buildScriptPanel(script, reRender, inModal = false) {
     );
   });
 
+  const mSeg = el('div', { class: 'seg' });
+  const mBtns = {};
+  [false, true].forEach(v => {
+    const on = (script.mutative === true) === v;
+    const b = el('button', { class: 'seg-btn' + (on ? ' on t-on' : '') }, v ? 'Mutative' : 'Check only');
+    b.dataset.val = String(v);
+    b.addEventListener('click', () => {
+      script.mutative = v;
+      Object.values(mBtns).forEach(x => x.className = 'seg-btn' + ((x.dataset.val === 'true') === v ? ' on t-on' : ''));
+      script._updateRow?.();
+      updateStatus();
+    });
+    mBtns[String(v)] = b; mSeg.append(b);
+  });
+
   const formView = el('div', { class: 'rf-body' },
     panelSec('ID (slug, locked after first save)', idInp),
     panelSec('Name', nInp),
     panelSec('Description', dInp),
     panelSec('Command', cmdTa),
+    // lives on the script, not on any rule that references it - every rule
+    // picking this script shares this one flag, never overrides it per-use.
+    panelSec('Mutative (edits files instead of only checking them)', mSeg),
     panelSec('Arguments', el('div', {}, argsListEl, addArgBtn)),
   );
 
@@ -1968,6 +2010,9 @@ function buildScriptPanel(script, reRender, inModal = false) {
     ['id','name','description','command'].forEach(f => {
       if ((from[f] || '') !== (script[f] || '')) changes.push({ f, from: from[f] || '(empty)', to: script[f] || '(empty)' });
     });
+    if ((from.mutative === true) !== (script.mutative === true)) {
+      changes.push({ f: 'mutative', from: from.mutative === true ? 'Mutative' : 'Check only', to: script.mutative === true ? 'Mutative' : 'Check only' });
+    }
     const fa = JSON.stringify(from.args || []), ta = JSON.stringify(script.args || []);
     if (fa !== ta) changes.push({ f: 'args', from: (from.args || []).length + ' arg(s)', to: (script.args || []).length + ' arg(s)' });
     if (!changes.length) { diffView.append(el('div', { class: 'rf-diff-empty' }, 'No changes')); return; }
@@ -2144,7 +2189,7 @@ function createTreeSection(opts) {
     const nameLine = el('div', { style: 'display:flex;align-items:baseline;min-width:0' });
 
     const mutBadge = el('span', { class: 'rt-tog mut', title: 'This rule edits/writes files instead of only checking them' }, 'mutative');
-    mutBadge.style.display = item.mutative === true ? '' : 'none';
+    mutBadge.style.display = resolveMutative(item) ? '' : 'none';
 
     let statusSpan = null;
     if (opts.hasStatus) {
@@ -2155,14 +2200,14 @@ function createTreeSection(opts) {
         subSpan.textContent  = item.description || '';
         subSpan.style.display = (item.name && item.description) ? '' : 'none';
         statusSpan.style.display = opts.isItemDirty(item) ? '' : 'none';
-        mutBadge.style.display = item.mutative === true ? '' : 'none';
+        mutBadge.style.display = resolveMutative(item) ? '' : 'none';
       };
     } else {
       item._updateRow = () => {
         nameSpan.textContent = opts.getItemName(item);
         subSpan.textContent  = item.description || '';
         subSpan.style.display = (item.name && item.description) ? '' : 'none';
-        mutBadge.style.display = item.mutative === true ? '' : 'none';
+        mutBadge.style.display = resolveMutative(item) ? '' : 'none';
       };
     }
     nameLine.append(nameSpan);
