@@ -92,13 +92,13 @@ scripts:
             type: path
             required: false
             placeholder: "."
-            description: "Directory to search from. Defaults to . (project root)."
+            description: "Folder to search from. Defaults to . (project root)."
           - key: SEARCH_DEPTH
             label: "Max depth"
             type: int
             required: false
             placeholder: "1"
-            description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
+            description: "Maximum folder depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
           - key: INCLUDE_FILES_GLOB
             label: Include files glob
             required: true
@@ -165,13 +165,13 @@ scripts:
             type: path
             required: false
             placeholder: "."
-            description: "Directory to search from. Defaults to . (project root)."
+            description: "Folder to search from. Defaults to . (project root)."
           - key: SEARCH_DEPTH
             label: "Max depth"
             type: int
             required: false
             placeholder: "1"
-            description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
+            description: "Maximum folder depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
           - key: INCLUDE
             label: Include glob
             required: false
@@ -197,9 +197,9 @@ scripts:
             type: bool
             required: true
             description: true = zero matches is a failure; false = zero matches is a pass
-      - id: dir-naming-scan-check
+      - id: folder-naming-scan-check
         name: "Folder name(s) (via pattern scan) matches pattern"
-        description: "Checks that all directory basenames matching INCLUDE (and not matching EXCLUDE; both accept YAML lists of basename globs) under SEARCH_ROOT (up to SEARCH_DEPTH levels) comply with the selected NAMING_CONVENTION. Hidden directories and node_modules are always skipped. FAIL_ON_FILE_NOT_FOUND controls whether zero matches is a fail (default true) or a pass (false)."
+        description: "Checks that all folder basenames matching INCLUDE (and not matching EXCLUDE; both accept YAML lists of basename globs) under SEARCH_ROOT (up to SEARCH_DEPTH levels) comply with the selected NAMING_CONVENTION. Hidden folders and node_modules are always skipped. FAIL_ON_FILE_NOT_FOUND controls whether zero matches is a fail (default true) or a pass (false)."
         command: |
           _from="${SEARCH_ROOT:-.}"
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
@@ -227,12 +227,12 @@ scripts:
             [[ "$_skip" == "true" ]] && continue
             _any=true
             if ! echo "$_base" | grep -qE "$_pattern"; then
-              printf 'directory %s does not match naming convention %s\n' "$_d" "$_pattern"
+              printf 'folder %s does not match naming convention %s\n' "$_d" "$_pattern"
               _failed=true
             fi
           done < <(find "$_from" $_depth_arg -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o -type d -print 2>/dev/null)
           if [[ "$_any" == "false" && "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
-            printf 'missing: no directories matched %s under %s\n' "${INCLUDE:-*}" "$_from"
+            printf 'missing: no folders matched %s under %s\n' "${INCLUDE:-*}" "$_from"
             _failed=true
           fi
           [[ "$_failed" == "false" ]]
@@ -242,13 +242,13 @@ scripts:
             type: path
             required: false
             placeholder: "."
-            description: "Directory to search from. Defaults to . (project root)."
+            description: "Folder to search from. Defaults to . (project root)."
           - key: SEARCH_DEPTH
             label: "Max depth"
             type: int
             required: false
             placeholder: "1"
-            description: "Maximum directory depth to search. 1 = directories directly inside SEARCH_ROOT. Omit for unlimited depth."
+            description: "Maximum folder depth to search. 1 = folders directly inside SEARCH_ROOT. Omit for unlimited depth."
           - key: INCLUDE
             label: Include glob
             required: false
@@ -256,14 +256,14 @@ scripts:
             list: true
             default: '*'
             placeholder: 'src'
-            description: Glob pattern matched against directory basenames to include. Provide a YAML list to match multiple globs. Defaults to * (all directories).
+            description: Glob pattern matched against folder basenames to include. Provide a YAML list to match multiple globs. Defaults to * (all folders).
           - key: EXCLUDE
             label: Exclude glob
             required: false
             type: glob
             list: true
             placeholder: "Export"
-            description: "Glob pattern matched against directory basenames to exclude. Provide a YAML list for multiple globs."
+            description: "Glob pattern matched against folder basenames to exclude. Provide a YAML list for multiple globs."
           - key: NAMING_CONVENTION
             label: Naming convention
             required: true
@@ -316,9 +316,9 @@ scripts:
             type: bool
             required: true
             description: true = a declared path that isn't an existing file is a failure; false = it's silently skipped
-      - id: dir-naming-path-check
+      - id: folder-naming-path-check
         name: "Folder name(s) (via declared path) matches pattern"
-        description: "Checks that each directory in PATH_LIST (a YAML list of paths) has a basename complying with NAMING_CONVENTION. FAIL_ON_FILE_NOT_FOUND controls whether a declared path that doesn't exist (or isn't a directory) is a fail (default true) or a skip (false)."
+        description: "Checks that each folder in PATH_LIST (a YAML list of paths) has a basename complying with NAMING_CONVENTION. FAIL_ON_FILE_NOT_FOUND controls whether a declared path that doesn't exist (or isn't a folder) is a fail (default true) or a skip (false)."
         command: |
           _failed=false
           while IFS= read -r _p; do
@@ -326,7 +326,7 @@ scripts:
             [[ "$_p" =~ \.\. ]] && { printf '%s must not contain ..\n' "$_p"; _failed=true; continue; }
             if [[ ! -d "$_p" ]]; then
               if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
-                printf 'missing: %s is not a directory\n' "$_p"
+                printf 'missing: %s is not a folder\n' "$_p"
                 _failed=true
               fi
               continue
@@ -345,7 +345,7 @@ scripts:
             type: path
             list: true
             placeholder: 'src/main'
-            description: Directory path(s) to check. Provide a YAML list for multiple.
+            description: Folder path(s) to check. Provide a YAML list for multiple.
           - key: NAMING_CONVENTION
             label: Naming convention
             required: true
@@ -355,7 +355,7 @@ scripts:
             label: Fail when path is missing
             type: bool
             required: true
-            description: true = a declared path that isn't an existing directory is a failure; false = it's silently skipped
+            description: true = a declared path that isn't an existing folder is a failure; false = it's silently skipped
       - id: no-large-files
         name: "No large files"
         description: "Checks that no file in the project exceeds SIZE_AMOUNT SIZE_UNIT. .git and node_modules are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips additional basename globs."
@@ -428,7 +428,7 @@ scripts:
             type: path
             required: false
             placeholder: "."
-            description: "Directory to search from. Defaults to . (project root)."
+            description: "Folder to search from. Defaults to . (project root)."
           - key: FAIL_ON_FILE_NOT_FOUND
             label: Fail when no symlinks found
             type: bool
@@ -1132,7 +1132,7 @@ scripts:
             type: path
             required: false
             placeholder: "."
-            description: "Directory to search from. Defaults to . (project root)."
+            description: "Folder to search from. Defaults to . (project root)."
           - key: INCLUDE_FILES_GLOB
             label: Include files glob
             required: true
@@ -1257,7 +1257,7 @@ scripts:
             type: path
             required: false
             placeholder: "."
-            description: "Directory to search from. Defaults to . (project root)."
+            description: "Folder to search from. Defaults to . (project root)."
           - key: INCLUDE_FILES_GLOB
             label: "Include files glob"
             required: true
@@ -1327,13 +1327,13 @@ scripts:
             type: path
             required: false
             placeholder: "."
-            description: "Directory to search from. Defaults to . (project root)."
+            description: "Folder to search from. Defaults to . (project root)."
           - key: SEARCH_DEPTH
             label: "Max depth"
             type: int
             required: false
             placeholder: "1"
-            description: "Maximum directory depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
+            description: "Maximum folder depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
           - key: INCLUDE_FILES_GLOB
             label: Include files glob
             required: true
@@ -1349,11 +1349,11 @@ scripts:
             placeholder: '*Test.java'
             description: 'Glob pattern matched against file basenames to exclude. Note: matches basename only, not full path. Provide a YAML list for multiple globs.'
           - key: FILE_LOCATION_ALLOWED_DIR
-            label: "Allowed directory"
+            label: "Allowed folder"
             type: path
             required: true
             placeholder: "scripts"
-            description: "Directory, relative to the project root, that every matching file must live under. A match found anywhere else fails."
+            description: "Folder, relative to the project root, that every matching file must live under. A match found anywhere else fails."
           - key: FAIL_ON_FILE_NOT_FOUND
             label: Fail when no file matches INCLUDE_FILES_GLOB
             type: bool
@@ -1956,7 +1956,7 @@ rules:
                   REGEX_PATTERN: '.*DS_Store.*'
               - type: script_reusable
                 name: ".idea/ ignored"
-                description: ".gitignore contains a pattern covering the .idea/ IntelliJ project directory"
+                description: ".gitignore contains a pattern covering the .idea/ IntelliJ project folder"
                 script: file-line-match
                 severity: warn
                 instruction: "Add '.idea/' to .gitignore"
@@ -2433,11 +2433,11 @@ rules:
           NAMING_CONVENTION: '^[a-z0-9]+([-.][a-z0-9]+)*$'
           FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
-        name: "Directories are flat lowercase"
-        description: "All directory names are flat lowercase (no separators). Hidden directories and node_modules are skipped"
-        script: dir-naming-scan-check
+        name: "Folders are flat lowercase"
+        description: "All folder names are flat lowercase (no separators). Hidden folders and node_modules are skipped"
+        script: folder-naming-scan-check
         severity: warn
-        instruction: "Rename the listed directories to flat lowercase, or add them to EXCLUDE"
+        instruction: "Rename the listed folders to flat lowercase, or add them to EXCLUDE"
         args:
           FAIL_ON_FILE_NOT_FOUND: true
           NAMING_CONVENTION: '^[a-z0-9]+$'
@@ -2950,7 +2950,7 @@ rules:
   - group: Claude Settings
     rules:
       - type: script_reusable
-        name: ".claude/ directory gitignored"
+        name: ".claude/ folder gitignored"
         description: ".gitignore contains '.claude/' so local Claude Code settings and memory are never committed"
         script: file-line-match
         severity: error
@@ -3057,7 +3057,7 @@ rules:
                   CLAUDE_PERMISSION_RULE: deny
                   CLAUDE_PERMISSION_TOOL: Skill
               - type: script_reusable
-                name: "No additional directories granted"
+                name: "No additional folders granted"
                 description: "permissions.additionalDirectories is absent from .claude/settings.json — file access stays confined to the project root"
                 script: json-path-exists
                 severity: warn
@@ -3729,9 +3729,9 @@ enums:
           - name: "Auto memory enabled"
             value: autoMemoryEnabled
             description: "Lets Claude persist learned project context into automated memory files (boolean)"
-          - name: "Auto memory directory"
+          - name: "Auto memory folder"
             value: autoMemoryDirectory
-            description: "Custom directory for auto memory storage (string path)"
+            description: "Custom folder for auto memory storage (string path)"
           - name: "Cleanup period days"
             value: cleanupPeriodDays
             description: "Days session transcripts and temporary worktrees are kept before startup cleanup; default 30 (number)"
