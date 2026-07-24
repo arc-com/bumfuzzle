@@ -26,12 +26,11 @@ description: Reviews pull requests and code files for bugs, security vulnerabili
 - Naming conventions:
   - GROUP: names what its contents share in common. Prefer a specific label over a catch-all, a broad General group is fine when nothing narrower fits.
   - Description: never enumerate selected options
-  - Never use "File or directory", file can represent both file and file + directory or just directory
+  - Never say "directory" or "dir" — say "folder". A path value declares its own kind: trailing / means folder, no trailing / means file. Never start a path with ./ or / — a real leading . (dotfile) is fine.
 
 
 # You must strictly obey styling defined below
 ## General
-- always specify the file/directory in specific format (with /) in each rule name / description
 - never rely on presence of other checks. Aka during the specific rule creation, you may never consider or imply on existence of other rules.
 - Command owns syntax. Description and instruction own meaning.
 - Rule name and description always start with a capital letter.
@@ -93,6 +92,7 @@ always use:
 
 
 'Path' argument type:
-Right declaration: "./a/b/c"
-Wrong declaration: ".//a/b/c" || "././a/b/c" || "./a/b/c/"
+Folder: "a/b/c/" (trailing /)
+File: "a/b/c" (no trailing /)
+Never start with ./ or / — a literal leading . (dotfile) is fine, e.g. ".env"
 

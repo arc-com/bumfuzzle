@@ -172,7 +172,7 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .btn.pri:hover:not(:disabled){background:var(--ac2);border-color:var(--ac2)}
 .btn.cancel{flex:0;padding:10px 16px;color:var(--tm)}
 .out-wrap{margin-top:10px;display:none}
-.out-log{background:#010409;border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;font-family:var(--mono);font-size:12px;color:#c9d1d9;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;min-height:36px}
+.out-log{background:#010409;border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;font-family:var(--mono);font-size:12px;color:#c9d1d9;white-space:pre;overflow-x:auto;max-height:300px;overflow-y:auto;min-height:36px}
 .out-status{margin-top:5px;font-size:12px;font-weight:600}
 .out-status.ok{color:var(--gr)}.out-status.err{color:var(--rd)}
 
@@ -941,15 +941,15 @@ function getResolvedArgs(script) {
   return (script && Array.isArray(script.args)) ? script.args : [];
 }
 
-// mirrors scripts/prerequisites/script-arg-types.sh's _valid_path: no .., no
-// doubled slashes, no redundant repeated ./ prefix, no trailing slash
-// (unless the whole path is just "/").
+// mirrors scripts/prerequisites/script_arg_types_validate.py's _valid_path: no .., no
+// doubled slashes, no redundant repeated ./ prefix, no leading ./ or /
+// (trailing / is fine, that's how a folder is declared).
 function isValidPathArg(p) {
   if (typeof p !== 'string' || !p) return true;
   if (p.includes('..')) return false;
   if (p.includes('//')) return false;
   if (p.includes('././')) return false;
-  if (p.endsWith('/') && p !== '/') return false;
+  if (p.startsWith('./') || p.startsWith('/')) return false;
   return true;
 }
 

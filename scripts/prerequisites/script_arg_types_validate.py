@@ -67,13 +67,9 @@ def _scalar_str(value):
 
 
 def _valid_path(value):
-    if ".." in value:
+    if ".." in value or "//" in value or "././" in value:
         return False
-    if "//" in value:
-        return False
-    if "././" in value:
-        return False
-    if value.endswith("/") and value != "/":
+    if value.startswith("./") or value.startswith("/"):
         return False
     return True
 

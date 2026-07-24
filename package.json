@@ -8,6 +8,7 @@
   },
   "files": [
     "scripts/",
+    "!scripts/tests/**",
     "skills/",
     "index.html",
     "bumfuzzle-template.yml",

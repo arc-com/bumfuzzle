@@ -31,3 +31,6 @@ bumfuzzle_cli = [
     "VERSION",
     "scripts/**",
 ]
+
+[tool.setuptools.exclude-package-data]
+bumfuzzle_cli = ["scripts/tests/**"]

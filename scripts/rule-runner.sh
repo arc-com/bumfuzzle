@@ -18,13 +18,17 @@ _urule_instruction() {
 
 
 # shared by script_clean/script_reusable failure paths: builds the
-# instruction + (verbose) command output as fail()'s details block, so
-# it prints after the [WARN]/[FAIL] tag but still ahead of a hard-stop exit.
+# instruction + captured output as fail()'s details block, so it prints
+# after the [WARN]/[FAIL] tag but still ahead of a hard-stop exit. Unlike
+# the [PASS]/[SKIP] DEBUG lines, this block is never gated behind
+# --verbose — a failure's own diagnostic context always prints in full.
+# The command/script's own source body is never included here, only what
+# running it produced — the label already passed to fail() identifies it.
 _urule_report_failure() {
   local _label="$1" _ec="$2" _sev="$3" _path="$4" _out="$5"
   local _details
   _details=$(_urule_instruction "$_path")
-  if [[ "$VERBOSE" == true && -n "$_out" ]]; then
+  if [[ -n "$_out" ]]; then
     local _out_indented
     _out_indented=$(printf '%s\n' "$_out" | sed 's/^/    /')
     _details="${_details:+$_details$'\n'}${_out_indented}"
@@ -110,7 +114,7 @@ _urule_process_rule() {
   case "$_type" in
     script_clean)
       is_blank "$_command" && { fail "$_label: 'command' is required" error; return; }
-      _log DEBUG "Running $_label: $_command"
+      _log DEBUG "Running $_label"
       local _out _ec=0
       _out=$(eval "$_command" 2>&1) || _ec=$?
       _log DEBUG "Command for $_label exited $_ec"
@@ -156,7 +160,7 @@ _urule_process_rule() {
 
       [[ -n "$_args_summary" ]] && _log DEBUG "Args for $_label: $_args_summary"
 
-      _log DEBUG "Running $_label (script: $_script_id): $_script_cmd"
+      _log DEBUG "Running $_label (script: $_script_id)"
       local _out _ec=0
       _out=$(eval "$_script_cmd" 2>&1) || _ec=$?
       _log DEBUG "Command for $_label exited $_ec"
