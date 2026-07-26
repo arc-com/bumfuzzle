@@ -941,11 +941,14 @@ function getResolvedArgs(script) {
   return (script && Array.isArray(script.args)) ? script.args : [];
 }
 
-// mirrors scripts/prerequisites/script_arg_types_validate.py's _valid_path: no .., no
-// doubled slashes, no redundant repeated ./ prefix, no leading ./ or /
-// (trailing / is fine, that's how a folder is declared).
+// mirrors scripts/prerequisites/script_arg_types_validate.py's _valid_path: no bare
+// "." or "/", no .., no doubled slashes, no redundant repeated ./ prefix, no
+// leading ./ or / (trailing / is fine, that's how a folder is declared). A path
+// must always resolve to one exact folder or file, never an abstract stand-in
+// for "current" or "any" location.
 function isValidPathArg(p) {
   if (typeof p !== 'string' || !p) return true;
+  if (p === '.' || p === '/') return false;
   if (p.includes('..')) return false;
   if (p.includes('//')) return false;
   if (p.includes('././')) return false;

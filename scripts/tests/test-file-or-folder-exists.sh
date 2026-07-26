@@ -53,12 +53,12 @@ assert_fail "multi-segment path does not match a same-named file elsewhere" \
 assert_pass "multi-segment path matches when present at that exact path" \
   "a/b/c/README.md" "mkdir -p a/b/c && touch a/b/c/README.md"
 
-# -- KNOWN GAP: a bare filename (no slash at all) is not root-anchored, it
-#    matches by basename anywhere under the search root. This documents
-#    the script's current, actual behavior, not its desired one - see the
-#    "does it check only root" discussion this test suite grew out of. ----
-assert_pass "KNOWN GAP: bare filename matches by basename anywhere, not just at the root" \
+# -- a bare filename (no slash at all) is root-anchored: it only matches at
+#    the project root, never by basename search elsewhere in the tree -------
+assert_fail "bare filename does not match a same-named file nested elsewhere" \
   "README.md" "mkdir -p anyfolder && touch anyfolder/README.md"
+assert_pass "bare filename matches when present at the root" \
+  "README.md" "touch README.md"
 
 # -- file vs folder discrimination -----------------------------------------
 assert_fail "bare file required does not match a same-named folder" \
@@ -87,8 +87,9 @@ assert_pass "multiple entries all present passes" \
 assert_fail "multiple entries with one missing fails" \
   "$(printf 'a\nb/\nc/d.txt')" "touch a && mkdir -p b"
 
-# -- explicit **/ prefix opts into a recursive search ------------------------
-assert_pass "explicit **/ prefix matches a nested file" \
+# -- no glob syntax is accepted; this is an exact-location existence check,
+#    never a search ----------------------------------------------------------
+assert_fail "glob wildcard is rejected as an invalid character, never searched" \
   "**/README.md" "mkdir -p deep/nested && touch deep/nested/README.md"
 
 # -- FILE_PATH's required: true is enforced on script_reusable rules,
