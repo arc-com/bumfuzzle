@@ -18,7 +18,7 @@ section() { _PENDING_HEADER="$1"; }
 
 _flush_header() {
   if [[ -n "$_PENDING_HEADER" ]]; then
-    printf '\n%s\n' "$_PENDING_HEADER"
+    _plain_quiet || printf '\n%s\n' "$_PENDING_HEADER"
     _PENDING_HEADER=""
   fi
 }
@@ -38,20 +38,20 @@ fail() {
     warn)
       _flush_header
       _log WARN "[WARN] $1"
-      [[ -n "$_details" ]] && printf '%s\n' "$_details"
+      [[ -n "$_details" ]] && ! _plain_quiet && printf '%s\n' "$_details"
       WARNINGS+=("$1")
       ;;
     hard-stop)
       _flush_header
       _log ERROR "[FAIL] $1"
-      [[ -n "$_details" ]] && printf '%s\n' "$_details"
+      [[ -n "$_details" ]] && ! _plain_quiet && printf '%s\n' "$_details"
       _log ERROR "[HARD-STOP] Aborting run"
       exit 1
       ;;
     *)
       _flush_header
       _log ERROR "[FAIL] $1"
-      [[ -n "$_details" ]] && printf '%s\n' "$_details"
+      [[ -n "$_details" ]] && ! _plain_quiet && printf '%s\n' "$_details"
       ERRORS+=("$1")
       ;;
   esac

@@ -5,17 +5,27 @@
 set -euo pipefail
 
 VERBOSE="${VERBOSE:-false}"
+PLAIN="${PLAIN:-false}"
 
 # _log LEVEL MESSAGE — writes "[YY-MM-DDTHH:mm:ssZ][SCRIPT_NAME][LEVEL] -
 # MESSAGE" to stderr. DEBUG is suppressed unless VERBOSE is true. MESSAGE
 # must start with a capital letter and may optionally lead or be prefixed
 # with a literal TAG::WORD marker (one uppercase word) for grep-based log
-# navigation.
+# navigation. When PLAIN is true and VERBOSE is not, every level is
+# suppressed too — `bumfuzzle run --plain` reports its own pass/fail/issue
+# list directly (never through _log), so this just silences the narration.
 _log() {
   local _level="$1" _msg="$2"
   [[ "$_level" == "DEBUG" && "$VERBOSE" != true ]] && return 0
+  [[ "$PLAIN" == true && "$VERBOSE" != true ]] && return 0
   printf '[%s][%s][%s] - %s\n' "$(date -u +'%y-%m-%dT%H:%M:%SZ')" "$SCRIPT_NAME" "$_level" "$_msg" >&2
 }
+
+# true when narration should be suppressed: --plain without --verbose.
+# Covers not just _log but the handful of plain-printf narration lines
+# (reporting.sh's section headers and per-failure detail blocks) that were
+# never routed through _log to begin with.
+_plain_quiet() { [[ "$PLAIN" == true && "$VERBOSE" != true ]]; }
 
 # millisecond-precision wall clock via `date +%s%N` (falls back to
 # whole-second precision via bash's SECONDS builtin on a `date` without %N

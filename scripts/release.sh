@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
-# Cuts a release end to end, entirely locally: bumps VERSION, tags, then runs
-# each atomic scripts/release/release-*.sh step (GitHub release, npm, PyPI,
-# Homebrew) in parallel. Does not verify the channels itself - run
+# Cuts a release end to end, entirely locally: runs the static test suite
+# (scripts/tests/run-all.sh), bumps VERSION, tags, then runs each atomic
+# scripts/release/release-*.sh step (GitHub release, npm, PyPI, Homebrew) in
+# parallel. Does not verify the channels itself - run
 # scripts/tests/test-release.sh afterward for that. No GitHub Actions
 # workflow is involved in publishing.
+#
+# The static test suite is a hard gate: nothing below it (version bump, tag,
+# push, publish) runs unless it passes. Exists because v1.7.6 shipped
+# bumfuzzle-template.yml with a rule value its own arg-type validator
+# rejected - a structural bug in the default template that nothing gated on
+# before release.
 #
 # The four publish steps only depend on the tag already existing - not on
 # each other - so they run concurrently as background jobs. A failure in one
@@ -30,6 +37,9 @@ require_on_main_synced
 require_clean_worktree
 require_version_advances "$NEW_VERSION" "$(current_version)"
 require_version_unreleased "$NEW_VERSION"
+
+echo "==> Running static test suite (scripts/tests/run-all.sh)"
+"$ROOT/scripts/tests/run-all.sh" || fail "static test suite failed - fix it before releasing (see output above)"
 
 echo "==> Bumping VERSION to $NEW_VERSION"
 printf '%s\n' "$NEW_VERSION" > "$ROOT/VERSION"

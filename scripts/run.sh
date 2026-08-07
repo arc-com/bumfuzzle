@@ -6,6 +6,7 @@ SCRIPT_NAME="run.sh"
 source "$BUMFUZZLE_ROOT/scripts/lib.sh"
 
 VERBOSE=false
+PLAIN=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -13,13 +14,22 @@ while [[ $# -gt 0 ]]; do
       VERBOSE=true
       shift
       ;;
+    -p|--plain)
+      PLAIN=true
+      shift
+      ;;
     *)
       _log ERROR "[FAIL] Unrecognized argument: $1"
-      printf 'Usage: bumfuzzle run [--verbose|-v]\n'
+      printf 'Usage: bumfuzzle run [--verbose|-v] [--plain|-p]\n'
       exit 1
       ;;
   esac
 done
+
+# exported so config_lint_check's prerequisites.sh subprocess (a separate
+# process, not sourced) inherits the same narration-suppression via its own
+# scripts/lib.sh source-time default (see lib.sh's `PLAIN="${PLAIN:-false}"`)
+export PLAIN
 
 # _now_ms/_HAS_NS_PRECISION come from scripts/lib.sh (sourced above), shared
 # with scripts/prerequisites.sh and rule-runner.sh rather than reprobed here.
@@ -88,6 +98,20 @@ _log INFO "Rule evaluation finished: $(( _PASS_COUNT - _pre_rules_pass )) passed
 
 _elapsed_ms=$(( $(_now_ms) - _RUN_START ))
 _log DEBUG "TAG::TIMER Timer stopped: scripts finished in $(( _elapsed_ms / 1000 )).$(printf '%03d' $(( _elapsed_ms % 1000 )))s"
+
+# --plain: a single Success/Failure token plus a flat issue list, meant for
+# CI/scripted consumption (paired with --verbose it still gets the full log
+# above, via lib.sh's _log — this block is the only thing PLAIN changes).
+if [[ "$PLAIN" == true ]]; then
+  if [[ ${#ERRORS[@]} -eq 0 && ${#WARNINGS[@]} -eq 0 ]]; then
+    printf 'Success\n'
+    exit 0
+  fi
+  [[ ${#ERRORS[@]} -eq 0 ]] && printf 'Success\n' || printf 'Failure\n'
+  for e in "${ERRORS[@]}"; do printf '  - %s\n' "$e"; done
+  for w in "${WARNINGS[@]}"; do printf '  - %s\n' "$w"; done
+  [[ ${#ERRORS[@]} -gt 0 ]] && exit 1 || exit 0
+fi
 
 if [[ ${#ERRORS[@]} -eq 0 ]]; then
   _log INFO "Bumfuzzle run finished: PASS"

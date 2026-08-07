@@ -97,7 +97,14 @@ _validator_args=("$SCHEMA_JSON" "$TARGET_JSON")
 [[ "$VERBOSE" == true ]] && _validator_args=(--verbose "${_validator_args[@]}")
 
 _log DEBUG "Running $VALIDATOR ${_validator_args[*]}"
-_ERRORS=$(python3 "$VALIDATOR" "${_validator_args[@]}") && _RC=0 || _RC=$?
+# the validator's own INFO narration goes to its stderr, outside the $()
+# capture below - suppress it under plain-quiet the same way lib.sh's _log
+# already silences this script's own narration
+if [[ "$PLAIN" == true && "$VERBOSE" != true ]]; then
+  _ERRORS=$(python3 "$VALIDATOR" "${_validator_args[@]}" 2>/dev/null) && _RC=0 || _RC=$?
+else
+  _ERRORS=$(python3 "$VALIDATOR" "${_validator_args[@]}") && _RC=0 || _RC=$?
+fi
 _log DEBUG "Validator exited $_RC"
 
 if [[ "$_RC" -eq 2 ]]; then

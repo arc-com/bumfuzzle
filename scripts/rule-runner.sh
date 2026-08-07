@@ -59,6 +59,9 @@ _urule_process_rule() {
   _looked_up=$(_urule_lookup_manifest "$_path")
   _enabled="${_looked_up%%$'\t'*}"
   _name="${_looked_up#*$'\t'}"
+  # --plain runs every defined rule regardless of enabled/disabled, so a
+  # broken rule that nobody has turned on yet still gets exercised.
+  [[ "$PLAIN" == true ]] && _enabled=true
   if [[ "$_enabled" != "true" ]]; then
     if [[ "$VERBOSE" == true ]]; then
       _flush_header

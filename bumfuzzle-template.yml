@@ -505,12 +505,13 @@ scripts:
         name: "File name count scan compares"
         description: "Compares the count of files under SEARCH_ROOT (up to SEARCH_DEPTH levels) whose basename matches any of FILE_NAMES (glob-capable list) against COUNT_THRESHOLD via COMPARISON_OPERATOR"
         command: |
-          [[ "$SEARCH_ROOT" =~ [[:space:]] ]] && { printf 'SEARCH_ROOT must not contain spaces\n'; exit 1; }
-          [[ "$SEARCH_ROOT" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          [[ "${SEARCH_ROOT:-}" =~ [[:space:]] ]] && { printf 'SEARCH_ROOT must not contain spaces\n'; exit 1; }
+          [[ "${SEARCH_ROOT:-}" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
           [[ "$SEARCH_DEPTH" =~ ^[0-9]+$ ]] || { printf 'SEARCH_DEPTH must be a non-negative integer\n'; exit 1; }
           [[ "$COUNT_THRESHOLD" =~ ^[0-9]+$ ]] || { printf 'COUNT_THRESHOLD must be a non-negative integer\n'; exit 1; }
           case "$COMPARISON_OPERATOR" in lt|le|eq|ge|gt) ;; *) printf 'Unrecognized COMPARISON_OPERATOR %s\n' "$COMPARISON_OPERATOR"; exit 1 ;; esac
           [[ -z "$FILE_NAMES" ]] && { printf 'FILE_NAMES must not be empty\n'; exit 1; }
+          _from="${SEARCH_ROOT:-.}"
           _find_expr=()
           while IFS= read -r _n; do
             [[ -z "$_n" ]] && continue
@@ -518,7 +519,7 @@ scripts:
             [[ ${#_find_expr[@]} -gt 0 ]] && _find_expr+=(-o)
             _find_expr+=(-name "$_n")
           done <<< "$FILE_NAMES"
-          _count=$(find "$SEARCH_ROOT" -maxdepth "$SEARCH_DEPTH" \( "${_find_expr[@]}" \) 2>/dev/null | wc -l | tr -d ' ')
+          _count=$(find "$_from" -maxdepth "$SEARCH_DEPTH" \( "${_find_expr[@]}" \) 2>/dev/null | wc -l | tr -d ' ')
           _ok=false
           case "$COMPARISON_OPERATOR" in
             lt) [[ "$_count" -lt "$COUNT_THRESHOLD" ]] && _ok=true ;;
@@ -528,14 +529,16 @@ scripts:
             gt) [[ "$_count" -gt "$COUNT_THRESHOLD" ]] && _ok=true ;;
           esac
           if [[ "$_ok" == "false" ]]; then
-            printf 'matched count %s does not satisfy %s %s under %s\n' "$_count" "$COMPARISON_OPERATOR" "$COUNT_THRESHOLD" "$SEARCH_ROOT"
+            printf 'matched count %s does not satisfy %s %s under %s\n' "$_count" "$COMPARISON_OPERATOR" "$COUNT_THRESHOLD" "$_from"
             exit 1
           fi
         args:
           - key: SEARCH_ROOT
             label: Search root
-            required: true
             type: path
+            required: false
+            placeholder: "."
+            description: "Folder to search from. Defaults to . (project root)."
           - key: SEARCH_DEPTH
             label: Search depth
             required: true
@@ -1664,7 +1667,6 @@ rules:
         severity: warn
         instruction: "Remove duplicate manifest files from the project root"
         args:
-          SEARCH_ROOT: "."
           SEARCH_DEPTH: 1
           FILE_NAMES: [package.json, Cargo.toml, pom.xml, go.mod, pyproject.toml]
           COMPARISON_OPERATOR: le
@@ -2024,39 +2026,15 @@ rules:
   - group: Environment Variables
     rules:
       - type: script_reusable
-        name: "Base env file present"
-        description: "A .env file exists at the project root — base configuration loaded for everything, lowest override priority"
+        name: "Enforces presence of common env files"
+        description: "The project's standard set of .env files exists at the root"
         script: file-or-folder-exists
         severity: warn
-        instruction: "Create .env at the project root with the base configuration"
+        instruction: "Create the missing .env file(s) for this project's standard set"
         args:
-          FILE_PATH: .env
-      - type: script_reusable
-        name: "Local env overrides present"
-        description: "A .env.local file exists at the project root for machine-local overrides"
-        script: file-or-folder-exists
-        severity: warn
-        instruction: "Create .env.local at the project root for machine-local overrides"
-        args:
-          FILE_PATH: .env.local
-      - type: script_reusable
-        name: "Env template present"
-        description: "A .env.template file exists at the project root and declares all required environment variable keys"
-        script: file-or-folder-exists
-        severity: error
-        instruction: "Create .env.template declaring all required environment variables"
-        args:
-          FILE_PATH: .env.template
+          FILE_PATH: [.env, .env.local, .env.template, .env.development, .env.staging, .env.production]
       - type: script_clean
-        name: ".env.{APP_ENV} present"
-        description: "A .env file matching the current APP_ENV exists at the project root"
-        command: |
-          [ -z "$APP_ENV" ] && { printf 'APP_ENV is not set\n'; exit 1; }
-          [ -f ".env.$APP_ENV" ] || { printf '.env.%s not found\n' "$APP_ENV"; exit 1; }
-        severity: warn
-        instruction: "Create a .env.<APP_ENV> file for the currently configured environment"
-      - type: script_clean
-        name: "All template keys in every .env.* file"
+        name: "Enforces all template keys in every .env.* file (SCAN)"
         description: "Every key declared in .env.template is present in each .env.* file — no environment is missing a declared variable"
         command: |
           [ ! -f .env.template ] && exit 0
@@ -2072,7 +2050,7 @@ rules:
         severity: error
         instruction: "Add missing keys from .env.template to each .env.* file"
       - type: script_clean
-        name: "No undeclared keys in .env.* files"
+        name: "Enforces no undeclared keys in .env.* files (SCAN)"
         description: "Every key in each .env.* file is declared in .env.template — no undocumented variables exist in any environment"
         command: |
           [ ! -f .env.template ] && exit 0
@@ -2088,13 +2066,13 @@ rules:
         severity: error
         instruction: "Add undeclared keys to .env.template or remove them from .env.* files"
       - type: script_clean
-        name: ".env.template values are placeholders"
+        name: "Enforces placeholder values in .env.template"
         description: "All values in .env.template are uppercase placeholder strings — no real secrets committed"
         command: "[ ! -f .env.template ] && exit 0; ! grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env.template | grep -vE '=([A-Z_][A-Z0-9_]*)?$' | grep -q ."
         severity: warn
-        instruction: "Replace real values in .env.template with uppercase placeholders like MY_KEY=PLACEHOLDER"
+        instruction: "Replace real values in .env.template with uppercase placeholder strings"
       - type: script_clean
-        name: "No empty values in .env.* files"
+        name: "Enforces non-empty values in .env.* files (SCAN)"
         description: "Every key in each .env.* file has a non-empty value — blank values indicate missing or forgotten configuration"
         command: |
           rc=0
@@ -2109,7 +2087,7 @@ rules:
         severity: error
         instruction: "Set a non-empty value for every blank key in .env.* files"
       - type: script_clean
-        name: "No duplicate keys in .env.* files"
+        name: "Enforces unique keys in .env.* files (SCAN)"
         description: "Each .env.* file declares every key at most once — duplicate keys cause unpredictable precedence behavior"
         command: |
           rc=0
@@ -2254,7 +2232,6 @@ rules:
         args:
           FAIL_ON_FILE_NOT_FOUND: true
           FILE_TYPE: yaml
-          SEARCH_ROOT: "."
           SEARCH_DEPTH: 1
           INCLUDE: config.yml
       - type: script_clean

@@ -53,6 +53,7 @@ description: Reviews pull requests and code files for bugs, security vulnerabili
 
 ### Name
 - Must be self-explanatory and standalone, Prefer verb-first. If rule can be applied only to specific language/framework, it must be explicitly defined in the name in parentheses naming that language/framework, as the postfix.
+- Prefer the verb-first form starting with "Enforces", naming what the rule guarantees rather than a bare noun phrase or state description.
 - When phrased as a verb clause, conjugate the verb to agree with the name's subject.
 - If it scans a folder, recursively or flat, to find matching files, the rule's name must end with the "(SCAN)" postfix.
 ### Description

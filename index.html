@@ -231,6 +231,10 @@ const CONFIG = {
 
 let S, C, META, SCHEMA;
 let state;
+// last state that the server actually persisted (or, before the first
+// save, the state as loaded) - a failed save reverts to this so an action
+// the server rejected never stays visually applied
+let lastGoodState = null;
 
 // ── Tree helpers ──────────────────────────────────────────────────────────────
 
@@ -309,6 +313,26 @@ function initData() {
   annotate(state.rules);
   annotateEnums(state.enums);
   annotateScripts(state.scripts);
+}
+
+// ── Save rollback ─────────────────────────────────────────────────────────────
+// Only rules/enums/scripts are persisted (see generateYaml()); sections/filters
+// are local UI state and are deliberately left out of the snapshot/restore.
+
+function snapshotState() {
+  return {
+    rules:   JSON.parse(JSON.stringify(state.rules)),
+    enums:   JSON.parse(JSON.stringify(state.enums)),
+    scripts: JSON.parse(JSON.stringify(state.scripts)),
+  };
+}
+
+function restoreLastGoodState() {
+  if (!lastGoodState) return;
+  state.rules   = JSON.parse(JSON.stringify(lastGoodState.rules));
+  state.enums   = JSON.parse(JSON.stringify(lastGoodState.enums));
+  state.scripts = JSON.parse(JSON.stringify(lastGoodState.scripts));
+  sections.forEach(s => s.reRender());
 }
 
 function annotate(items) {
@@ -428,9 +452,20 @@ function scheduleSave() {
 async function doSave() {
   try {
     const res = await fetch('/save', { method: 'POST', body: generateYaml() });
-    if (!res.ok) { setSaveStatus('err', await res.text().catch(() => '')); return; }
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      // the server rejected the save - revert every edit made since the
+      // last confirmed save instead of leaving them visually applied
+      restoreLastGoodState();
+      setSaveStatus('err', detail);
+      return;
+    }
+    lastGoodState = snapshotState();
     setSaveStatus('ok');
-  } catch { setSaveStatus('err'); }
+  } catch {
+    restoreLastGoodState();
+    setSaveStatus('err');
+  }
 }
 
 function setSaveStatus(s, detail) {
@@ -2588,6 +2623,7 @@ function renderPage() {
     const cfg = await res.json();
     S = cfg.settings; C = cfg.current; META = cfg.meta; SCHEMA = cfg.schema;
     initData();
+    lastGoodState = snapshotState();
     renderPage();
   } catch (e) {
     console.error(e);
