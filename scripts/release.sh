@@ -43,7 +43,7 @@ echo "==> Running static test suite (scripts/tests/run-all.sh)"
 
 echo "==> Bumping VERSION to $NEW_VERSION"
 printf '%s\n' "$NEW_VERSION" > "$ROOT/VERSION"
-(cd "$ROOT" && npm pkg set version="$NEW_VERSION" > /dev/null)
+"$ROOT/scripts/sync-package-version.sh"
 git -C "$ROOT" add VERSION package.json
 git -C "$ROOT" commit -m "$(cat <<EOF
 chore(release): v$NEW_VERSION

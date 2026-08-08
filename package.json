@@ -16,7 +16,7 @@
     "VERSION"
   ],
   "scripts": {
-    "prepack": "npm pkg set version=$(cat VERSION)",
+    "prepack": "scripts/sync-package-version.sh",
     "postinstall": "scripts/sync-skill.sh"
   },
   "engines": {

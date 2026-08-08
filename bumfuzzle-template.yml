@@ -1639,6 +1639,36 @@ scripts:
             required: true
             type: enum
             enum_ref: package-manager
+      - id: manifest-values-in-folder
+        name: "Checks manifest key values point into an allowed folder"
+        description: "Confirms every value under a manifest's key resolves to a path inside one folder."
+        command: |
+          jq -r --arg k "$MANIFEST_KEY" '(.[$k] // {}) | to_entries[] | "\(.key)\t\(.value)"' "$MANIFEST_PATH" |
+          while IFS=$'\t' read -r _entry _value; do
+            case "$_value" in
+              "$FILE_LOCATION_ALLOWED_FOLDER"*|*" $FILE_LOCATION_ALLOWED_FOLDER"*) continue ;;
+            esac
+            printf '%s does not point into %s: %s\n' "$_entry" "$FILE_LOCATION_ALLOWED_FOLDER" "$_value"
+            exit 1
+          done
+        args:
+          - key: MANIFEST_PATH
+            label: "Manifest file"
+            type: enum
+            required: true
+            enum_ref: common-manifest
+          - key: MANIFEST_KEY
+            label: "Manifest key"
+            type: string
+            required: true
+            placeholder: "scripts"
+            description: "Object key inside the manifest whose values are checked."
+          - key: FILE_LOCATION_ALLOWED_FOLDER
+            label: "Allowed folder"
+            type: path
+            required: true
+            placeholder: "scripts/"
+            description: "Folder, relative to the project root, that every matching file must live under."
   - group: "Git Checks"
     scripts:
       - id: git-hooks-path-matches

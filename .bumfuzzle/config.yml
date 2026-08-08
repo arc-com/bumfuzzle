@@ -1,4 +1,118 @@
 schema_version: 1
+scripts:
+  - group: "Package Manager Checks"
+    scripts:
+      - id: manifest-values-in-folder
+        name: "Checks manifest key values point into an allowed folder"
+        description: "Confirms every value under a manifest's key resolves to a path inside one folder."
+        command: |
+          jq -r --arg k "$MANIFEST_KEY" '(.[$k] // {}) | to_entries[] | "\(.key)\t\(.value)"' "$MANIFEST_PATH" |
+          while IFS=$'\t' read -r _entry _value; do
+            case "$_value" in
+              "$FILE_LOCATION_ALLOWED_FOLDER"*|*" $FILE_LOCATION_ALLOWED_FOLDER"*) continue ;;
+            esac
+            printf '%s does not point into %s: %s\n' "$_entry" "$FILE_LOCATION_ALLOWED_FOLDER" "$_value"
+            exit 1
+          done
+        args:
+          - key: MANIFEST_PATH
+            label: "Manifest file"
+            type: enum
+            required: true
+            enum_ref: common-manifest
+          - key: MANIFEST_KEY
+            label: "Manifest key"
+            type: string
+            required: true
+            placeholder: "scripts"
+            description: "Object key inside the manifest whose values are checked."
+          - key: FILE_LOCATION_ALLOWED_FOLDER
+            label: "Allowed folder"
+            type: path
+            required: true
+            placeholder: "scripts/"
+            description: "Folder, relative to the project root, that every matching file must live under."
+enums:
+  - id: common-manifest
+    name: "Common manifest"
+    description: "Common project manifest filenames across ecosystems — usable anywhere a glob-type argument accepts a file name"
+    type: glob
+    values:
+      - name: package.json
+        value: package.json
+        description: "Node.js / npm / yarn / pnpm / bun — declares dependencies, scripts, and package metadata"
+      - name: deno.json
+        value: deno.json
+        description: "Deno — runtime configuration, import maps, and task definitions"
+      - name: Cargo.toml
+        value: Cargo.toml
+        description: "Rust / Cargo — package metadata, dependencies, and workspace configuration"
+      - name: pom.xml
+        value: pom.xml
+        description: "Java / Maven — project object model defining build lifecycle, dependencies, and plugins"
+      - name: build.gradle
+        value: build.gradle
+        description: "Java / Kotlin / Groovy / Gradle — build script in Groovy DSL"
+      - name: build.gradle.kts
+        value: build.gradle.kts
+        description: "Kotlin / Gradle — build script in Kotlin DSL"
+      - name: settings.gradle
+        value: settings.gradle
+        description: "Java / Gradle (multi-project) — declares subproject structure in Groovy DSL"
+      - name: settings.gradle.kts
+        value: settings.gradle.kts
+        description: "Kotlin / Gradle (multi-project) — declares subproject structure in Kotlin DSL"
+      - name: pyproject.toml
+        value: pyproject.toml
+        description: "Python / PEP 517 — standard build and tool configuration used by Poetry, Hatch, PDM, and Flit"
+      - name: requirements.txt
+        value: requirements.txt
+        description: "Python / pip — plain list of package requirements for pip install"
+      - name: setup.py
+        value: setup.py
+        description: "Python / setuptools (legacy) — imperative build script predating pyproject.toml"
+      - name: setup.cfg
+        value: setup.cfg
+        description: "Python / setuptools (legacy) — declarative companion to setup.py for package metadata"
+      - name: Pipfile
+        value: Pipfile
+        description: "Python / Pipenv — declares dependencies and Python version for Pipenv-managed environments"
+      - name: go.mod
+        value: go.mod
+        description: "Go / modules — declares the module path and dependency requirements"
+      - name: Gemfile
+        value: Gemfile
+        description: "Ruby / Bundler — specifies gem dependencies for Ruby projects"
+      - name: composer.json
+        value: composer.json
+        description: "PHP / Composer — declares PHP package dependencies and autoloading configuration"
+      - name: Package.swift
+        value: Package.swift
+        description: "Swift / SPM — Swift Package Manager manifest defining targets and dependencies"
+      - name: pubspec.yaml
+        value: pubspec.yaml
+        description: "Dart / Flutter — declares package metadata, dependencies, and assets"
+      - name: CMakeLists.txt
+        value: CMakeLists.txt
+        description: "C / C++ / CMake — top-level build system configuration for CMake projects"
+      - name: vcpkg.json
+        value: vcpkg.json
+        description: "C / C++ / vcpkg — manifest mode dependency declaration for the vcpkg package manager"
+      - name: conanfile.txt
+        value: conanfile.txt
+        description: "C / C++ / Conan — lists Conan package dependencies and generators"
+      - name: stack.yaml
+        value: stack.yaml
+        description: "Haskell / Stack — resolver and dependency configuration for Stack builds"
+      - name: cabal.project
+        value: cabal.project
+        description: "Haskell / Cabal — multi-package project configuration for Cabal builds"
+      - name: mix.exs
+        value: mix.exs
+        description: "Elixir / Mix — project definition, dependencies, and Mix task configuration"
+      - name: build.sbt
+        value: build.sbt
+        description: "Scala / sbt — build definitions, dependencies, and settings for sbt projects"
 rules:
   - group: "Structure"
     rules:
@@ -31,3 +145,18 @@ rules:
         enabled: true
         command: |
           grep -q "\"version\": \"$(cat VERSION)\"" package.json
+  - group: "Package Manager Checks"
+    rules:
+      - type: script_reusable
+        name: "Enforces manifest scripts pointing into an allowed folder (npm)"
+        description: "Confirms every manifest script resolves to a path inside the designated folder."
+        script: manifest-values-in-folder
+        severity: error
+        instruction: "Move the script into the designated folder."
+        enabled: true
+        requires: jq
+        on_missing: fail
+        args:
+          MANIFEST_PATH: package.json
+          MANIFEST_KEY: scripts
+          FILE_LOCATION_ALLOWED_FOLDER: scripts/
