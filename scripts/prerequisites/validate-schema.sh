@@ -86,7 +86,7 @@ if [[ ! -f "$VALIDATOR" ]]; then
   exit 1
 fi
 _log DEBUG "Target: $TARGET"
-_log INFO "Starting schema validation"
+_log DEBUG "Starting schema validation"
 
 _log DEBUG "Converting $SCHEMA_FILE and $TARGET to JSON"
 yaml_to_json_tmp "$SCHEMA_FILE" SCHEMA_JSON
@@ -118,7 +118,7 @@ if [[ "$_RC" -eq 1 ]]; then
     [[ -z "$_line" ]] && continue
     printf '[FAIL] %s %s\n' "$TARGET" "$_line"
   done <<< "$_ERRORS"
-  _log INFO "Validation failed"
+  _log DEBUG "Validation failed"
   exit 1
 fi
 
@@ -128,10 +128,10 @@ _SCHEMA_VERSION=$(yq '.schema_version' "$SCHEMA_FILE")
 _TARGET_VERSION=$(yq '.schema_version' "$TARGET")
 if [[ "$_TARGET_VERSION" != "$_SCHEMA_VERSION" ]]; then
   _log DEBUG "Schema_version mismatch detail: $TARGET=$_TARGET_VERSION $SCHEMA_FILE_DISPLAY=$_SCHEMA_VERSION"
-  _log INFO "Schema_version mismatch between target and schema"
+  _log DEBUG "Schema_version mismatch between target and schema"
   printf '[FAIL] %s schema_version (%s) does not match %s schema_version (%s)\n' "$TARGET" "$_TARGET_VERSION" "$SCHEMA_FILE_DISPLAY" "$_SCHEMA_VERSION"
   exit 1
 fi
 
-_log INFO "Validation passed"
+_log DEBUG "Validation passed"
 printf '[PASS] %s matches %s\n' "$TARGET" "$SCHEMA_FILE_DISPLAY"

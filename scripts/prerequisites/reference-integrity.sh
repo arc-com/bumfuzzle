@@ -58,7 +58,7 @@ _check() {
 }
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking script/enum_ref reference integrity"
+_log DEBUG "Checking script/enum_ref reference integrity"
 _check
 
 if [[ "$_FINDINGS_STRUCTURAL" -gt 0 || "$_FINDINGS_ERROR" -gt 0 ]]; then

@@ -39,7 +39,7 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking script_reusable arg values against their declared types"
+_log DEBUG "Checking script_reusable arg values against their declared types"
 
 _log DEBUG "Converting $TARGET to JSON"
 yaml_to_json_tmp "$TARGET" _CONFIG_JSON

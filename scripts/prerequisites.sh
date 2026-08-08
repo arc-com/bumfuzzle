@@ -83,7 +83,7 @@ _run_gate() {
         '[FAIL:structural] '*) _FINDINGS_STRUCTURAL=$((_FINDINGS_STRUCTURAL + 1)) ;;
       esac
     done <<< "$_out"
-    _log INFO "Stopping before the remaining checks - $_script failed"
+    _log DEBUG "Stopping before the remaining checks - $_script failed"
     exit 1
   fi
   _log DEBUG "Output from $_script: $_out"
@@ -131,7 +131,7 @@ _run_schema_check() {
 }
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Starting prerequisites check"
+_log DEBUG "Starting prerequisites check"
 
 _run_gate yq-installed.sh
 _run_gate target-exists.sh
@@ -147,14 +147,14 @@ _run_check no-redundant-enabled-false.sh
 _run_schema_check
 
 if [[ "$_FINDINGS_STRUCTURAL" -gt 0 || "$_FINDINGS_ERROR" -gt 0 ]]; then
-  _log INFO "Prerequisites failed: $_FINDINGS_STRUCTURAL structural, $_FINDINGS_ERROR error, $_FINDINGS_WARN warning finding(s)"
+  _log DEBUG "Prerequisites failed: $_FINDINGS_STRUCTURAL structural, $_FINDINGS_ERROR error, $_FINDINGS_WARN warning finding(s)"
   exit 1
 fi
 
 printf '[PASS] %s is structurally clean\n' "$TARGET"
 if [[ "$_FINDINGS_WARN" -gt 0 ]]; then
-  _log INFO "Prerequisites passed with $_FINDINGS_WARN warning(s)"
+  _log DEBUG "Prerequisites passed with $_FINDINGS_WARN warning(s)"
 else
-  _log INFO "Prerequisites passed"
+  _log DEBUG "Prerequisites passed"
 fi
 exit 0

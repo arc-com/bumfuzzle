@@ -7,6 +7,7 @@ source "$BUMFUZZLE_ROOT/scripts/lib.sh"
 
 VERBOSE=false
 PLAIN=false
+PRETTIFY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -18,9 +19,13 @@ while [[ $# -gt 0 ]]; do
       PLAIN=true
       shift
       ;;
+    --prettify)
+      PRETTIFY=true
+      shift
+      ;;
     *)
       _log ERROR "[FAIL] Unrecognized argument: $1"
-      printf 'Usage: bumfuzzle run [--verbose|-v] [--plain|-p]\n'
+      printf 'Usage: bumfuzzle run [--verbose|-v] [--plain|-p] [--prettify]\n'
       exit 1
       ;;
   esac
@@ -49,9 +54,9 @@ PREFLIGHT_FILE=".bumfuzzle/config.yml"
 
 . "$BUMFUZZLE_ROOT/scripts/reporting.sh"
 
-_log INFO "Starting bumfuzzle run v$RUN_VERSION"
+_log DEBUG "Starting bumfuzzle run v$RUN_VERSION"
 
-_log INFO "Starting prerequisites check"
+_log DEBUG "Starting prerequisites check"
 section '-- Prerequisites --------------------------------------------------------'
 
 if [[ ! -f "$PREFLIGHT_FILE" ]]; then
@@ -66,14 +71,14 @@ if [[ ! -f "$PREFLIGHT_FILE" ]]; then
   _log DEBUG "Copying $TEMPLATE to $PREFLIGHT_FILE"
   cp "$TEMPLATE" "$PREFLIGHT_FILE"
   _flush_header
-  _log INFO "Config not found - scaffolded from template: $PREFLIGHT_FILE"
+  _log DEBUG "Config not found - scaffolded from template: $PREFLIGHT_FILE"
 else
   _log DEBUG "Using existing config, already present: $PREFLIGHT_FILE"
 fi
 
 pass "$PREFLIGHT_FILE is present"
 pass "run v$RUN_VERSION"
-_log INFO "Prerequisites satisfied"
+_log DEBUG "Prerequisites satisfied"
 
 # PREFLIGHT_FILE becomes absolute below so checks work regardless of any cwd
 # change; PREFLIGHT_FILE_DISPLAY keeps the plain relative name for messages,
@@ -85,16 +90,38 @@ PREFLIGHT_FILE="$(pwd)/$PREFLIGHT_FILE"
 
 # config lint runs as part of Prerequisites (see rule-runner.sh): it validates
 # .bumfuzzle/config.yml's own structure and is exempt from the enabled-rules gating
-# that applies to user-defined rules — it always runs.
-_log INFO "Starting config lint"
-config_lint_check
+# that applies to user-defined rules - it always runs, unless scripts/fingerprint.sh
+# shows none of its inputs (PREFLIGHT_FILE, schema.yml, every bumfuzzle-template*.yml)
+# have changed since the last clean run, in which case re-running it would only
+# reproduce the same findings against the same inputs.
+_fp_args=("$PREFLIGHT_FILE")
+[[ "$VERBOSE" == true ]] && _fp_args=(--verbose "$PREFLIGHT_FILE")
 
-_log INFO "Starting rule evaluation"
+_fp_rc=0
+_fp_out=$("$BUMFUZZLE_ROOT/scripts/fingerprint.sh" check "${_fp_args[@]}") || _fp_rc=$?
+while IFS= read -r _fp_line; do
+  [[ -z "$_fp_line" ]] && continue
+  _log DEBUG "Fingerprint.sh: $_fp_line"
+done <<< "$_fp_out"
+
+if [[ "$_fp_rc" -eq 0 ]]; then
+  pass "config lint (skipped - fingerprint unchanged since last clean run)"
+  _log INFO "Fingerprints are matching, skipping rules validation"
+else
+  _log INFO "Starting prerequisites checks"
+  config_lint_check
+  # fail-open on the write path too: a failed cache update must never fail
+  # the user's actual validation run, only cost it a skip next time.
+  _fp_update_out=$("$BUMFUZZLE_ROOT/scripts/fingerprint.sh" update "${_fp_args[@]}") || true
+  _log DEBUG "Fingerprint.sh update: $(printf '%s' "$_fp_update_out" | tr '\n' ' ')"
+fi
+
+_log DEBUG "Starting rule evaluation"
 _pre_rules_pass=$_PASS_COUNT
 _pre_rules_err=${#ERRORS[@]}
 _pre_rules_warn=${#WARNINGS[@]}
 user_rules_check
-_log INFO "Rule evaluation finished: $(( _PASS_COUNT - _pre_rules_pass )) passed, $(( ${#ERRORS[@]} - _pre_rules_err )) failed, $(( ${#WARNINGS[@]} - _pre_rules_warn )) warned"
+_log DEBUG "Rule evaluation finished: $(( _PASS_COUNT - _pre_rules_pass )) passed, $(( ${#ERRORS[@]} - _pre_rules_err )) failed, $(( ${#WARNINGS[@]} - _pre_rules_warn )) warned"
 
 _elapsed_ms=$(( $(_now_ms) - _RUN_START ))
 _log DEBUG "TAG::TIMER Timer stopped: scripts finished in $(( _elapsed_ms / 1000 )).$(printf '%03d' $(( _elapsed_ms % 1000 )))s"
@@ -114,31 +141,29 @@ if [[ "$PLAIN" == true ]]; then
 fi
 
 if [[ ${#ERRORS[@]} -eq 0 ]]; then
-  _log INFO "Bumfuzzle run finished: PASS"
+  _log INFO "Bumfuzzle run: SUCCESS - $_PASS_COUNT passed, ${#ERRORS[@]} failed, ${#WARNINGS[@]} warned"
 else
-  _log INFO "Bumfuzzle run finished: FAIL"
+  _log INFO "Bumfuzzle run: FAILURE - $_PASS_COUNT passed, ${#ERRORS[@]} failed, ${#WARNINGS[@]} warned"
 fi
 
-printf '%s\n' '-----------------------------------------------------------------------'
+[[ "$PRETTIFY" == true ]] && printf '%s\n' '-----------------------------------------------------------------------'
 if [[ ${#ERRORS[@]} -eq 0 && ${#WARNINGS[@]} -eq 0 ]]; then
-  printf '  All checks passed\n'
-  printf '%s\n' '-----------------------------------------------------------------------'
-  exit 0
-fi
+  [[ "$PRETTIFY" == true ]] && printf '  All checks passed\n'
+else
+  if [[ ${#ERRORS[@]} -gt 0 ]]; then
+    printf '%d check(s) failed:\n' "${#ERRORS[@]}"
+    for e in "${ERRORS[@]}"; do
+      printf '  - %s\n' "$e"
+    done
+  fi
 
-if [[ ${#ERRORS[@]} -gt 0 ]]; then
-  printf '  %d check(s) failed:\n' "${#ERRORS[@]}"
-  for e in "${ERRORS[@]}"; do
-    printf '    - %s\n' "$e"
-  done
+  if [[ ${#WARNINGS[@]} -gt 0 ]]; then
+    printf '%d warning(s):\n' "${#WARNINGS[@]}"
+    for w in "${WARNINGS[@]}"; do
+      printf '  - %s\n' "$w"
+    done
+  fi
 fi
+[[ "$PRETTIFY" == true ]] && printf '%s\n' '-----------------------------------------------------------------------'
 
-if [[ ${#WARNINGS[@]} -gt 0 ]]; then
-  printf '  %d warning(s):\n' "${#WARNINGS[@]}"
-  for w in "${WARNINGS[@]}"; do
-    printf '    - %s\n' "$w"
-  done
-fi
-
-printf '%s\n' '-----------------------------------------------------------------------'
 [[ ${#ERRORS[@]} -gt 0 ]] && exit 1 || exit 0

@@ -65,7 +65,7 @@ _check() {
 }
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking rule fields required by type"
+_log DEBUG "Checking rule fields required by type"
 _check
 
 if [[ "$_FINDINGS_STRUCTURAL" -gt 0 || "$_FINDINGS_ERROR" -gt 0 ]]; then

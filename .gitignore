@@ -7,3 +7,4 @@ config.js
 package.json
 tmp/
 *.egg-info/
+.bumfuzzle/meta.json

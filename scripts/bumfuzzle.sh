@@ -19,6 +19,7 @@ usage() {
   printf '  run                  Run every enabled check in .bumfuzzle/config.yml\n'
   printf '    -v, --verbose        Show passing checks\n'
   printf '    -p, --plain          Run every check regardless of enabled/disabled, print a single Success/Failure verdict plus a flat issue list (combine with --verbose for the full log too)\n'
+  printf '    --prettify           Wrap the closing summary in a decorated banner (plain dashes otherwise)\n'
   printf '  validate-schema      Check a config'"'"'s severity/on_missing/type values against schema.yml\n'
   printf '    [file]               Defaults to .bumfuzzle/config.yml in the current directory\n'
   printf '  prerequisites        Check a config'"'"'s structure: duplicate ids, dangling references, required fields, schema conformance\n'

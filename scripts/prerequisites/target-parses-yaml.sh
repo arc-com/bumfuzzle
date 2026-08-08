@@ -26,13 +26,13 @@ EOF
 parse_target_args "$@"
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking target parses as YAML"
+_log DEBUG "Checking target parses as YAML"
 if ! yq '.' "$TARGET" > /dev/null 2>&1; then
-  _log INFO "Target is not parseable YAML"
+  _log DEBUG "Target is not parseable YAML"
   printf '[FAIL:structural] %s is not parseable YAML\n' "$TARGET"
   exit 1
 fi
 
-_log INFO "Target parses as YAML"
+_log DEBUG "Target parses as YAML"
 printf '[PASS] %s parses as YAML\n' "$TARGET"
 exit 0

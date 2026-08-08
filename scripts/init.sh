@@ -1,51 +1,57 @@
 #!/usr/bin/env bash
+# init.sh — bootstraps a project for bumfuzzle: creates .bumfuzzle/config.yml
+# from the template, wires a "bf" script into package.json if present, and
+# syncs the bumfuzzle skill into .claude/ if present. An aggregate: each
+# primitive lives in its own atomic script under scripts/init/, called here
+# by path - scaffold-config.sh, wire-package-script.sh, and (unchanged)
+# scripts/sync-skill.sh.
 set -euo pipefail
 
-BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-TEMPLATE="$BUMFUZZLE_ROOT/bumfuzzle-template.yml"
-TARGET="$(pwd)/.bumfuzzle/config.yml"
+BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+INIT_DIR="$BUMFUZZLE_ROOT/scripts/init"
 
 SCRIPT_NAME="init.sh"
-_log() { printf '[%s][%s] - %s\n' "$SCRIPT_NAME" "$1" "$2" >&2; }
+source "$INIT_DIR/lib.sh"
 
-if [[ $# -gt 0 ]]; then
-  _log ERROR "unexpected argument(s): $*"
-  printf 'Usage: bumfuzzle init\n'
-  exit 1
-fi
+usage() {
+  cat <<'EOF'
+Usage: init.sh [-h|--help] [-v|--verbose] [--dry-run]
 
-if [[ -f "$TARGET" ]]; then
-  _log ERROR ".bumfuzzle/config.yml already exists in $(pwd)"
-  printf '[FAIL] .bumfuzzle/config.yml already exists in %s - refusing to overwrite\n' "$(pwd)"
-  printf 'Use the wizard'"'"'s "Reset" action if you want to replace it with the template.\n'
-  exit 1
-fi
+Bootstraps the current directory for bumfuzzle: creates
+.bumfuzzle/config.yml from the template, adds a "bf" script to
+package.json if one is present and doesn't already have it, and syncs the
+bumfuzzle skill into .claude/ if present. Fails if .bumfuzzle/config.yml
+already exists.
 
-if [[ ! -f "$TEMPLATE" ]]; then
-  _log ERROR "template not found: $TEMPLATE"
-  printf '[FAIL] template not found: %s\n' "$TEMPLATE"
-  exit 1
-fi
+  -v, --verbose  show DEBUG-level detail on stderr
+  --dry-run      print what would change, without writing anything
 
-mkdir -p "$(pwd)/.bumfuzzle"
-cp "$TEMPLATE" "$TARGET"
-_log INFO "created $TARGET"
-printf 'Created %s\n' "$TARGET"
+Exits 0 on success, 1 on failure, 2 on a usage error.
+EOF
+}
 
-PKG_JSON="$(pwd)/package.json"
-if [[ -f "$PKG_JSON" ]]; then
-  if jq -e '.scripts.bf' "$PKG_JSON" > /dev/null 2>&1; then
-    _log INFO "package.json already has a \"bf\" script - leaving it as-is"
-    printf 'package.json already has a "bf" script - leaving it as-is\n'
-  else
-    _tmp="$(mktemp)"
-    jq '.scripts = ((.scripts // {}) + {"bf": "bf run"})' "$PKG_JSON" > "$_tmp"
-    mv "$_tmp" "$PKG_JSON"
-    _log INFO "added \"bf\": \"bf run\" to package.json scripts"
-    printf 'Added "bf": "bf run" to package.json scripts\n'
-  fi
-fi
+parse_init_args "$@"
 
-"$BUMFUZZLE_ROOT/scripts/sync-skill.sh" --target-dir "$(pwd)"
+_init_args=()
+[[ "$VERBOSE" == true ]] && _init_args+=(--verbose)
+[[ "$DRY_RUN" == true ]] && _init_args+=(--dry-run)
 
-printf 'Run `bumfuzzle wizard` to configure it, or `bumfuzzle run` to check it as-is.\n'
+_log INFO "Starting init"
+
+printf '\n%s\n' "$(_section_line Config)"
+"$INIT_DIR/scaffold-config.sh" ${_init_args[@]+"${_init_args[@]}"}
+
+printf '\n%s\n' "$(_section_line "Package Script")"
+"$INIT_DIR/wire-package-script.sh" ${_init_args[@]+"${_init_args[@]}"}
+
+printf '\n%s\n' "$(_section_line "Skill Sync")"
+_sync_args=(--target-dir "$(pwd)")
+[[ "$VERBOSE" == true ]] && _sync_args+=(--verbose)
+[[ "$DRY_RUN" == true ]] && _sync_args+=(--dry-run)
+"$BUMFUZZLE_ROOT/scripts/sync-skill.sh" "${_sync_args[@]}"
+
+_log INFO "Init finished"
+
+printf '\n%s\n' "$(_banner_line)"
+printf 'Run `bf wizard` to configure it, or `bf run` to check it as-is.\n'
+printf '%s\n' "$(_banner_line)"

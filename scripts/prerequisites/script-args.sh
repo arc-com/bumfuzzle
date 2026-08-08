@@ -67,7 +67,7 @@ _check() {
 }
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking script_reusable arg declarations against script args"
+_log DEBUG "Checking script_reusable arg declarations against script args"
 _check
 
 if [[ "$_FINDINGS_ERROR" -gt 0 ]]; then

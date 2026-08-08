@@ -1,6 +1,6 @@
 ---
 name: bumfuzzle
-description: Reviews pull requests and code files for bugs, security vulnerabilities, and code quality. Use when asked to run any static code verification, or set of checks, tests, etc.
+description: Load it when working with Bumfuzzle, or when project has Bumfuzzle import. When you asked to create new rule, or trigger any validation or verification after task is done.
 ---
 
 - DEBUG: If you see any inconsistency in actual configs against rules defined below, you must highlight it right away.

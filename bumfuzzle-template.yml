@@ -1639,6 +1639,29 @@ scripts:
             required: true
             type: enum
             enum_ref: package-manager
+  - group: "Git Checks"
+    scripts:
+      - id: git-hooks-path-matches
+        name: "Git hooks path matches expected"
+        description: "Checks that git's effective hooks directory (core.hooksPath, or .git/hooks by default) matches EXPECTED_HOOKS_PATH."
+        command: |
+          [[ "$EXPECTED_HOOKS_PATH" =~ [[:space:]] ]] && { printf 'EXPECTED_HOOKS_PATH must not contain spaces\n'; exit 1; }
+          [[ "$EXPECTED_HOOKS_PATH" =~ \.\. ]] && { printf 'EXPECTED_HOOKS_PATH must not contain ..\n'; exit 1; }
+          [[ "$EXPECTED_HOOKS_PATH" =~ ^[a-zA-Z0-9_./-]+$ ]] || { printf 'EXPECTED_HOOKS_PATH contains invalid characters\n'; exit 1; }
+          _actual="$(git rev-parse --git-path hooks)"
+          _actual="${_actual%/}"
+          _expected="${EXPECTED_HOOKS_PATH%/}"
+          if [[ "$_actual" != "$_expected" ]]; then
+            printf 'git hooks path is %s, expected %s\n' "$_actual" "$_expected"
+            exit 1
+          fi
+        args:
+          - key: EXPECTED_HOOKS_PATH
+            label: Expected git hooks path
+            required: true
+            type: path
+            placeholder: .git/hooks
+            description: "Path (relative to the project root) git's hooks directory must resolve to - covers both the default .git/hooks and a custom core.hooksPath."
 rules:
   - group: General
     rules:
@@ -1914,6 +1937,14 @@ rules:
               FAIL_ON_FILE_NOT_FOUND: true
               FILE_PATH: .githooks/pre-commit
               REGEX_PATTERN: '.*ENV_APPROVED.*'
+          - type: script_reusable
+            name: "Git hooks path matches project default"
+            description: "Git's effective hooks directory matches this project's expected hooks path"
+            script: git-hooks-path-matches
+            severity: error
+            instruction: "Run: git config core.hooksPath <expected path>, or move hooks into the expected directory"
+            args:
+              EXPECTED_HOOKS_PATH: .git/hooks
       - group: Gitignore
         rules:
           - type: script_reusable

@@ -18,7 +18,7 @@ section() { _PENDING_HEADER="$1"; }
 
 _flush_header() {
   if [[ -n "$_PENDING_HEADER" ]]; then
-    _plain_quiet || printf '\n%s\n' "$_PENDING_HEADER"
+    [[ "$PRETTIFY" == true ]] && ! _plain_quiet && printf '\n%s\n' "$_PENDING_HEADER"
     _PENDING_HEADER=""
   fi
 }

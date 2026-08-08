@@ -41,7 +41,7 @@ _check() {
 }
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking duplicate ids in scripts/enums"
+_log DEBUG "Checking duplicate ids in scripts/enums"
 _check
 
 if [[ "$_FINDINGS_ERROR" -gt 0 ]]; then

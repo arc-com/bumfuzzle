@@ -43,7 +43,7 @@ _check() {
 }
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking for redundant enabled: false"
+_log DEBUG "Checking for redundant enabled: false"
 _check
 
 if [[ "$_FINDINGS_WARN" -gt 0 ]]; then

@@ -23,13 +23,13 @@ EOF
 parse_target_args "$@"
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking target exists"
+_log DEBUG "Checking target exists"
 if [[ ! -f "$TARGET" ]]; then
   _log ERROR "Target not found: $TARGET"
   printf '[FAIL:structural] %s not found\n' "$TARGET"
   exit 1
 fi
 
-_log INFO "Target is present"
+_log DEBUG "Target is present"
 printf '[PASS] %s is present\n' "$TARGET"
 exit 0

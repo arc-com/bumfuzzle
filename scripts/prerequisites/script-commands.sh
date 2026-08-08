@@ -40,7 +40,7 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 _log DEBUG "Target: $TARGET"
-_log INFO "Checking embedded command bash syntax and duplicate script commands"
+_log DEBUG "Checking embedded command bash syntax and duplicate script commands"
 
 _log DEBUG "Converting $TARGET to JSON"
 yaml_to_json_tmp "$TARGET" _CONFIG_JSON
@@ -85,6 +85,6 @@ if [[ "$_FINDINGS_STRUCTURAL" -gt 0 || "$_FINDINGS_ERROR" -gt 0 ]]; then
 fi
 printf '[PASS] all embedded commands in %s are syntactically valid\n' "$TARGET"
 if [[ "$_FINDINGS_WARN" -gt 0 ]]; then
-  _log INFO "Found $_FINDINGS_WARN warning(s)"
+  _log DEBUG "Found $_FINDINGS_WARN warning(s)"
 fi
 exit 0

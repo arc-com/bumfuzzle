@@ -85,10 +85,10 @@ def main(argv):
     _log("DEBUG", f"Validating {instance_path} against {schema_path}")
     errors = sorted(validator.iter_errors(instance), key=lambda e: [str(p) for p in e.path])
     if not errors:
-        _log("INFO", "Instance is valid against schema")
+        _log("DEBUG", "Instance is valid against schema")
         return 0
 
-    _log("INFO", f"Instance has {len(errors)} validation error(s) against schema")
+    _log("DEBUG", f"Instance has {len(errors)} validation error(s) against schema")
     for e in errors:
         path = e.json_path
         print(f"{path}: {e.message}")

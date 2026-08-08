@@ -46,3 +46,9 @@ _now_ms() {
     printf '%s' "$(( SECONDS * 1000 ))"
   fi
 }
+
+# _sha256 FILE... — sha256sum where available, shasum otherwise (macOS
+# ships shasum, not sha256sum, by default). Shared here rather than
+# reimplemented per caller; scripts/release/lib.sh's tarball_sha256 is a
+# different, narrower job (download-then-hash a tarball) and is left as is.
+_sha256() { command -v sha256sum >/dev/null 2>&1 && sha256sum "$@" || shasum -a 256 "$@"; }

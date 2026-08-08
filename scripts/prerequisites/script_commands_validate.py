@@ -133,7 +133,7 @@ def main(argv):
             print(f"[FAIL:error] script_clean rule '{name}' has bash syntax errors")
             error += 1
 
-    _log("INFO", f"Checked commands: {structural} structural, {error} error, {warn} warn finding(s)")
+    _log("DEBUG", f"Checked commands: {structural} structural, {error} error, {warn} warn finding(s)")
     return 1 if (structural or error) else 0
 
 

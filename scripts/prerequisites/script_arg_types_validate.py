@@ -160,7 +160,7 @@ def main(argv):
                     print(f"[FAIL:error] rule '{name}' passes '{item_str}' for arg '{key}', not a valid {arg_type}")
                     findings += 1
 
-    _log("INFO", f"Checked args, found {findings} finding(s)")
+    _log("DEBUG", f"Checked args, found {findings} finding(s)")
     return 1 if findings else 0
 
 

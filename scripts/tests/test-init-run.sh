@@ -55,9 +55,9 @@ echo "OK init: refuses to overwrite an existing .bumfuzzle/config.yml"
 # -- run: no .bumfuzzle/config.yml -> auto-scaffolds from template and continues ---
 d="$FIXTURE_DIR/run-no-config"
 mkdir -p "$d"
-out=$(cd "$d" && "$RUN" 2>&1) || fail "run (no .bumfuzzle/config.yml) exited non-zero: $out"
+out=$(cd "$d" && "$RUN" --verbose 2>&1) || fail "run (no .bumfuzzle/config.yml) exited non-zero: $out"
 [[ -f "$d/.bumfuzzle/config.yml" ]] || fail "run (no .bumfuzzle/config.yml): .bumfuzzle/config.yml was not scaffolded"
-grep -q '\[INFO\] - Config not found - scaffolded from template: \.bumfuzzle/config\.yml' <<< "$out" \
+grep -q '\[DEBUG\] - Config not found - scaffolded from template: \.bumfuzzle/config\.yml' <<< "$out" \
   || fail "run (no .bumfuzzle/config.yml): expected scaffold notice, got: $out"
 echo "OK run: auto-scaffolds .bumfuzzle/config.yml when missing"
 
@@ -65,8 +65,8 @@ echo "OK run: auto-scaffolds .bumfuzzle/config.yml when missing"
 d="$FIXTURE_DIR/run-existing-config"
 mkdir -p "$d/.bumfuzzle"
 cp "$ROOT/bumfuzzle-template.yml" "$d/.bumfuzzle/config.yml"
-out=$(cd "$d" && "$RUN" 2>&1) || fail "run (existing .bumfuzzle/config.yml) exited non-zero: $out"
-grep -q '\[INFO\].*scaffolded from template' <<< "$out" \
+out=$(cd "$d" && "$RUN" --verbose 2>&1) || fail "run (existing .bumfuzzle/config.yml) exited non-zero: $out"
+grep -q '\[DEBUG\].*scaffolded from template' <<< "$out" \
   && fail "run (existing .bumfuzzle/config.yml): unexpectedly reported scaffolding, got: $out"
 echo "OK run: uses an existing .bumfuzzle/config.yml as-is"
 
