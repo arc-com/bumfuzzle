@@ -10,12 +10,18 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 DRY_RUN=false
+PRETTIFY=false
 
-# parse_init_args "$@" — parses the shared -h/--help, -v/--verbose, and
-# --dry-run flags every scripts/init/*.sh script and scripts/init.sh itself
-# accept. None of these scripts take a positional. Prints the caller's own
-# `usage` function and exits 2 on an unrecognized argument, or exits 0
-# after printing usage on -h/--help.
+# parse_init_args "$@" — parses the shared -h/--help, -v/--verbose,
+# --dry-run, and --prettify flags every scripts/init/*.sh script and
+# scripts/init.sh itself accept. --prettify only has an effect in
+# scripts/init.sh, the only one of these that ever emits a Banner or
+# Section (per this project's opt-in rule for both) - the atomic scripts
+# still parse it, for a consistent CLI shape, but their own usage() says so
+# rather than silently accepting an undocumented flag. None of these
+# scripts take a positional. Prints the caller's own `usage` function and
+# exits 2 on an unrecognized argument, or exits 0 after printing usage on
+# -h/--help.
 parse_init_args() {
   local _show_help=false
   while [[ $# -gt 0 ]]; do
@@ -23,6 +29,7 @@ parse_init_args() {
       -h|--help) _show_help=true; shift ;;
       -v|--verbose) VERBOSE=true; shift ;;
       --dry-run) DRY_RUN=true; shift ;;
+      --prettify) PRETTIFY=true; shift ;;
       *)
         printf '%s: unrecognized argument: %s\n\n' "$SCRIPT_NAME" "$1" >&2
         usage >&2

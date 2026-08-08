@@ -34,12 +34,14 @@ source "$BUMFUZZLE_ROOT/scripts/lib.sh"
 _banner_line() { printf '%*s' 71 '' | tr ' ' '-'; }
 
 usage() {
-  printf 'Usage: sync-skill.sh [--target-dir DIR] [--dry-run] [-v|--verbose] [-h|--help]\n\n'
+  printf 'Usage: sync-skill.sh [--target-dir DIR] [--dry-run] [--prettify] [-v|--verbose] [-h|--help]\n\n'
   printf 'Upserts skills/bumfuzzle/SKILL.md into DIR/.claude/skills/bumfuzzle/SKILL.md.\n'
   printf 'DIR defaults to $INIT_CWD (set by npm during postinstall).\n'
+  printf '--prettify wraps the closing notice in a decorated banner (plain text otherwise).\n'
 }
 
 DRY_RUN=false
+PRETTIFY=false
 TARGET_PROJECT_DIR="${INIT_CWD:-}"
 
 while [[ $# -gt 0 ]]; do
@@ -51,6 +53,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=true
+      shift
+      ;;
+    --prettify)
+      PRETTIFY=true
       shift
       ;;
     -v|--verbose)
@@ -112,18 +118,18 @@ _log DEBUG "Source skill file: $SRC"
 if [[ -f "$DEST" ]] && cmp -s "$SRC" "$DEST"; then
   _log INFO "Skill file already up to date - skipped"
   _log DEBUG "Destination: $DEST"
-  printf '%s\n' "$(_banner_line)"
+  [[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
   printf 'bumfuzzle skill already up to date\n'
-  printf '%s\n' "$(_banner_line)"
+  [[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
   exit 0
 fi
 
 if [[ "$DRY_RUN" == true ]]; then
   _log INFO "Dry run - would write skill file"
   _log DEBUG "Would write: $DEST"
-  printf '%s\n' "$(_banner_line)"
+  [[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
   printf 'Dry run, would upsert .claude/skills/bumfuzzle/SKILL.md\n'
-  printf '%s\n' "$(_banner_line)"
+  [[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
   exit 0
 fi
 
@@ -132,6 +138,7 @@ cp "$SRC" "$DEST"
 _log INFO "Wrote skill file"
 _log DEBUG "Wrote: $DEST"
 
-printf '%s\n' "$(_banner_line)"
+[[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
 printf 'bumfuzzle skill synced to .claude/skills/bumfuzzle/SKILL.md\n'
-printf '%s\n' "$(_banner_line)"
+[[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
+exit 0

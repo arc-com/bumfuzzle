@@ -15,7 +15,7 @@ source "$INIT_DIR/lib.sh"
 
 usage() {
   cat <<'EOF'
-Usage: init.sh [-h|--help] [-v|--verbose] [--dry-run]
+Usage: init.sh [-h|--help] [-v|--verbose] [--dry-run] [--prettify]
 
 Bootstraps the current directory for bumfuzzle: creates
 .bumfuzzle/config.yml from the template, adds a "bf" script to
@@ -25,6 +25,8 @@ already exists.
 
   -v, --verbose  show DEBUG-level detail on stderr
   --dry-run      print what would change, without writing anything
+  --prettify     wrap phase headers and the closing hint in decorated
+                 banners (plain log lines only otherwise)
 
 Exits 0 on success, 1 on failure, 2 on a usage error.
 EOF
@@ -38,20 +40,22 @@ _init_args=()
 
 _log INFO "Starting init"
 
-printf '\n%s\n' "$(_section_line Config)"
+[[ "$PRETTIFY" == true ]] && printf '\n%s\n' "$(_section_line Config)"
 "$INIT_DIR/scaffold-config.sh" ${_init_args[@]+"${_init_args[@]}"}
 
-printf '\n%s\n' "$(_section_line "Package Script")"
+[[ "$PRETTIFY" == true ]] && printf '\n%s\n' "$(_section_line "Package Script")"
 "$INIT_DIR/wire-package-script.sh" ${_init_args[@]+"${_init_args[@]}"}
 
-printf '\n%s\n' "$(_section_line "Skill Sync")"
+[[ "$PRETTIFY" == true ]] && printf '\n%s\n' "$(_section_line "Skill Sync")"
 _sync_args=(--target-dir "$(pwd)")
 [[ "$VERBOSE" == true ]] && _sync_args+=(--verbose)
 [[ "$DRY_RUN" == true ]] && _sync_args+=(--dry-run)
+[[ "$PRETTIFY" == true ]] && _sync_args+=(--prettify)
 "$BUMFUZZLE_ROOT/scripts/sync-skill.sh" "${_sync_args[@]}"
 
 _log INFO "Init finished"
 
-printf '\n%s\n' "$(_banner_line)"
+[[ "$PRETTIFY" == true ]] && printf '\n%s\n' "$(_banner_line)"
 printf 'Run `bf wizard` to configure it, or `bf run` to check it as-is.\n'
-printf '%s\n' "$(_banner_line)"
+[[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
+exit 0

@@ -19,7 +19,7 @@ TARGET="$(pwd)/.bumfuzzle/config.yml"
 
 usage() {
   cat <<'EOF'
-Usage: scaffold-config.sh [-h|--help] [-v|--verbose] [--dry-run]
+Usage: scaffold-config.sh [-h|--help] [-v|--verbose] [--dry-run] [--prettify]
 
 Creates .bumfuzzle/config.yml in the current directory from
 bumfuzzle-template.yml. Fails if .bumfuzzle/config.yml already exists
@@ -27,6 +27,8 @@ bumfuzzle-template.yml. Fails if .bumfuzzle/config.yml already exists
 
   -v, --verbose  show DEBUG-level detail on stderr
   --dry-run      print what would be created, without creating it
+  --prettify     accepted for a CLI shape consistent with init.sh; has no
+                 effect here (this script never emits a Banner or Section)
 
 Exits 0 on success, 1 on failure, 2 on a usage error.
 EOF
