@@ -22,13 +22,13 @@ EOF
 
 parse_target_args "$@"
 
-_log DEBUG "Checking yq is installed"
+log_debug "Checking yq is installed"
 if ! command -v yq &>/dev/null; then
-  _log ERROR "Yq is not installed"
-  printf '[FAIL:structural] yq is not installed - required to parse %s\n' "$TARGET"
+  log_error "Yq is not installed"
+  log_data '[FAIL:structural] yq is not installed - required to parse %s\n' "$TARGET"
   exit 1
 fi
 
-_log DEBUG "Yq is installed"
-printf '[PASS] yq is installed\n'
+log_debug "Yq is installed"
+log_data '[PASS] yq is installed\n'
 exit 0

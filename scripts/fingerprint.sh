@@ -47,7 +47,7 @@ EOF
 # just a content change) is sorted, then hashed again as one unit.
 _fp_combine() {
   local _files=("$@")
-  [[ ${#_files[@]} -eq 0 ]] && { printf '%s' ""; return 0; }
+  [[ ${#_files[@]} -eq 0 ]] && { log_data '%s' ""; return 0; }
   _sha256 "${_files[@]}" | LC_ALL=C sort | _sha256 | awk '{print $1}'
 }
 
@@ -64,10 +64,10 @@ _fp_compute() {
   _FP_TEMPLATES=$(_fp_combine "${_templates[@]}")
 }
 
-_meta_path() { printf '%s/meta.json' "$(dirname "$1")"; }
+_meta_path() { log_data '%s/meta.json' "$(dirname "$1")"; }
 
 _print_command_reference() {
-  printf 'Commands: check [TARGET] (default, read-only) | update [TARGET] [--dry-run] (writes meta.json)\n'
+  log_data 'Commands: check [TARGET] (default, read-only) | update [TARGET] [--dry-run] (writes meta.json)\n'
 }
 
 # -r/--unwrapScalar defaults to true for YAML input but false for yq's
@@ -88,13 +88,13 @@ _cmd_check() {
   local _meta; _meta=$(_meta_path "$_target")
   _print_command_reference
 
-  _log DEBUG "Checking fingerprint"
+  log_debug "Checking fingerprint"
   _fp_compute "$_target"
-  _log DEBUG "Computed fingerprint (config=$_FP_CONFIG schema=$_FP_SCHEMA templates=$_FP_TEMPLATES)"
+  log_debug "Computed fingerprint (config=$_FP_CONFIG schema=$_FP_SCHEMA templates=$_FP_TEMPLATES)"
 
   if [[ ! -f "$_meta" ]]; then
-    _log DEBUG "No stored fingerprint - $(basename "$_meta") not found"
-    printf '[STALE] No stored fingerprint at %s\n' "$_meta"
+    log_debug "No stored fingerprint - $(basename "$_meta") not found"
+    log_data '[STALE] No stored fingerprint at %s\n' "$_meta"
     exit 1
   fi
 
@@ -110,13 +110,13 @@ _cmd_check() {
 
   if [[ -n "$_reason" ]]; then
     _reason="$(printf '%s' "$_reason" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
-    _log DEBUG "Fingerprint stale: $_reason"
-    printf '[STALE] %s\n' "$_reason"
+    log_debug "Fingerprint stale: $_reason"
+    log_data '[STALE] %s\n' "$_reason"
     exit 1
   fi
 
-  _log DEBUG "Fingerprint fresh - nothing tracked has changed"
-  printf '[FRESH] Nothing tracked has changed since the last clean prerequisites run\n'
+  log_debug "Fingerprint fresh - nothing tracked has changed"
+  log_data '[FRESH] Nothing tracked has changed since the last clean prerequisites run\n'
   exit 0
 }
 
@@ -129,19 +129,19 @@ _cmd_update() {
   local _target="$1"
   local _meta; _meta=$(_meta_path "$_target")
 
-  _log DEBUG "Updating fingerprint"
+  log_debug "Updating fingerprint"
   _fp_compute "$_target"
   _read_stored "$_meta"
 
   if [[ "$_STORED_CONFIG" == "$_FP_CONFIG" && "$_STORED_SCHEMA" == "$_FP_SCHEMA" && "$_STORED_TEMPLATES" == "$_FP_TEMPLATES" ]]; then
-    _log DEBUG "Fingerprint already up to date - skipped"
-    printf '[SKIP] %s already up to date\n' "$_meta"
+    log_debug "Fingerprint already up to date - skipped"
+    log_data '[SKIP] %s already up to date\n' "$_meta"
     exit 0
   fi
 
   if [[ "$DRY_RUN" == true ]]; then
-    _log DEBUG "Dry run - would write fingerprint to $(basename "$_meta")"
-    printf '[DRY-RUN] would write fingerprint to %s (config=%s schema=%s templates=%s)\n' \
+    log_debug "Dry run - would write fingerprint to $(basename "$_meta")"
+    log_data '[DRY-RUN] would write fingerprint to %s (config=%s schema=%s templates=%s)\n' \
       "$_meta" "$_FP_CONFIG" "$_FP_SCHEMA" "$_FP_TEMPLATES"
     exit 0
   fi
@@ -151,8 +151,8 @@ _cmd_update() {
   yq -o=json -i \
     ".fingerprint.config = \"$_FP_CONFIG\" | .fingerprint.schema = \"$_FP_SCHEMA\" | .fingerprint.templates = \"$_FP_TEMPLATES\"" \
     "$_meta"
-  _log DEBUG "Fingerprint written to $(basename "$_meta")"
-  printf '[UPDATED] %s\n' "$_meta"
+  log_debug "Fingerprint written to $(basename "$_meta")"
+  log_data '[UPDATED] %s\n' "$_meta"
   exit 0
 }
 
@@ -211,7 +211,11 @@ if [[ ! -f "$TARGET" ]]; then
   exit 2
 fi
 
-_log DEBUG "Target: $TARGET, command: $CMD"
+_logging_flags=()
+[[ "${VERBOSE:-false}" == true ]] && _logging_flags+=(--verbose)
+source "$BUMFUZZLE_ROOT/scripts/logging.sh" ${_logging_flags[@]+"${_logging_flags[@]}"}
+
+log_debug "Target: $TARGET, command: $CMD"
 
 case "$CMD" in
   check)  _cmd_check "$TARGET" ;;

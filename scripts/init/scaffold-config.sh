@@ -36,32 +36,32 @@ EOF
 
 parse_init_args "$@"
 
-_log DEBUG "Target: $TARGET"
+log_debug "Target: $TARGET"
 if [[ -f "$TARGET" ]]; then
-  _log ERROR "Config already exists"
-  printf '[FAIL] .bumfuzzle/config.yml already exists in %s - refusing to overwrite\n' "$(pwd)"
-  printf 'Use the wizard'"'"'s "Reset" action if you want to replace it with the template.\n'
+  log_error "Config already exists"
+  log_data '[FAIL] .bumfuzzle/config.yml already exists in %s - refusing to overwrite\n' "$(pwd)"
+  log_data 'Use the wizard'"'"'s "Reset" action if you want to replace it with the template.\n'
   exit 1
 fi
-_log DEBUG "Config does not exist yet - proceeding"
+log_debug "Config does not exist yet - proceeding"
 
-_log DEBUG "Template: $TEMPLATE"
+log_debug "Template: $TEMPLATE"
 if [[ ! -f "$TEMPLATE" ]]; then
-  _log ERROR "Template not found"
-  printf '[FAIL] template not found: %s\n' "$TEMPLATE"
+  log_error "Template not found"
+  log_data '[FAIL] template not found: %s\n' "$TEMPLATE"
   exit 1
 fi
-_log DEBUG "Template is present"
+log_debug "Template is present"
 
 if [[ "$DRY_RUN" == true ]]; then
-  _log INFO "Dry run - would create config from template"
-  printf 'Dry run, would create .bumfuzzle/config.yml from template\n'
+  log_info "Dry run - would create config from template"
+  log_data 'Dry run, would create .bumfuzzle/config.yml from template\n'
   exit 0
 fi
 
 mkdir -p "$(pwd)/.bumfuzzle"
 cp "$TEMPLATE" "$TARGET"
-_log INFO "Created config"
-_log DEBUG "Wrote: $TARGET"
-printf 'Created %s\n' "$TARGET"
+log_info "Created config"
+log_debug "Wrote: $TARGET"
+log_data 'Created %s\n' "$TARGET"
 exit 0

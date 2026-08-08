@@ -34,23 +34,23 @@ EOF
 parse_target_args "$@"
 
 if ! command -v python3 &>/dev/null; then
-  _log ERROR "Python3 is not installed"
-  printf '[FAIL:error] python3 is not installed - required to check embedded commands\n'
+  log_error "Python3 is not installed"
+  log_data '[FAIL:error] python3 is not installed - required to check embedded commands\n'
   exit 1
 fi
 
-_log DEBUG "Target: $TARGET"
-_log DEBUG "Checking embedded command bash syntax and duplicate script commands"
+log_debug "Target: $TARGET"
+log_debug "Checking embedded command bash syntax and duplicate script commands"
 
-_log DEBUG "Converting $TARGET to JSON"
+log_debug "Converting $TARGET to JSON"
 yaml_to_json_tmp "$TARGET" _CONFIG_JSON
-_log DEBUG "Temp file: $_CONFIG_JSON"
+log_debug "Temp file: $_CONFIG_JSON"
 
 _VALIDATOR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/script_commands_validate.py"
 _validator_args=("$_CONFIG_JSON")
 [[ "$VERBOSE" == true ]] && _validator_args=(--verbose "${_validator_args[@]}")
 
-_log DEBUG "Running $_VALIDATOR ${_validator_args[*]}"
+log_debug "Running $_VALIDATOR ${_validator_args[*]}"
 _RC=0
 # the validator's own INFO narration goes to its stderr, outside the $()
 # capture below - suppress it under plain-quiet the same way lib.sh's _log
@@ -60,10 +60,10 @@ if [[ "$PLAIN" == true && "$VERBOSE" != true ]]; then
 else
   _OUT=$(python3 "$_VALIDATOR" "${_validator_args[@]}") || _RC=$?
 fi
-_log DEBUG "Validator exited $_RC"
+log_debug "Validator exited $_RC"
 
 if [[ "$_RC" -eq 2 ]]; then
-  _log ERROR "Validator could not run (see above)"
+  log_error "Validator could not run (see above)"
   exit 1
 fi
 
@@ -72,7 +72,7 @@ _FINDINGS_ERROR=0
 _FINDINGS_WARN=0
 while IFS= read -r _line; do
   [[ -z "$_line" ]] && continue
-  printf '%s\n' "$_line"
+  log_data '%s\n' "$_line"
   case "$_line" in
     '[FAIL:structural] '*) _FINDINGS_STRUCTURAL=$((_FINDINGS_STRUCTURAL + 1)) ;;
     '[FAIL:error] '*)      _FINDINGS_ERROR=$((_FINDINGS_ERROR + 1)) ;;
@@ -83,8 +83,8 @@ done <<< "$_OUT"
 if [[ "$_FINDINGS_STRUCTURAL" -gt 0 || "$_FINDINGS_ERROR" -gt 0 ]]; then
   exit 1
 fi
-printf '[PASS] all embedded commands in %s are syntactically valid\n' "$TARGET"
+log_data '[PASS] all embedded commands in %s are syntactically valid\n' "$TARGET"
 if [[ "$_FINDINGS_WARN" -gt 0 ]]; then
-  _log DEBUG "Found $_FINDINGS_WARN warning(s)"
+  log_debug "Found $_FINDINGS_WARN warning(s)"
 fi
 exit 0

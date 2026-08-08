@@ -61,42 +61,42 @@ VALIDATOR="$BUMFUZZLE_ROOT/scripts/json_schema_validate.py"
 VALIDATOR_DISPLAY="scripts/json_schema_validate.py"
 
 if ! command -v yq &>/dev/null; then
-  _log ERROR "Yq is not installed"
-  printf '[FAIL] yq is not installed - required to validate %s\n' "$TARGET"
+  log_error "Yq is not installed"
+  log_data '[FAIL] yq is not installed - required to validate %s\n' "$TARGET"
   exit 1
 fi
 if ! command -v python3 &>/dev/null; then
-  _log ERROR "Python3 is not installed"
-  printf '[FAIL] python3 is not installed - required to validate %s\n' "$TARGET"
+  log_error "Python3 is not installed"
+  log_data '[FAIL] python3 is not installed - required to validate %s\n' "$TARGET"
   exit 1
 fi
 if [[ ! -f "$TARGET" ]]; then
-  _log ERROR "Target not found: $TARGET"
-  printf '[FAIL] %s not found\n' "$TARGET"
+  log_error "Target not found: $TARGET"
+  log_data '[FAIL] %s not found\n' "$TARGET"
   exit 1
 fi
 if [[ ! -f "$SCHEMA_FILE" ]]; then
-  _log ERROR "Schema not found: $SCHEMA_FILE_DISPLAY"
-  printf '[FAIL] schema not found: %s\n' "$SCHEMA_FILE_DISPLAY"
+  log_error "Schema not found: $SCHEMA_FILE_DISPLAY"
+  log_data '[FAIL] schema not found: %s\n' "$SCHEMA_FILE_DISPLAY"
   exit 1
 fi
 if [[ ! -f "$VALIDATOR" ]]; then
-  _log ERROR "Validator not found: $VALIDATOR_DISPLAY"
-  printf '[FAIL] validator not found: %s\n' "$VALIDATOR_DISPLAY"
+  log_error "Validator not found: $VALIDATOR_DISPLAY"
+  log_data '[FAIL] validator not found: %s\n' "$VALIDATOR_DISPLAY"
   exit 1
 fi
-_log DEBUG "Target: $TARGET"
-_log DEBUG "Starting schema validation"
+log_debug "Target: $TARGET"
+log_debug "Starting schema validation"
 
-_log DEBUG "Converting $SCHEMA_FILE and $TARGET to JSON"
+log_debug "Converting $SCHEMA_FILE and $TARGET to JSON"
 yaml_to_json_tmp "$SCHEMA_FILE" SCHEMA_JSON
 yaml_to_json_tmp "$TARGET" TARGET_JSON
-_log DEBUG "Temp files: $SCHEMA_JSON, $TARGET_JSON"
+log_debug "Temp files: $SCHEMA_JSON, $TARGET_JSON"
 
 _validator_args=("$SCHEMA_JSON" "$TARGET_JSON")
 [[ "$VERBOSE" == true ]] && _validator_args=(--verbose "${_validator_args[@]}")
 
-_log DEBUG "Running $VALIDATOR ${_validator_args[*]}"
+log_debug "Running $VALIDATOR ${_validator_args[*]}"
 # the validator's own INFO narration goes to its stderr, outside the $()
 # capture below - suppress it under plain-quiet the same way lib.sh's _log
 # already silences this script's own narration
@@ -105,20 +105,20 @@ if [[ "$PLAIN" == true && "$VERBOSE" != true ]]; then
 else
   _ERRORS=$(python3 "$VALIDATOR" "${_validator_args[@]}") && _RC=0 || _RC=$?
 fi
-_log DEBUG "Validator exited $_RC"
+log_debug "Validator exited $_RC"
 
 if [[ "$_RC" -eq 2 ]]; then
-  _log ERROR "Validator could not run (see above)"
-  printf '[FAIL] could not validate %s — see stderr for details\n' "$TARGET"
+  log_error "Validator could not run (see above)"
+  log_data '[FAIL] could not validate %s — see stderr for details\n' "$TARGET"
   exit 1
 fi
 
 if [[ "$_RC" -eq 1 ]]; then
   while IFS= read -r _line; do
     [[ -z "$_line" ]] && continue
-    printf '[FAIL] %s %s\n' "$TARGET" "$_line"
+    log_data '[FAIL] %s %s\n' "$TARGET" "$_line"
   done <<< "$_ERRORS"
-  _log DEBUG "Validation failed"
+  log_debug "Validation failed"
   exit 1
 fi
 
@@ -127,11 +127,11 @@ fi
 _SCHEMA_VERSION=$(yq '.schema_version' "$SCHEMA_FILE")
 _TARGET_VERSION=$(yq '.schema_version' "$TARGET")
 if [[ "$_TARGET_VERSION" != "$_SCHEMA_VERSION" ]]; then
-  _log DEBUG "Schema_version mismatch detail: $TARGET=$_TARGET_VERSION $SCHEMA_FILE_DISPLAY=$_SCHEMA_VERSION"
-  _log DEBUG "Schema_version mismatch between target and schema"
-  printf '[FAIL] %s schema_version (%s) does not match %s schema_version (%s)\n' "$TARGET" "$_TARGET_VERSION" "$SCHEMA_FILE_DISPLAY" "$_SCHEMA_VERSION"
+  log_debug "Schema_version mismatch detail: $TARGET=$_TARGET_VERSION $SCHEMA_FILE_DISPLAY=$_SCHEMA_VERSION"
+  log_debug "Schema_version mismatch between target and schema"
+  log_data '[FAIL] %s schema_version (%s) does not match %s schema_version (%s)\n' "$TARGET" "$_TARGET_VERSION" "$SCHEMA_FILE_DISPLAY" "$_SCHEMA_VERSION"
   exit 1
 fi
 
-_log DEBUG "Validation passed"
-printf '[PASS] %s matches %s\n' "$TARGET" "$SCHEMA_FILE_DISPLAY"
+log_debug "Validation passed"
+log_data '[PASS] %s matches %s\n' "$TARGET" "$SCHEMA_FILE_DISPLAY"

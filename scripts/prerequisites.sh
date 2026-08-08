@@ -54,6 +54,7 @@ parse_target_args "$@"
 
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 PREREQ_DIR="$BUMFUZZLE_ROOT/scripts/prerequisites"
+source "$BUMFUZZLE_ROOT/scripts/lib.sh"
 
 _FINDINGS_STRUCTURAL=0
 _FINDINGS_ERROR=0
@@ -70,7 +71,7 @@ _run_gate() {
   _start_ms=$(_now_ms)
   _out=$("$PREREQ_DIR/$_script" "${_run_args[@]}") || _rc=$?
   _elapsed_ms=$(( $(_now_ms) - _start_ms ))
-  _log DEBUG "TAG::PERF $_script took ${_elapsed_ms}ms"
+  log_debug "TAG::PERF $_script took ${_elapsed_ms}ms"
   if [[ "$_rc" -eq 2 ]]; then
     printf '%s\n' "$_out" >&2
     exit 2
@@ -78,15 +79,15 @@ _run_gate() {
   if [[ "$_rc" -ne 0 ]]; then
     while IFS= read -r _line; do
       [[ -z "$_line" ]] && continue
-      printf '%s\n' "$_line"
+      log_data '%s\n' "$_line"
       case "$_line" in
         '[FAIL:structural] '*) _FINDINGS_STRUCTURAL=$((_FINDINGS_STRUCTURAL + 1)) ;;
       esac
     done <<< "$_out"
-    _log DEBUG "Stopping before the remaining checks - $_script failed"
+    log_debug "Stopping before the remaining checks - $_script failed"
     exit 1
   fi
-  _log DEBUG "Output from $_script: $_out"
+  log_debug "Output from $_script: $_out"
 }
 
 # _run_check runs a non-gate check and passes through its tiered findings,
@@ -96,15 +97,15 @@ _run_check() {
   _start_ms=$(_now_ms)
   _out=$("$PREREQ_DIR/$_script" "${_run_args[@]}") || _rc=$?
   _elapsed_ms=$(( $(_now_ms) - _start_ms ))
-  _log DEBUG "TAG::PERF $_script took ${_elapsed_ms}ms"
+  log_debug "TAG::PERF $_script took ${_elapsed_ms}ms"
   while IFS= read -r _line; do
     case "$_line" in
-      '[FAIL:structural] '*) printf '%s\n' "$_line"; _FINDINGS_STRUCTURAL=$((_FINDINGS_STRUCTURAL + 1)) ;;
-      '[FAIL:error] '*)      printf '%s\n' "$_line"; _FINDINGS_ERROR=$((_FINDINGS_ERROR + 1)) ;;
-      '[FAIL:warn] '*)       printf '%s\n' "$_line"; _FINDINGS_WARN=$((_FINDINGS_WARN + 1)) ;;
-      '[PASS] '*)            printf '%s\n' "$_line" ;;
+      '[FAIL:structural] '*) log_data '%s\n' "$_line"; _FINDINGS_STRUCTURAL=$((_FINDINGS_STRUCTURAL + 1)) ;;
+      '[FAIL:error] '*)      log_data '%s\n' "$_line"; _FINDINGS_ERROR=$((_FINDINGS_ERROR + 1)) ;;
+      '[FAIL:warn] '*)       log_data '%s\n' "$_line"; _FINDINGS_WARN=$((_FINDINGS_WARN + 1)) ;;
+      '[PASS] '*)            log_data '%s\n' "$_line" ;;
       '') ;;
-      *) _log DEBUG "Output from $_script: $_line" ;;
+      *) log_debug "Output from $_script: $_line" ;;
     esac
   done <<< "$_out"
 }
@@ -121,17 +122,17 @@ _run_schema_check() {
   _start_ms=$(_now_ms)
   _out=$("$PREREQ_DIR/validate-schema.sh" "${_run_args[@]}") || _rc=$?
   _elapsed_ms=$(( $(_now_ms) - _start_ms ))
-  _log DEBUG "TAG::PERF validate-schema.sh took ${_elapsed_ms}ms"
+  log_debug "TAG::PERF validate-schema.sh took ${_elapsed_ms}ms"
   [[ "$_rc" -eq 0 ]] && return 0
   while IFS= read -r _line; do
     [[ "$_line" == \[FAIL\]* ]] || continue
-    printf '[FAIL:structural] %s\n' "${_line#"[FAIL] "}"
+    log_data '[FAIL:structural] %s\n' "${_line#"[FAIL] "}"
     _FINDINGS_STRUCTURAL=$((_FINDINGS_STRUCTURAL + 1))
   done <<< "$_out"
 }
 
-_log DEBUG "Target: $TARGET"
-_log DEBUG "Starting prerequisites check"
+log_debug "Target: $TARGET"
+log_debug "Starting prerequisites check"
 
 _run_gate yq-installed.sh
 _run_gate target-exists.sh
@@ -147,14 +148,14 @@ _run_check no-redundant-enabled-false.sh
 _run_schema_check
 
 if [[ "$_FINDINGS_STRUCTURAL" -gt 0 || "$_FINDINGS_ERROR" -gt 0 ]]; then
-  _log DEBUG "Prerequisites failed: $_FINDINGS_STRUCTURAL structural, $_FINDINGS_ERROR error, $_FINDINGS_WARN warning finding(s)"
+  log_debug "Prerequisites failed: $_FINDINGS_STRUCTURAL structural, $_FINDINGS_ERROR error, $_FINDINGS_WARN warning finding(s)"
   exit 1
 fi
 
-printf '[PASS] %s is structurally clean\n' "$TARGET"
+log_data '[PASS] %s is structurally clean\n' "$TARGET"
 if [[ "$_FINDINGS_WARN" -gt 0 ]]; then
-  _log DEBUG "Prerequisites passed with $_FINDINGS_WARN warning(s)"
+  log_debug "Prerequisites passed with $_FINDINGS_WARN warning(s)"
 else
-  _log DEBUG "Prerequisites passed"
+  log_debug "Prerequisites passed"
 fi
 exit 0

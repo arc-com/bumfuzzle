@@ -24,9 +24,9 @@ parse_target_args "$@"
 
 _FINDINGS_ERROR=0
 _report_error() {
-  printf '[FAIL:error] %s\n' "$1"
+  log_data '[FAIL:error] %s\n' "$1"
   _FINDINGS_ERROR=$((_FINDINGS_ERROR + 1))
-  _log DEBUG "Error finding: $1"
+  log_debug "Error finding: $1"
 }
 
 _check() {
@@ -66,12 +66,12 @@ _check() {
   done < <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("id")) | .id' | sort -u)
 }
 
-_log DEBUG "Target: $TARGET"
-_log DEBUG "Checking script_reusable arg declarations against script args"
+log_debug "Target: $TARGET"
+log_debug "Checking script_reusable arg declarations against script args"
 _check
 
 if [[ "$_FINDINGS_ERROR" -gt 0 ]]; then
   exit 1
 fi
-printf "[PASS] all script_reusable args in %s match their script's declared args\n" "$TARGET"
+log_data "[PASS] all script_reusable args in %s match their script's declared args\n" "$TARGET"
 exit 0

@@ -3,11 +3,9 @@
 # scripts/prerequisites/ and their orchestrator, scripts/prerequisites.sh.
 # Meant to be sourced, not executed directly. Callers must set SCRIPT_NAME
 # before sourcing, and define a `usage` function before calling
-# parse_target_args. Sources scripts/lib.sh for the shared _log() helper
-# rather than redefining it here.
+# parse_target_args, which sources scripts/logging.sh itself once -v/
+# --verbose is known — see its own comment below.
 set -euo pipefail
-
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
 _lint_yq() { yq "$1" "$TARGET" 2>/dev/null || true; }
 
@@ -47,7 +45,12 @@ yaml_to_json_tmp() {
 # Prints the caller's own `usage` function and exits 2 on an unknown flag
 # or extra positional, or exits 0 after printing usage on -h/--help,
 # per the shared argument-validation contract. Sets TARGET (defaulting to
-# .bumfuzzle/config.yml) for the caller.
+# .bumfuzzle/config.yml) for the caller. Once -v/--verbose is resolved,
+# sources scripts/logging.sh with it — the log_*/log_data functions it
+# exposes only exist in the caller's shell after this returns; nothing
+# before this point in a caller may use them (usage/argument errors above
+# print directly, before verbosity is even known, which is why those
+# still use printf rather than a log_* call).
 parse_target_args() {
   TARGET=""
   local _target_set=false _show_help=false
@@ -78,6 +81,10 @@ parse_target_args() {
         ;;
     esac
   done
+
+  local _logging_flags=()
+  [[ "${VERBOSE:-false}" == true ]] && _logging_flags+=(--verbose)
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/logging.sh" ${_logging_flags[@]+"${_logging_flags[@]}"}
 
   if [[ "$_show_help" == true ]]; then
     usage

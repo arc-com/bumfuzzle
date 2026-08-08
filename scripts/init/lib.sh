@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # lib.sh — shared helpers for the atomic scripts under scripts/init/ and
 # their orchestrator, scripts/init.sh. Meant to be sourced, not executed.
-# Callers must set SCRIPT_NAME before sourcing. Sources scripts/lib.sh for
-# the shared _log() helper rather than redefining it here.
+# Callers must set SCRIPT_NAME before sourcing, and define a `usage`
+# function before calling parse_init_args, which sources
+# scripts/logging.sh itself once every flag is known — see its own
+# comment below.
 set -euo pipefail
-
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
 BUMFUZZLE_ROOT="${BUMFUZZLE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
@@ -21,7 +21,12 @@ PRETTIFY=false
 # rather than silently accepting an undocumented flag. None of these
 # scripts take a positional. Prints the caller's own `usage` function and
 # exits 2 on an unrecognized argument, or exits 0 after printing usage on
-# -h/--help.
+# -h/--help. Once every flag is resolved, sources scripts/logging.sh with
+# them - the log_*/log_data/log_banner*/log_section* functions it exposes
+# only exist in the caller's shell after this returns; nothing before this
+# point in a caller may use them (usage/argument errors above print
+# directly, before any flag is even known, which is why those still use
+# printf rather than a log_* call).
 parse_init_args() {
   local _show_help=false
   while [[ $# -gt 0 ]]; do
@@ -37,23 +42,16 @@ parse_init_args() {
         ;;
     esac
   done
+
+  local _logging_flags=()
+  [[ "${VERBOSE:-false}" == true ]] && _logging_flags+=(--verbose)
+  [[ "$PRETTIFY" == true ]] && _logging_flags+=(--prettify)
+  source "$BUMFUZZLE_ROOT/scripts/logging.sh" ${_logging_flags[@]+"${_logging_flags[@]}"}
+
   if [[ "$_show_help" == true ]]; then
     usage
     exit 0
   fi
-}
-
-_banner_line() { printf '%*s' 71 '' | tr ' ' '-'; }
-
-# _section_line LABEL — "-- Label " + '-' fill to a fixed 73-column total
-# width, extending past 73 rather than truncating Label if fill would drop
-# below 2 characters, per this project's Section formatting rule.
-_section_line() {
-  local _label="$1"
-  local _prefix="-- $_label "
-  local _fill=$(( 73 - ${#_prefix} ))
-  [[ "$_fill" -lt 2 ]] && _fill=2
-  printf '%s%s' "$_prefix" "$(printf '%*s' "$_fill" '' | tr ' ' '-')"
 }
 
 _INIT_TMP_FILES=()

@@ -29,9 +29,9 @@ parse_target_args "$@"
 
 _FINDINGS_WARN=0
 _report_warn() {
-  printf '[FAIL:warn] %s\n' "$1"
+  log_data '[FAIL:warn] %s\n' "$1"
   _FINDINGS_WARN=$((_FINDINGS_WARN + 1))
-  _log DEBUG "Warn finding: $1"
+  log_debug "Warn finding: $1"
 }
 
 _check() {
@@ -42,12 +42,12 @@ _check() {
   done < <(_lint_yq '.rules | .. | select(type == "!!map") | select(has("enabled")) | select(.enabled == false) | .name // "unnamed"')
 }
 
-_log DEBUG "Target: $TARGET"
-_log DEBUG "Checking for redundant enabled: false"
+log_debug "Target: $TARGET"
+log_debug "Checking for redundant enabled: false"
 _check
 
 if [[ "$_FINDINGS_WARN" -gt 0 ]]; then
   exit 1
 fi
-printf '[PASS] no redundant enabled: false in %s\n' "$TARGET"
+log_data '[PASS] no redundant enabled: false in %s\n' "$TARGET"
 exit 0

@@ -32,29 +32,29 @@ EOF
 
 parse_init_args "$@"
 
-_log DEBUG "Package.json: $PKG_JSON"
+log_debug "Package.json: $PKG_JSON"
 
 if [[ ! -f "$PKG_JSON" ]]; then
-  _log INFO "No package.json - skipped"
+  log_info "No package.json - skipped"
   exit 0
 fi
-_log DEBUG "Package.json is present"
+log_debug "Package.json is present"
 
 if jq -e '.scripts.bf' "$PKG_JSON" > /dev/null 2>&1; then
-  _log INFO "Already has a bf script - skipped"
-  printf 'package.json already has a "bf" script - leaving it as-is\n'
+  log_info "Already has a bf script - skipped"
+  log_data 'package.json already has a "bf" script - leaving it as-is\n'
   exit 0
 fi
 
 if [[ "$DRY_RUN" == true ]]; then
-  _log INFO "Dry run - would add bf script to package.json"
-  printf 'Dry run, would add "bf": "bf run" to package.json scripts\n'
+  log_info "Dry run - would add bf script to package.json"
+  log_data 'Dry run, would add "bf": "bf run" to package.json scripts\n'
   exit 0
 fi
 
 _tmp="$(init_tmp_file)"
 jq '.scripts = ((.scripts // {}) + {"bf": "bf run"})' "$PKG_JSON" > "$_tmp"
 mv "$_tmp" "$PKG_JSON"
-_log INFO "Added bf script to package.json"
-printf 'Added "bf": "bf run" to package.json scripts\n'
+log_info "Added bf script to package.json"
+log_data 'Added "bf": "bf run" to package.json scripts\n'
 exit 0

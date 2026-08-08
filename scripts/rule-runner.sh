@@ -2,9 +2,9 @@
 
 _urule_pass() {
   _PASS_COUNT=$((_PASS_COUNT + 1))
-  _flush_header
+  log_section_flush
   if [[ "$VERBOSE" == true ]]; then
-    _log DEBUG "[PASS] $1"
+    log_debug "[PASS] $1"
   fi
 }
 
@@ -13,7 +13,7 @@ _urule_instruction() {
   local _instr
   _instr=$(yq "${_path}.instruction // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   is_blank "$_instr" && return
-  printf '    → %s\n' "$_instr"
+  log_data '    → %s\n' "$_instr"
 }
 
 
@@ -45,11 +45,11 @@ _urule_lookup_manifest() {
   local _target_path="$1" _p _en _nm
   while IFS='|' read -r _p _en _nm; do
     if [[ "$_p" == "$_target_path" ]]; then
-      printf '%s\t%s\n' "$_en" "$_nm"
+      log_data '%s\t%s\n' "$_en" "$_nm"
       return 0
     fi
   done <<< "$_URULE_MANIFEST"
-  printf 'false\t\n'
+  log_data 'false\t\n'
 }
 
 _urule_process_rule() {
@@ -64,12 +64,12 @@ _urule_process_rule() {
   [[ "$PLAIN" == true ]] && _enabled=true
   if [[ "$_enabled" != "true" ]]; then
     if [[ "$VERBOSE" == true ]]; then
-      _flush_header
-      _log DEBUG "[SKIP] ${_name:-$_path} (disabled)"
+      log_section_flush
+      log_debug "[SKIP] ${_name:-$_path} (disabled)"
     fi
     return
   fi
-  _log DEBUG "Enabled, proceeding: ${_name:-$_path}"
+  log_debug "Enabled, proceeding: ${_name:-$_path}"
   _type=$(yq    "${_path}.type              // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _desc=$(yq    "${_path}.description       // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
   _command=$(yq "${_path}.command           // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
@@ -82,7 +82,7 @@ _urule_process_rule() {
   [[ "$_known" == false ]] && { fail "${_path}: unknown type '$_type'" error; return; }
 
   local _label="${_name:-${_desc:-${_path} ($_type)}}"
-  _log DEBUG "Known type '$_type' for $_label"
+  log_debug "Known type '$_type' for $_label"
 
   # requires: <binary> gates the rule on an external tool being installed;
   # on_missing decides what happens when it is not: skip | warn (default) | fail
@@ -95,8 +95,8 @@ _urule_process_rule() {
       case "$_on_missing" in
         skip)
           if [[ "$VERBOSE" == true ]]; then
-            _flush_header
-            _log DEBUG "[SKIP] $_label ($_requires not installed)"
+            log_section_flush
+            log_debug "[SKIP] $_label ($_requires not installed)"
           fi
           ;;
         fail)
@@ -110,17 +110,17 @@ _urule_process_rule() {
       esac
       return
     else
-      _log DEBUG "Required tool '$_requires' found for $_label"
+      log_debug "Required tool '$_requires' found for $_label"
     fi
   fi
 
   case "$_type" in
     script_clean)
       is_blank "$_command" && { fail "$_label: 'command' is required" error; return; }
-      _log DEBUG "Running $_label"
+      log_debug "Running $_label"
       local _out _ec=0
       _out=$(eval "$_command" 2>&1) || _ec=$?
-      _log DEBUG "Command for $_label exited $_ec"
+      log_debug "Command for $_label exited $_ec"
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else
@@ -161,12 +161,12 @@ _urule_process_rule() {
         _args_summary="${_args_summary}${_args_summary:+, }${_ak}=${_av//$'\n'/;}"
       done <<< "$_arg_keys"
 
-      [[ -n "$_args_summary" ]] && _log DEBUG "Args for $_label: $_args_summary"
+      [[ -n "$_args_summary" ]] && log_debug "Args for $_label: $_args_summary"
 
-      _log DEBUG "Running $_label (script: $_script_id)"
+      log_debug "Running $_label (script: $_script_id)"
       local _out _ec=0
       _out=$(eval "$_script_cmd" 2>&1) || _ec=$?
-      _log DEBUG "Command for $_label exited $_ec"
+      log_debug "Command for $_label exited $_ec"
       if [[ "$_ec" -eq 0 ]]; then
         _urule_pass "$_label"
       else
@@ -189,7 +189,7 @@ _urule_walk() {
   local _count
   _count=$(yq "${_base} | length" "$PREFLIGHT_FILE" 2>/dev/null || echo 0)
   if [[ "$_count" -eq 0 ]]; then
-    _log DEBUG "Empty, nothing to walk: $_base"
+    log_debug "Empty, nothing to walk: $_base"
     return 0
   fi
 
@@ -199,8 +199,7 @@ _urule_walk() {
     local _group_name
     _group_name=$(yq "${_path}.group // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
     if ! is_blank "$_group_name"; then
-      section "-- ${_group_name} $(printf '%0.s-' {1..40})" 2>/dev/null || \
-        printf '\n-- %s\n' "$_group_name"
+      section "$_group_name"
       _urule_walk "${_path}.rules"
     else
       _urule_process_rule "$_path"
@@ -212,7 +211,7 @@ user_rules_check() {
   local _count
   _count=$(yq '.rules | length' "$PREFLIGHT_FILE" 2>/dev/null || echo 0)
   if [[ "$_count" -eq 0 ]]; then
-    _log DEBUG "No rules configured, skipping rule evaluation"
+    log_debug "No rules configured, skipping rule evaluation"
     return 0
   fi
 
@@ -230,9 +229,9 @@ user_rules_check() {
   _manifest_start_ms=$(_now_ms)
   _URULE_MANIFEST=$(yq '.rules | .. | select(type == "!!map") | select(has("type")) | ("." + (path | join("."))) + "|" + ((.enabled // false) | tostring) + "|" + (.name // "unnamed")' "$PREFLIGHT_FILE" 2>/dev/null || true)
   _manifest_ms=$(( $(_now_ms) - _manifest_start_ms ))
-  _log DEBUG "TAG::PERF Fetched enabled/name manifest for all rules in ${_manifest_ms}ms"
+  log_debug "TAG::PERF Fetched enabled/name manifest for all rules in ${_manifest_ms}ms"
 
-  section '-- Rules ----------------------------------------------------------------'
+  section 'Rules'
   _urule_walk '.rules'
 }
 
@@ -249,8 +248,8 @@ user_rules_check() {
 _LINT_STRUCTURAL=0
 
 _lint_structural_fail() {
-  _flush_header
-  _log ERROR "[FAIL] $1"
+  log_section_flush
+  log_error "[FAIL] $1"
   _LINT_STRUCTURAL=$((_LINT_STRUCTURAL + 1))
 }
 
@@ -260,7 +259,7 @@ _lint_structural_fail() {
 config_lint_check() {
   _LINT_STRUCTURAL=0
 
-  _log DEBUG "Running scripts/prerequisites.sh against $PREFLIGHT_FILE_DISPLAY"
+  log_debug "Running scripts/prerequisites.sh against $PREFLIGHT_FILE_DISPLAY"
   local _lint_args=("$PREFLIGHT_FILE")
   [[ "$VERBOSE" == true ]] && _lint_args=(--verbose "$PREFLIGHT_FILE")
 
@@ -269,7 +268,7 @@ config_lint_check() {
   # INFO/ERROR lines must always reach the terminal regardless of ours
   local _out _rc=0
   _out=$("$BUMFUZZLE_ROOT/scripts/prerequisites.sh" "${_lint_args[@]}") || _rc=$?
-  _log DEBUG "Prerequisites.sh exited $_rc"
+  log_debug "Prerequisites.sh exited $_rc"
   if [[ "$_rc" -eq 2 ]]; then
     fail "prerequisites.sh: usage error — see stderr" hard-stop
     return
@@ -283,7 +282,7 @@ config_lint_check() {
       '[FAIL:warn] '*)       fail "${_line#'[FAIL:warn] '}" warn ;;
       '') ;;
       *)
-        _log DEBUG "Prerequisites.sh: $_line"
+        log_debug "Prerequisites.sh: $_line"
         ;;
     esac
   done <<< "$_out"

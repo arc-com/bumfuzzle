@@ -29,9 +29,6 @@ done
 BUMFUZZLE_ROOT="$(cd "$(dirname "$SOURCE")/.." && pwd)"
 
 SCRIPT_NAME="sync-skill.sh"
-source "$BUMFUZZLE_ROOT/scripts/lib.sh"
-
-_banner_line() { printf '%*s' 71 '' | tr ' ' '-'; }
 
 usage() {
   printf 'Usage: sync-skill.sh [--target-dir DIR] [--dry-run] [--prettify] [-v|--verbose] [-h|--help]\n\n'
@@ -47,7 +44,7 @@ TARGET_PROJECT_DIR="${INIT_CWD:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target-dir)
-      [[ $# -ge 2 ]] || { _log ERROR "TAG::ARGS Missing value for --target-dir"; usage; exit 2; }
+      [[ $# -ge 2 ]] || { printf '%s: TAG::ARGS Missing value for --target-dir\n\n' "$SCRIPT_NAME" >&2; usage >&2; exit 2; }
       TARGET_PROJECT_DIR="$2"
       shift 2
       ;;
@@ -68,77 +65,82 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      _log ERROR "TAG::ARGS Unrecognized argument: $1"
-      usage
+      printf '%s: TAG::ARGS Unrecognized argument: %s\n\n' "$SCRIPT_NAME" "$1" >&2
+      usage >&2
       exit 2
       ;;
   esac
 done
 
-_log INFO "Starting skill sync"
+_logging_flags=()
+[[ "${VERBOSE:-false}" == true ]] && _logging_flags+=(--verbose)
+[[ "$PRETTIFY" == true ]] && _logging_flags+=(--prettify)
+source "$BUMFUZZLE_ROOT/scripts/logging.sh" ${_logging_flags[@]+"${_logging_flags[@]}"}
+
+log_info "Starting skill sync"
 
 if [[ -z "$TARGET_PROJECT_DIR" ]]; then
-  _log INFO "No target project directory resolved - skipped"
-  _log DEBUG "INIT_CWD unset and --target-dir not passed"
+  log_info "No target project directory resolved - skipped"
+  log_debug "INIT_CWD unset and --target-dir not passed"
   exit 0
 fi
 
 if [[ ! -d "$TARGET_PROJECT_DIR" ]]; then
-  _log ERROR "TAG::MISSING Target project directory not found"
-  _log DEBUG "Target project directory: $TARGET_PROJECT_DIR"
+  log_error "TAG::MISSING Target project directory not found"
+  log_debug "Target project directory: $TARGET_PROJECT_DIR"
   exit 1
 fi
-_log DEBUG "Target project directory exists: $TARGET_PROJECT_DIR"
+log_debug "Target project directory exists: $TARGET_PROJECT_DIR"
 TARGET_PROJECT_DIR="$(cd "$TARGET_PROJECT_DIR" && pwd)"
 
 if [[ "$TARGET_PROJECT_DIR" == "$BUMFUZZLE_ROOT" ]]; then
-  _log INFO "Target project is this repo itself - skipped, nothing to sync into"
+  log_info "Target project is this repo itself - skipped, nothing to sync into"
   exit 0
 fi
-_log DEBUG "Target project differs from this repo - proceeding"
+log_debug "Target project differs from this repo - proceeding"
 
-_log DEBUG "Checked for .claude/ at: $TARGET_PROJECT_DIR/.claude"
+log_debug "Checked for .claude/ at: $TARGET_PROJECT_DIR/.claude"
 if [[ ! -d "$TARGET_PROJECT_DIR/.claude" ]]; then
-  _log INFO "No .claude/ directory in target project - skipped"
+  log_info "No .claude/ directory in target project - skipped"
   exit 0
 fi
-_log DEBUG "Found .claude/ in target project"
+log_debug "Found .claude/ in target project"
 
 SRC="$BUMFUZZLE_ROOT/skills/bumfuzzle/SKILL.md"
 DEST_DIR="$TARGET_PROJECT_DIR/.claude/skills/bumfuzzle"
 DEST="$DEST_DIR/SKILL.md"
 
 if [[ ! -f "$SRC" ]]; then
-  _log ERROR "TAG::MISSING Source skill file not found"
-  _log DEBUG "Source skill file: $SRC"
+  log_error "TAG::MISSING Source skill file not found"
+  log_debug "Source skill file: $SRC"
   exit 1
 fi
-_log DEBUG "Source skill file: $SRC"
+log_debug "Source skill file: $SRC"
 
 if [[ -f "$DEST" ]] && cmp -s "$SRC" "$DEST"; then
-  _log INFO "Skill file already up to date - skipped"
-  _log DEBUG "Destination: $DEST"
-  [[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
-  printf 'bumfuzzle skill already up to date\n'
-  [[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
+  log_info "Skill file already up to date - skipped"
+  log_debug "Destination: $DEST"
+  log_banner_delim
+  log_data 'bumfuzzle skill already up to date\n'
+  log_banner_delim
   exit 0
 fi
 
 if [[ "$DRY_RUN" == true ]]; then
-  _log INFO "Dry run - would write skill file"
-  _log DEBUG "Would write: $DEST"
-  [[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
-  printf 'Dry run, would upsert .claude/skills/bumfuzzle/SKILL.md\n'
-  [[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
+  log_info "Dry run - would write skill file"
+  log_debug "Would write: $DEST"
+  log_banner_delim
+  log_data 'Dry run, would upsert .claude/skills/bumfuzzle/SKILL.md\n'
+  log_banner_delim
   exit 0
 fi
 
 mkdir -p "$DEST_DIR"
 cp "$SRC" "$DEST"
-_log INFO "Wrote skill file"
-_log DEBUG "Wrote: $DEST"
+log_info "Wrote skill file"
+log_debug "Wrote: $DEST"
 
-[[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
-printf 'bumfuzzle skill synced to .claude/skills/bumfuzzle/SKILL.md\n'
-[[ "$PRETTIFY" == true ]] && printf '%s\n' "$(_banner_line)"
+log_banner_delim
+log_data 'bumfuzzle skill synced to .claude/skills/bumfuzzle/SKILL.md\n'
+log_banner_delim
 exit 0
