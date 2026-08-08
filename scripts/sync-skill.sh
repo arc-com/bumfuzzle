@@ -77,7 +77,7 @@ _logging_flags=()
 [[ "$PRETTIFY" == true ]] && _logging_flags+=(--prettify)
 source "$BUMFUZZLE_ROOT/scripts/logging.sh" ${_logging_flags[@]+"${_logging_flags[@]}"}
 
-log_info "Starting skill sync"
+log_debug "Starting skill sync"
 
 if [[ -z "$TARGET_PROJECT_DIR" ]]; then
   log_info "No target project directory resolved - skipped"

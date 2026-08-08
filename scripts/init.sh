@@ -38,7 +38,7 @@ _init_args=()
 [[ "$VERBOSE" == true ]] && _init_args+=(--verbose)
 [[ "$DRY_RUN" == true ]] && _init_args+=(--dry-run)
 
-log_info "Starting init"
+log_debug "Starting init"
 
 log_section Config
 "$INIT_DIR/scaffold-config.sh" ${_init_args[@]+"${_init_args[@]}"}
@@ -53,7 +53,7 @@ _sync_args=(--target-dir "$(pwd)")
 [[ "$PRETTIFY" == true ]] && _sync_args+=(--prettify)
 "$BUMFUZZLE_ROOT/scripts/sync-skill.sh" "${_sync_args[@]}"
 
-log_info "Init finished"
+log_debug "Init finished"
 
 log_banner_delim
 log_data 'Run `bf wizard` to configure it, or `bf run` to check it as-is.\n'
