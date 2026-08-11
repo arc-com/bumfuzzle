@@ -8,6 +8,9 @@ VERSION="$(current_version)"
 require_tag_matches_head "$VERSION"
 gh_release_exists "$VERSION" && fail "GitHub release v$VERSION already exists"
 
+PREV_GH_ACCOUNT="$(ensure_gh_write_access "$REPO")"
+trap '[[ -n "${PREV_GH_ACCOUNT:-}" ]] && gh auth switch --hostname github.com --user "$PREV_GH_ACCOUNT" > /dev/null 2>&1; true' EXIT
+
 echo "==> Creating GitHub release v$VERSION"
 gh release create "v$VERSION" --repo "$REPO" --title "v$VERSION" --generate-notes
 echo "==> GitHub release v$VERSION created"

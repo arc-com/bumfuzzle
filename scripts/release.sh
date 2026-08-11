@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Cuts a release end to end, entirely locally: runs the static test suite
-# (scripts/tests/run-all.sh), bumps VERSION, tags, then runs each atomic
-# scripts/release/release-*.sh step (GitHub release, npm, PyPI, Homebrew) in
-# parallel. Does not verify the channels itself - run
-# scripts/tests/test-release.sh afterward for that. No GitHub Actions
-# workflow is involved in publishing.
+# Bumps VERSION locally: runs the static test suite (scripts/tests/run-all.sh),
+# bumps VERSION, commits, and tags. Stops there by default - nothing is
+# pushed and nothing is published. Pass --publish to also push main + the
+# tag and run each atomic scripts/release/release-*.sh step (GitHub release,
+# npm, PyPI, Homebrew - the last of which writes to the sibling
+# arc-com/homebrew-tools repo, outside this project root) in parallel. Does
+# not verify the channels itself - run scripts/tests/test-release.sh
+# afterward for that. No GitHub Actions workflow is involved in publishing.
+#
+# --publish is opt-in and separate from the local bump on purpose: the
+# publish steps push to a real remote and write to external registries and
+# a sibling repo, which must never happen as a side effect of a plain
+# version bump.
 #
 # The static test suite is a hard gate: nothing below it (version bump, tag,
 # push, publish) runs unless it passes. Exists because v1.7.6 shipped
@@ -19,18 +26,31 @@
 # just the first one hit.
 #
 # Each release-*.sh step is also safe to run standalone (e.g. to retry one
-# channel after a partial failure) - it re-checks its own preconditions.
+# channel after a partial failure, or to publish after a prior local-only
+# run) - it re-checks its own preconditions.
 set -euo pipefail
 
 RELEASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/release" && pwd)"
 source "$RELEASE_DIR/lib.sh"
 
 usage() {
-  printf 'Usage: %s <new-version>\n  e.g. %s 1.2.3\n' "$(basename "$0")" "$(basename "$0")"
+  printf 'Usage: %s <new-version> [--publish]\n  e.g. %s 1.2.3\n  e.g. %s 1.2.3 --publish\n' \
+    "$(basename "$0")" "$(basename "$0")" "$(basename "$0")"
 }
 
-[[ $# -eq 1 ]] || { usage >&2; exit 1; }
-NEW_VERSION="$1"
+PUBLISH=0
+NEW_VERSION=""
+for arg in "$@"; do
+  case "$arg" in
+    --publish) PUBLISH=1 ;;
+    -*) usage >&2; exit 1 ;;
+    *)
+      [[ -z "$NEW_VERSION" ]] || { usage >&2; exit 1; }
+      NEW_VERSION="$arg"
+      ;;
+  esac
+done
+[[ -n "$NEW_VERSION" ]] || { usage >&2; exit 1; }
 [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "version must be X.Y.Z"
 
 require_on_main_synced
@@ -52,6 +72,14 @@ Co-Authored-By: Alan <noreply@archicode.ai>
 EOF
 )"
 git -C "$ROOT" tag "v$NEW_VERSION"
+
+if [[ "$PUBLISH" -ne 1 ]]; then
+  echo "==> VERSION bumped, committed, and tagged locally as v$NEW_VERSION. Nothing pushed, nothing published."
+  echo "==> Re-run with --publish to push main + the tag and publish to GitHub, npm, PyPI, and Homebrew:"
+  echo "      $(basename "$0") $NEW_VERSION --publish"
+  exit 0
+fi
+
 git -C "$ROOT" push origin main
 git -C "$ROOT" push origin "v$NEW_VERSION"
 

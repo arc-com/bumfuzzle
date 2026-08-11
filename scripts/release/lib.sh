@@ -50,6 +50,47 @@ tag_exists_remote() { [[ -n "$(git -C "$ROOT" ls-remote --tags origin "refs/tags
 
 gh_release_exists() { gh release view "v$1" --repo "$REPO" > /dev/null 2>&1; }
 
+# Logged-in gh accounts for github.com, one per line.
+gh_accounts() {
+  gh auth status --hostname github.com 2>&1 | grep -oE 'account [^ ]+' | awk '{print $2}' || true
+}
+
+# The currently active gh account for github.com.
+gh_active_account() {
+  gh auth status --hostname github.com 2>&1 | awk '
+    { for (i = 1; i <= NF; i++) if ($i == "account") acct = $(i + 1) }
+    /Active account: true/ { print acct; exit }
+  '
+}
+
+gh_has_push_access() {
+  [[ "$(gh api "repos/$1" --jq '.permissions.push' 2>/dev/null)" == "true" ]]
+}
+
+# Switches the active gh account to one with push access to repo $1, if the
+# currently active one doesn't have it. Prints the account that was active
+# beforehand, so the caller can restore it once done. Which logged-in
+# account has push access varies by machine/user, so this tries all of them
+# rather than assuming a specific one.
+ensure_gh_write_access() {
+  local repo="$1" prev account
+  prev="$(gh_active_account)"
+  if gh_has_push_access "$repo"; then
+    printf '%s' "$prev"
+    return 0
+  fi
+  for account in $(gh_accounts); do
+    [[ "$account" == "$prev" ]] && continue
+    gh auth switch --hostname github.com --user "$account" > /dev/null 2>&1 || continue
+    if gh_has_push_access "$repo"; then
+      printf '%s' "$prev"
+      return 0
+    fi
+  done
+  gh auth switch --hostname github.com --user "$prev" > /dev/null 2>&1 || true
+  fail "no authenticated gh account has push access to $repo (checked: $(gh_accounts | tr '\n' ' '))"
+}
+
 npm_version_exists() {
   local live
   live="$(npm view bumfuzzle@"$1" version 2>/dev/null || true)"
