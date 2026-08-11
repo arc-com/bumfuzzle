@@ -128,7 +128,8 @@ _pre_rules_pass=$_PASS_COUNT
 _pre_rules_err=${#ERRORS[@]}
 _pre_rules_warn=${#WARNINGS[@]}
 user_rules_check
-log_debug "Rule evaluation finished: $(( _PASS_COUNT - _pre_rules_pass )) passed, $(( ${#ERRORS[@]} - _pre_rules_err )) failed, $(( ${#WARNINGS[@]} - _pre_rules_warn )) warned"
+_RULES_PASS_COUNT=$(( _PASS_COUNT - _pre_rules_pass ))
+log_debug "Rule evaluation finished: $_RULES_PASS_COUNT passed, $(( ${#ERRORS[@]} - _pre_rules_err )) failed, $(( ${#WARNINGS[@]} - _pre_rules_warn )) warned"
 
 _elapsed_ms=$(( $(_now_ms) - _RUN_START ))
 log_debug "TAG::TIMER Timer stopped: scripts finished in $(( _elapsed_ms / 1000 )).$(printf '%03d' $(( _elapsed_ms % 1000 )))s"
@@ -149,9 +150,9 @@ if [[ "$PLAIN" == true ]]; then
 fi
 
 if [[ ${#ERRORS[@]} -eq 0 ]]; then
-  log_info "Bumfuzzle run: SUCCESS - $_PASS_COUNT passed, ${#ERRORS[@]} failed, ${#WARNINGS[@]} warned"
+  log_info "Bumfuzzle run: SUCCESS - $_RULES_PASS_COUNT passed, ${#ERRORS[@]} failed, ${#WARNINGS[@]} warned"
 else
-  log_info "Bumfuzzle run: FAILURE - $_PASS_COUNT passed, ${#ERRORS[@]} failed, ${#WARNINGS[@]} warned"
+  log_info "Bumfuzzle run: FAILURE - $_RULES_PASS_COUNT passed, ${#ERRORS[@]} failed, ${#WARNINGS[@]} warned"
 fi
 
 if [[ ${#ERRORS[@]} -eq 0 && ${#WARNINGS[@]} -eq 0 ]]; then

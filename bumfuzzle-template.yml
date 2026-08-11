@@ -559,7 +559,7 @@ scripts:
             type: int
       - id: file-location-restriction-scan
         name: "File location restriction scan (SCAN)"
-        description: "Checks that every matching file lives under the allowed folder; anything outside it fails."
+        description: "Checks that every file whose basename matches INCLUDE (case-insensitive regex; accepts a YAML list) lives under the allowed folder; anything outside it fails. EXCLUDE_FILES_PATH exempts exact project-relative paths, EXCLUDE_FILES_GLOB exempts matching basenames wherever they occur."
         command: |
           _from="${SEARCH_ROOT:-.}"
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
@@ -569,16 +569,6 @@ scripts:
           if [[ -n "${SEARCH_DEPTH:-}" && "$SEARCH_DEPTH" -ge 1 ]]; then
             _depth_arg="-maxdepth $SEARCH_DEPTH"
           fi
-          _inc_args=""
-          while IFS= read -r _g; do
-            [[ -z "$_g" ]] && continue
-            _inc_args="${_inc_args:+$_inc_args -o }-name $_g"
-          done <<< "${INCLUDE:-}"
-          _ex_args=""
-          while IFS= read -r _g; do
-            [[ -z "$_g" ]] && continue
-            _ex_args="$_ex_args -not -name $_g"
-          done <<< "${EXCLUDE_FILES_GLOB:-}"
           _prune_args=""
           while IFS= read -r _d; do
             [[ -z "$_d" ]] && continue
@@ -589,13 +579,35 @@ scripts:
           set -f
           while IFS= read -r _f; do
             [[ -z "$_f" ]] && continue
-            _any=true
             _rel="${_f#./}"
+            _base="$(basename "$_rel")"
+
+            _inc_hit=false
+            while IFS= read -r _pat; do
+              [[ -z "$_pat" ]] && continue
+              grep -qiE "$_pat" <<< "$_base" && { _inc_hit=true; break; }
+            done <<< "${INCLUDE:-}"
+            [[ "$_inc_hit" == "true" ]] || continue
+
+            _excluded=false
+            while IFS= read -r _xg; do
+              [[ -z "$_xg" ]] && continue
+              case "$_base" in $_xg) _excluded=true; break ;; esac
+            done <<< "${EXCLUDE_FILES_GLOB:-}"
+            if [[ "$_excluded" == "false" ]]; then
+              while IFS= read -r _xp; do
+                [[ -z "$_xp" ]] && continue
+                [[ "$_rel" == "$_xp" ]] && { _excluded=true; break; }
+              done <<< "${EXCLUDE_FILES_PATH:-}"
+            fi
+            [[ "$_excluded" == "true" ]] && continue
+
+            _any=true
             case "$_rel" in
               "$_allowed"/*) ;;
               *) printf '%s is outside %s/\n' "$_rel" "$_allowed"; _failed=true ;;
             esac
-          done < <(find "$_from" $_depth_arg \( $_prune_args \) -prune -o \( $_inc_args \) $_ex_args -type f -print 2>/dev/null)
+          done < <(find "$_from" $_depth_arg \( $_prune_args \) -prune -o -type f -print 2>/dev/null)
           set +f
           if [[ "$_any" == "false" ]]; then
             if [[ "$FAIL_ON_FILE_NOT_FOUND" == "true" ]]; then
@@ -619,19 +631,26 @@ scripts:
             placeholder: "1"
             description: "Maximum folder depth to search. 1 = files directly inside SEARCH_ROOT. Omit for unlimited depth."
           - key: INCLUDE
-            label: Include files glob
+            label: Include files pattern
             required: true
-            type: glob
+            type: regex
             list: true
-            placeholder: '*.java'
-            description: Glob pattern matched against file basenames to include.
+            placeholder: '\.java$'
+            description: Regex pattern matched case-insensitively against file basenames to include.
           - key: EXCLUDE_FILES_GLOB
             label: Exclude files glob
             required: false
             type: glob
             list: true
             placeholder: '*Test.java'
-            description: 'Glob pattern matched against file basenames to exclude.'
+            description: 'Glob pattern matched against file basenames to exclude, wherever they occur.'
+          - key: EXCLUDE_FILES_PATH
+            label: Exclude exact file paths
+            required: false
+            type: path
+            list: true
+            placeholder: 'README.md'
+            description: 'Exact project-relative file paths to exclude, unlike EXCLUDE_FILES_GLOB this does not match the same basename elsewhere.'
           - key: EXCLUDE_DIRS
             label: Excluded folders
             required: true
@@ -1168,10 +1187,11 @@ scripts:
             description: true = no file matching FILE_PATH is a failure; false = no file matching FILE_PATH is a pass
       - id: files-content-scan
         name: "Files content scan"
-        description: "Greps every file matching INCLUDE (basename globs; accepts a YAML list) under SEARCH_ROOT for one or more ERE REGEX_PATTERN (accepts a YAML list). FAIL_ON_NO_MATCHING_FILE: true passes when any pattern matches anywhere; false fails listing every offending file per pattern. .git, node_modules, .claude and .bumfuzzle are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more."
+        description: "Greps every file matching INCLUDE (basename globs; accepts a YAML list) under SEARCH_ROOT for one or more ERE REGEX_PATTERN (accepts a YAML list). FAIL_ON_NO_MATCHING_FILE: true passes when any pattern matches anywhere; false fails listing every offending file per pattern. .git, node_modules, .claude and this tool's own state folder are always skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more."
         command: |
           _from="${SEARCH_ROOT:-.}"
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
+          _state_dir="$(basename "$(dirname "$PREFLIGHT_FILE")")"
           set -f
           _inc_args=""
           _find_inc_args=""
@@ -1180,14 +1200,14 @@ scripts:
             _inc_args="$_inc_args --include=$_g"
             _find_inc_args="${_find_inc_args:+$_find_inc_args -o }-name $_g"
           done <<< "${INCLUDE:-*}"
-          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=.bumfuzzle"
+          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=$_state_dir"
           _find_ex_args=""
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
             _ex_args="$_ex_args --exclude=$_g"
             _find_ex_args="$_find_ex_args -not -name $_g"
           done <<< "${EXCLUDE_FILES_GLOB:-}"
-          _any=$(find "$_from" \( -name .git -o -name node_modules -o -name .claude -o -name .bumfuzzle \) -prune -o \( $_find_inc_args \) $_find_ex_args -type f -print 2>/dev/null | head -1)
+          _any=$(find "$_from" \( -name .git -o -name node_modules -o -name .claude -o -name "$_state_dir" \) -prune -o \( $_find_inc_args \) $_find_ex_args -type f -print 2>/dev/null | head -1)
           if [[ -z "$_any" ]]; then
             if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
               printf 'missing: no file matched %s under %s\n' "${INCLUDE:-*}" "$_from"
@@ -1281,7 +1301,7 @@ scripts:
             description: ERE patterns grepped against each staged file's content. Provide a YAML list for multiple; entries may contain spaces.
       - id: config-keys-used-scan
         name: "Config keys used scan"
-        description: "Checks that every top-level key in a YAML config file is referenced somewhere in the codebase (word-boundary fixed-string grep). The config file itself, .bumfuzzle, lockfiles, .git, node_modules and .claude are skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more. The 'extends' key is ignored. FAIL_ON_FILE_NOT_FOUND controls whether a missing config file is a failure or a pass."
+        description: "Checks that every top-level key in a YAML config file is referenced somewhere in the codebase (word-boundary fixed-string grep). The config file itself, this tool's own state folder, lockfiles, .git, node_modules and .claude are skipped; EXCLUDE_FILES_GLOB (accepts a YAML list) skips more. The 'extends' key is ignored. FAIL_ON_FILE_NOT_FOUND controls whether a missing config file is a failure or a pass."
         command: |
           [[ "$FILE_PATH" =~ [[:space:]] ]] && { printf 'FILE_PATH must not contain spaces\n'; exit 1; }
           [[ "$FILE_PATH" =~ \.\. ]] && { printf 'FILE_PATH must not contain ..\n'; exit 1; }
@@ -1295,8 +1315,9 @@ scripts:
             fi
           fi
           _self=$(basename "$FILE_PATH")
+          _state_dir="$(basename "$(dirname "$PREFLIGHT_FILE")")"
           set -f
-          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=.bumfuzzle --exclude=$_self --exclude=*.lock"
+          _ex_args="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.claude --exclude-dir=$_state_dir --exclude=$_self --exclude=*.lock"
           while IFS= read -r _g; do
             [[ -z "$_g" ]] && continue
             _ex_args="$_ex_args --exclude=$_g"
@@ -1328,11 +1349,12 @@ scripts:
             description: true = a missing FILE_PATH is a failure; false = it's a pass
       - id: run-tool-over-matched-files-scan
         name: "Run tool over matched files scan"
-        description: "Finds files matching INCLUDE under SEARCH_ROOT, skipping .git, node_modules, .claude and .bumfuzzle, and runs TOOL_COMMAND against the list. FAIL_ON_FILE_NOT_FOUND controls whether no matching files is a failure or a pass."
+        description: "Finds files matching INCLUDE under SEARCH_ROOT, skipping .git, node_modules, .claude and this tool's own state folder, and runs TOOL_COMMAND against the list. FAIL_ON_FILE_NOT_FOUND controls whether no matching files is a failure or a pass."
         command: |
           _from="${SEARCH_ROOT:-.}"
           [[ "$_from" =~ \.\. ]] && { printf 'SEARCH_ROOT must not contain ..\n'; exit 1; }
-          _files=$(find "$_from" \( -name .git -o -name node_modules -o -name .claude -o -name .bumfuzzle \) -prune -o -name "$INCLUDE" -type f -print 2>/dev/null)
+          _state_dir="$(basename "$(dirname "$PREFLIGHT_FILE")")"
+          _files=$(find "$_from" \( -name .git -o -name node_modules -o -name .claude -o -name "$_state_dir" \) -prune -o -name "$INCLUDE" -type f -print 2>/dev/null)
           if [ -z "$_files" ]; then
             if [[ "${FAIL_ON_FILE_NOT_FOUND:-true}" == "true" ]]; then
               printf 'missing: no file matched %s under %s\n' "$INCLUDE" "$_from"
@@ -1782,21 +1804,13 @@ rules:
           FAIL_ON_NO_MATCHING_FILE: false
           FAIL_ON_FILE_NOT_FOUND: false
       - type: script_reusable
-        name: "Required folders are present"
-        description: "Each required project-root folder listed in FILE_PATH exists"
+        name: "Enforces presence of required files and folders"
+        description: "Each required project file or folder listed in FILE_PATH exists"
         script: file-or-folder-exists
         severity: warn
-        instruction: "Create the missing folders listed"
+        instruction: "Create the missing files or folders listed"
         args:
-          FILE_PATH: [tmp/, export/, migrations/, src/, scripts/, docs/, logs/, dist/, out/]
-      - type: script_reusable
-        name: "Required files are present"
-        description: "Each required file listed in FILE_PATH exists"
-        script: file-or-folder-exists
-        severity: warn
-        instruction: "Create the missing files listed"
-        args:
-          FILE_PATH: [config, .claude/skills/bumfuzzle/SKILL.md]
+          FILE_PATH: [tmp/, export/, migrations/, src/, scripts/, docs/, logs/, dist/, out/, config, export/openapi.yaml]
       - type: script_reusable
         name: "VERSION file present"
         description: "A VERSION file exists at the project root — the single source of truth for the project version"
@@ -1815,14 +1829,6 @@ rules:
           FAIL_ON_FILE_NOT_FOUND: true
           FILE_PATH: VERSION
           REGEX_PATTERN: '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?'
-      - type: script_reusable
-        name: "OpenAPI export present"
-        description: "The export/openapi.yaml file exists"
-        script: file-or-folder-exists
-        severity: warn
-        instruction: "Generate and commit export/openapi.yaml"
-        args:
-          FILE_PATH: export/openapi.yaml
   - group: Shell Scripts
     rules:
       - type: script_reusable
@@ -1832,7 +1838,7 @@ rules:
         severity: warn
         instruction: "Move the listed file(s) into the allowed folder, or update this rule's configuration if another location is intentional"
         args:
-          INCLUDE: "*.sh"
+          INCLUDE: '\.sh$'
           EXCLUDE_DIRS: [.git, node_modules, .venv, .claude]
           FILE_LOCATION_ALLOWED_FOLDER: scripts/
           FAIL_ON_FILE_NOT_FOUND: false
@@ -1846,6 +1852,20 @@ rules:
           FILE_TYPE: bash
           SEARCH_ROOT: scripts
           INCLUDE: "*.sh"
+          FAIL_ON_FILE_NOT_FOUND: false
+  - group: Markdown
+    rules:
+      - type: script_reusable
+        name: "Docs confined to allowed folder (Markdown)"
+        description: "Confines Markdown files to a single designated folder, with the root README exempted."
+        script: file-location-restriction-scan
+        severity: warn
+        instruction: "Move the listed file(s) into the allowed folder, or update this rule's configuration if another location is intentional"
+        args:
+          INCLUDE: '\.md$'
+          EXCLUDE_DIRS: [.git, node_modules, .venv, .claude]
+          EXCLUDE_FILES_PATH: [README.md]
+          FILE_LOCATION_ALLOWED_FOLDER: docs/
           FAIL_ON_FILE_NOT_FOUND: false
   - group: Git
     rules:
@@ -2159,6 +2179,104 @@ rules:
           exit $rc
         severity: error
         instruction: "Remove duplicate key declarations from .env.* files"
+      - type: script_clean
+        name: "Enforces SCREAMING_SNAKE_CASE keys in .env.* files (SCAN)"
+        description: "Every key in each .env.* file is SCREAMING_SNAKE_CASE — no lowercase or mixed-case variable names"
+        command: |
+          rc=0
+          while IFS= read -r ef; do
+            while IFS= read -r line; do
+              case "$line" in ''|\#*) continue ;; esac
+              key="${line%%=*}"
+              [[ "$key" =~ ^[A-Z_][A-Z0-9_]*$ ]] || { printf 'Non-SCREAMING_SNAKE_CASE key in %s: %s\n' "$ef" "$key"; rc=1; }
+            done < "$ef"
+          done < <(find . -maxdepth 1 -name '.env.*' -type f | sort)
+          exit $rc
+        severity: warn
+        instruction: "Rename the listed keys to SCREAMING_SNAKE_CASE"
+      - type: script_clean
+        name: "Enforces no spaces around = in .env.* files (SCAN)"
+        description: "Every key=value line in each .env.* file has no spaces immediately before or after the equals sign"
+        command: |
+          rc=0
+          while IFS= read -r ef; do
+            while IFS= read -r line; do
+              case "$line" in ''|\#*) continue ;; esac
+              case "$line" in *=*) ;; *) continue ;; esac
+              key_part="${line%%=*}"
+              rest="${line#*=}"
+              case "$key_part" in *' ') printf 'Space before = in %s: %s\n' "$ef" "$line"; rc=1 ;; esac
+              case "$rest" in ' '*) printf 'Space after = in %s: %s\n' "$ef" "$line"; rc=1 ;; esac
+            done < "$ef"
+          done < <(find . -maxdepth 1 -name '.env.*' -type f | sort)
+          exit $rc
+        severity: warn
+        instruction: "Remove the spaces immediately around = in the listed lines"
+      - type: script_clean
+        name: "Enforces no unnecessary quoting in .env.* files (SCAN)"
+        description: "A value in each .env.* file is quoted only when it contains a space or a special character — bare values stay unquoted"
+        command: |
+          rc=0
+          while IFS= read -r ef; do
+            while IFS= read -r line; do
+              case "$line" in ''|\#*) continue ;; esac
+              val="${line#*=}"
+              case "$val" in
+                \"*\")
+                  inner="${val#\"}"; inner="${inner%\"}"
+                  case "$inner" in *[\ \#\$\"\']*) ;; *) printf 'Unnecessary quotes in %s: %s\n' "$ef" "${line%%=*}"; rc=1 ;; esac ;;
+                \'*\')
+                  inner="${val#\'}"; inner="${inner%\'}"
+                  case "$inner" in *[\ \#\$\"\']*) ;; *) printf 'Unnecessary quotes in %s: %s\n' "$ef" "${line%%=*}"; rc=1 ;; esac ;;
+              esac
+            done < "$ef"
+          done < <(find . -maxdepth 1 -name '.env.*' -type f | sort)
+          exit $rc
+        severity: warn
+        instruction: "Remove the quotes from the listed values"
+      - type: script_clean
+        name: "Enforces primitive values in .env.* files (SCAN)"
+        description: "No value in any .env.* file looks like a JSON object or array — complex configuration belongs in its own file, referenced by path"
+        command: |
+          rc=0
+          while IFS= read -r ef; do
+            while IFS= read -r line; do
+              case "$line" in ''|\#*) continue ;; esac
+              val="${line#*=}"
+              case "$val" in \"*|\'*) val="${val#?}"; val="${val%?}" ;; esac
+              case "$val" in
+                '{'*|'['*) printf 'JSON-like value in %s: %s\n' "$ef" "${line%%=*}"; rc=1 ;;
+              esac
+            done < "$ef"
+          done < <(find . -maxdepth 1 -name '.env.*' -type f | sort)
+          exit $rc
+        severity: warn
+        instruction: "Split the listed values into separate keys, or move the configuration to its own file and point to it by path"
+      - type: script_clean
+        name: "Enforces .env.* files are git-ignored (SCAN)"
+        description: "Every non-template .env.* file, and bare .env, is excluded from version control — secrets never get committed"
+        command: |
+          rc=0
+          while IFS= read -r ef; do
+            git check-ignore -q "$ef" || { printf 'Not git-ignored: %s\n' "$ef"; rc=1; }
+          done < <(find . -maxdepth 1 \( -name '.env' -o -name '.env.*' \) -not -name '.env.template' -type f | sort)
+          exit $rc
+        severity: error
+        instruction: "Add the listed file(s) to .gitignore, and remove them from version control if already tracked"
+      - type: script_clean
+        name: "Enforces no trailing whitespace in .env.* files (SCAN)"
+        description: "No key=value line in any .env.* file has trailing whitespace — a trailing space silently becomes part of the value in some parsers"
+        command: |
+          rc=0
+          while IFS= read -r ef; do
+            while IFS= read -r line; do
+              case "$line" in ''|\#*) continue ;; esac
+              case "$line" in *[[:space:]]) printf 'Trailing whitespace in %s: %s\n' "$ef" "${line%%=*}"; rc=1 ;; esac
+            done < "$ef"
+          done < <(find . -maxdepth 1 -name '.env.*' -type f | sort)
+          exit $rc
+        severity: warn
+        instruction: "Remove the trailing whitespace from the listed lines"
 
   - group: Docker
     rules:

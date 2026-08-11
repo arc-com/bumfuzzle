@@ -36,20 +36,35 @@ _urule_report_failure() {
   fail "$_label: command exited $_ec" "$_sev" "$_details"
 }
 
-# _urule_lookup_manifest PATH — reads (enabled, name) for PATH out of
-# $_URULE_MANIFEST, a bulk-fetched "path|enabled|name" listing built once by
-# user_rules_check. Pure in-bash linear scan, no subprocess spawned, so a
-# rule's enabled/disabled decision never costs a yq call — with hundreds of
-# rules this used to be the dominant per-rule cost even for disabled ones.
-_urule_lookup_manifest() {
-  local _target_path="$1" _p _en _nm
+# _urule_index_manifest — populates one indirect variable per rule path from
+# $_URULE_MANIFEST (a bulk-fetched "path|enabled|name" listing built once by
+# user_rules_check), so _urule_lookup_manifest never re-scans it. Indirect
+# variables are this project's poor-man's hashmap: bash 3.2, the oldest
+# version this project targets (macOS ships it by default), has no
+# associative arrays.
+_urule_index_manifest() {
+  local _p _en _nm _key
   while IFS='|' read -r _p _en _nm; do
-    if [[ "$_p" == "$_target_path" ]]; then
-      log_data '%s\t%s\n' "$_en" "$_nm"
-      return 0
-    fi
+    [[ -z "$_p" ]] && continue
+    _key="_URULE_MAP${_p//[.]/_}"
+    printf -v "$_key" '%s\t%s' "$_en" "$_nm"
   done <<< "$_URULE_MANIFEST"
-  log_data 'false\t\n'
+}
+
+# _urule_lookup_manifest PATH — reads (enabled, name) for PATH in O(1) via
+# the indirect variable _urule_index_manifest set for it, instead of a
+# linear scan of every other rule's manifest line — with thousands of
+# rules the scan used to be the dominant per-rule cost even for disabled
+# ones, since every rule paid it just to learn it was disabled.
+_urule_lookup_manifest() {
+  local _target_path="$1" _key _val
+  _key="_URULE_MAP${_target_path//[.]/_}"
+  _val="${!_key-}"
+  if [[ -n "$_val" ]]; then
+    log_data '%s\n' "$_val"
+  else
+    log_data 'false\t\n'
+  fi
 }
 
 _urule_process_rule() {
@@ -184,27 +199,22 @@ _urule_process_rule() {
   esac
 }
 
+# _urule_walk — replays $_URULE_TREE (a bulk-fetched, document-order
+# "path|kind|group_name" listing built once by user_rules_check) as a flat
+# loop instead of recursing the tree with a yq subprocess spawned per node
+# just to ask "is this a group". At thousands of rules that per-node spawn
+# (each re-parsing the whole config from scratch) dwarfed every other cost
+# in this file, including the O(n) manifest lookup fixed alongside it.
 _urule_walk() {
-  local _base="$1"
-  local _count
-  _count=$(yq "${_base} | length" "$PREFLIGHT_FILE" 2>/dev/null || echo 0)
-  if [[ "$_count" -eq 0 ]]; then
-    log_debug "Empty, nothing to walk: $_base"
-    return 0
-  fi
-
-  local _i
-  for _i in $(seq 0 $((_count - 1))); do
-    local _path="${_base}.${_i}"
-    local _group_name
-    _group_name=$(yq "${_path}.group // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
-    if ! is_blank "$_group_name"; then
-      section "$_group_name"
-      _urule_walk "${_path}.rules"
-    else
+  local _path _group_name
+  while IFS='|' read -r _path _group_name; do
+    [[ -z "$_path" ]] && continue
+    if is_blank "$_group_name"; then
       _urule_process_rule "$_path"
+    else
+      section "$_group_name"
     fi
-  done
+  done <<< "$_URULE_TREE"
 }
 
 user_rules_check() {
@@ -228,11 +238,13 @@ user_rules_check() {
   local _manifest_start_ms _manifest_ms
   _manifest_start_ms=$(_now_ms)
   _URULE_MANIFEST=$(yq '.rules | .. | select(type == "!!map") | select(has("type")) | ("." + (path | join("."))) + "|" + ((.enabled // false) | tostring) + "|" + (.name // "unnamed")' "$PREFLIGHT_FILE" 2>/dev/null || true)
+  _urule_index_manifest
+  _URULE_TREE=$(yq '.rules | .. | select(type == "!!map") | select(has("group") or has("type")) | ("." + (path | join("."))) + "|" + (.group // "")' "$PREFLIGHT_FILE" 2>/dev/null || true)
   _manifest_ms=$(( $(_now_ms) - _manifest_start_ms ))
-  log_debug "TAG::PERF Fetched enabled/name manifest for all rules in ${_manifest_ms}ms"
+  log_debug "TAG::PERF Fetched and indexed the full rules tree (manifest + structure) in ${_manifest_ms}ms, 2 yq calls regardless of rule count"
 
   section 'Rules'
-  _urule_walk '.rules'
+  _urule_walk
 }
 
 # config lint — delegates to scripts/prerequisites.sh, the orchestrator that

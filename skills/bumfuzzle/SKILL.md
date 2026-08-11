@@ -76,6 +76,9 @@ description: Load it when working with Bumfuzzle, or when project has Bumfuzzle 
 - mutative marks a rule whose command edits or writes files instead of only checking them.
 - The name must already make the mutation obvious on its own, mutative is a flag for tooling, not a substitute for a clear name.
 - A mutative rule is only ever an alternative alongside its check-only counterpart, never the only way to run that tool.
+### Args
+- An arg value never hardcodes this project's own name, path, or identity as a stand-in for a requirement meant to hold for any project.
+- Exempt is a rule whose entire subject is confirming this specific project's own tool is present or wired in, where naming it is the actual requirement, not an illustrative stand-in.
 ### Scripts
 - Make sure that it has no hardcodes. All arguments in all scripts must be explicitly defined, even if not used. 
 - No hardcode is allowed inside of a script, must be extracted as an additional argument.

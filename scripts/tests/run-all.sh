@@ -21,6 +21,7 @@ STATIC_TESTS=(
   test-file-or-folder-exists.sh
   test-init-run.sh
   test-template-all-checks.sh
+  test-rule-pass-count.sh
 )
 
 FAILED=()
