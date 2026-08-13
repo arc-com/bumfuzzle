@@ -41,7 +41,7 @@ _check() {
   while IFS= read -r _p; do
     [[ -z "$_p" ]] && continue
     _report_structural "rules entry at .$_p has neither 'group' nor 'type'"
-  done < <(_lint_yq '.rules | .. | select(type == "!!map") | select((has("group") or has("type")) | not) | path | join(".")' | grep -v 'args$')
+  done < <(_lint_yq '.rules | .. | select(type == "!!map") | select((has("group") or has("type")) | not) | path | join(".")' | grep -vE '(^|\.)args($|\.)')
 
   while IFS= read -r _msg; do
     [[ -z "$_msg" ]] && continue

@@ -2,8 +2,13 @@
 """script_arg_types_validate.py — validates every script_reusable rule's arg
 values in a bumfuzzle config (given as JSON, pre-converted from YAML by
 scripts/prerequisites/script-arg-types.sh) against the type each arg
-declares on its referenced script (int, double, bool, regex, path, or enum
-membership; string/glob accept anything). Exists to replace what used to be
+declares on its referenced script (int, double, bool, regex, path-file,
+path-folder; string/glob accept anything). Any arg whose script definition
+pins enum_ref is additionally restricted to that enum's declared members,
+regardless of base type. A list: true arg may instead receive { enum_ref:
+id } in place of a literal list, resolved against every current value of
+that enums: entry (which must equal the arg's own pinned enum_ref, if any,
+or otherwise just match the arg's type). Exists to replace what used to be
 one yq subprocess per rule per arg (hundreds to thousands of calls on a
 config with many rules) with a single JSON parse and one in-process pass.
 
@@ -66,14 +71,24 @@ def _scalar_str(value):
     return str(value)
 
 
-def _valid_path(value):
-    if value in (".", "/"):
+def _valid_path_common(value):
+    if value in (".", "./", "/"):
         return False
     if ".." in value or "//" in value or "././" in value:
         return False
-    if value.startswith("./") or value.startswith("/"):
+    if not value.startswith("./"):
+        return False
+    if any(c in value for c in "*?[]"):
         return False
     return True
+
+
+def _valid_path_file(value):
+    return _valid_path_common(value) and not value.endswith("/")
+
+
+def _valid_path_folder(value):
+    return _valid_path_common(value) and value.endswith("/")
 
 
 def _valid_regex(value):
@@ -81,7 +96,7 @@ def _valid_regex(value):
     return result.returncode != 2
 
 
-def _value_matches_type(value, arg_type, enum_values):
+def _value_matches_type(value, arg_type):
     if arg_type == "int":
         return bool(re.fullmatch(r"-?[0-9]+", value))
     if arg_type == "double":
@@ -90,10 +105,10 @@ def _value_matches_type(value, arg_type, enum_values):
         return value in ("true", "false")
     if arg_type == "regex":
         return _valid_regex(value)
-    if arg_type == "path":
-        return _valid_path(value)
-    if arg_type == "enum":
-        return not enum_values or value in enum_values
+    if arg_type == "path-file":
+        return _valid_path_file(value)
+    if arg_type == "path-folder":
+        return _valid_path_folder(value)
     return True  # string/glob/unknown: accept anything
 
 
@@ -130,12 +145,12 @@ def main(argv):
             key = arg.get("key")
             if key is None:
                 continue
-            arg_meta[key] = (arg.get("type") or "string", arg.get("enum_ref") or "")
+            arg_meta[key] = (arg.get("type") or "string", arg.get("enum_ref") or "", bool(arg.get("list")))
         script_args[script["id"]] = arg_meta
 
-    enum_values = {}
+    enums = {}
     for enum in _walk_ids(config.get("enums") or {}):
-        enum_values[enum["id"]] = {v.get("value") for v in enum.get("values") or []}
+        enums[enum["id"]] = (enum.get("type") or "", {v.get("value") for v in enum.get("values") or []})
 
     findings = 0
     for rule in _walk_rules(config.get("rules") or {}):
@@ -149,14 +164,48 @@ def main(argv):
             meta = arg_meta.get(key)
             if meta is None:
                 continue  # unknown arg key, script-args.sh's job to report
-            arg_type, enum_ref = meta
-            if arg_type in ("string", "glob"):
+            arg_type, pinned_enum, is_list = meta
+
+            if isinstance(value, dict):
+                ref_id = value.get("enum_ref")
+                if not ref_id:
+                    print(f"[FAIL:error] rule '{name}' passes a mapping for arg '{key}' without 'enum_ref'")
+                    findings += 1
+                    continue
+                if not is_list:
+                    print(f"[FAIL:error] rule '{name}' uses enum_ref for arg '{key}', only valid when the arg is list: true")
+                    findings += 1
+                    continue
+                if pinned_enum and ref_id != pinned_enum:
+                    print(f"[FAIL:error] rule '{name}' arg '{key}' is pinned to enum '{pinned_enum}', cannot reference '{ref_id}' instead")
+                    findings += 1
+                    continue
+                ref = enums.get(ref_id)
+                if ref is None:
+                    continue  # dangling enum_ref, reference-integrity.sh's job to report
+                ref_type, ref_values = ref
+                if ref_type != arg_type:
+                    print(f"[FAIL:error] rule '{name}' arg '{key}' references enum '{ref_id}' declared as type '{ref_type}', expected '{arg_type}'")
+                    findings += 1
+                    continue
+                for item_str in ref_values:
+                    if not _value_matches_type(item_str, arg_type):
+                        print(f"[FAIL:error] rule '{name}' arg '{key}' via enum '{ref_id}' carries '{item_str}', not a valid {arg_type}")
+                        findings += 1
                 continue
+
+            if arg_type in ("string", "glob") and not pinned_enum:
+                continue
+            pinned_values = enums.get(pinned_enum, ("", set()))[1] if pinned_enum else None
 
             values = value if isinstance(value, list) else [value]
             for item in values:
                 item_str = _scalar_str(item)
-                if not _value_matches_type(item_str, arg_type, enum_values.get(enum_ref, set())):
+                if pinned_values and item_str not in pinned_values:
+                    print(f"[FAIL:error] rule '{name}' passes '{item_str}' for arg '{key}', not a member of enum '{pinned_enum}'")
+                    findings += 1
+                    continue
+                if not _value_matches_type(item_str, arg_type):
                     print(f"[FAIL:error] rule '{name}' passes '{item_str}' for arg '{key}', not a valid {arg_type}")
                     findings += 1
 

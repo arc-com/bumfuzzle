@@ -118,7 +118,10 @@ body{background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,BlinkMacSy
 .rt-panel{flex:1;border:1px solid var(--b1);border-radius:var(--r);margin:4px 8px 8px;background:var(--surf);overflow:hidden}
 .rf-body{padding:16px 16px 0}
 .rf-sec{margin-bottom:16px}
-.rf-lbl{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--tm);font-family:var(--mono);margin-bottom:6px}
+.rf-lbl-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
+.rf-lbl{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--tm);font-family:var(--mono)}
+.rf-type{font-size:10px;font-family:var(--mono);color:var(--tm);opacity:.65;white-space:nowrap}
+.rf-mode-seg{margin-bottom:7px}
 
 /* ── Segmented control ── */
 .seg{display:flex;width:100%;border:1px solid var(--b1);border-radius:var(--r);overflow:hidden;flex-wrap:wrap}
@@ -526,12 +529,8 @@ function generateYaml() {
     if (a.default !== undefined && a.default !== '') lines.push(indent + 'default: ' + JSON.stringify(a.default));
     if (a.min !== undefined)          lines.push(indent + 'min: ' + a.min);
     if (a.max !== undefined)          lines.push(indent + 'max: ' + a.max);
-    if (a.list && a.type !== 'enum' && a.type !== 'bool') lines.push(indent + 'list: true');
-    if (a.type === 'enum') {
-      if (a.multi_select)             lines.push(indent + 'multi_select: true');
-      if (a.separator && a.separator !== 'space') lines.push(indent + 'separator: ' + a.separator);
-      if (a.enum_ref)                 lines.push(indent + 'enum_ref: ' + JSON.stringify(a.enum_ref));
-    }
+    if (a.list && a.type !== 'bool')  lines.push(indent + 'list: true');
+    if (a.enum_ref)                   lines.push(indent + 'enum_ref: ' + JSON.stringify(a.enum_ref));
     if (a.visible_when && a.visible_when.key && a.visible_when.eq !== undefined) {
       lines.push(indent + 'visible_when:');
       lines.push(indent + '  key: ' + JSON.stringify(a.visible_when.key));
@@ -584,7 +583,10 @@ function generateYaml() {
         if (item.args && Object.keys(item.args).length) {
           lines.push(indent + '  args:');
           Object.entries(item.args).forEach(([k, v]) => {
-            if (Array.isArray(v) && v.length) {
+            if (v && typeof v === 'object' && !Array.isArray(v) && v.enum_ref) {
+              lines.push(indent + '    ' + k + ':');
+              lines.push(indent + '      enum_ref: ' + JSON.stringify(v.enum_ref));
+            } else if (Array.isArray(v) && v.length) {
               lines.push(indent + '    ' + k + ': [' + v.map(entry => JSON.stringify(entry)).join(', ') + ']');
             } else {
               lines.push(indent + '    ' + k + ': ' + JSON.stringify(String(v ?? '')));
@@ -976,20 +978,22 @@ function getResolvedArgs(script) {
   return (script && Array.isArray(script.args)) ? script.args : [];
 }
 
-// mirrors scripts/prerequisites/script_arg_types_validate.py's _valid_path: no bare
-// "." or "/", no .., no doubled slashes, no redundant repeated ./ prefix, no
-// leading ./ or / (trailing / is fine, that's how a folder is declared). A path
-// must always resolve to one exact folder or file, never an abstract stand-in
-// for "current" or "any" location.
-function isValidPathArg(p) {
+// mirrors scripts/prerequisites/script_arg_types_validate.py's _valid_path_common:
+// no bare ".", "./" or "/", no .., no doubled slashes, no redundant repeated
+// ./ prefix, and a required leading ./. A path must always resolve to one
+// exact folder or file, never an abstract stand-in for "current" or "any"
+// location.
+function isValidPathArgCommon(p) {
   if (typeof p !== 'string' || !p) return true;
-  if (p === '.' || p === '/') return false;
+  if (p === '.' || p === './' || p === '/') return false;
   if (p.includes('..')) return false;
   if (p.includes('//')) return false;
   if (p.includes('././')) return false;
-  if (p.startsWith('./') || p.startsWith('/')) return false;
+  if (!p.startsWith('./')) return false;
   return true;
 }
+function isValidPathFileArg(p) { return typeof p === 'string' && p ? (isValidPathArgCommon(p) && !p.endsWith('/')) : true; }
+function isValidPathFolderArg(p) { return typeof p === 'string' && p ? (isValidPathArgCommon(p) && p.endsWith('/')) : true; }
 
 // mirrors scripts/prerequisites/script-arg-types.sh's _value_matches_type.
 // enum is not checked here since the wizard's own controls only ever let
@@ -1002,7 +1006,8 @@ function argValueMatchesType(val, type) {
     case 'double': return /^-?[0-9]+(\.[0-9]+)?$/.test(s);
     case 'bool': return s === 'true' || s === 'false';
     case 'regex': try { new RegExp(s); return true; } catch { return false; }
-    case 'path': return isValidPathArg(s);
+    case 'path-file': return isValidPathFileArg(s);
+    case 'path-folder': return isValidPathFolderArg(s);
     default: return true;
   }
 }
@@ -1015,12 +1020,16 @@ function getTypeCompatibleEnums(argType) {
 }
 
 // a single "+ enum" button that, on click, swaps itself for a dropdown across
-// every type-matching enum's values; selecting an option immediately calls
-// onPick with the literal value (never a persisted reference — resolved
-// immediately, same as every other enum pick in the wizard) and the dropdown
-// reverts back to the button. No separate confirm step.
-function buildEnumPickButton(argType, onPick) {
-  const matches = getTypeCompatibleEnums(argType);
+// every type-matching enum's values (or, when pinnedId is given, just that
+// one enum's values — an arg whose own definition pins enum_ref may only
+// draw literal picks from that exact enum); selecting an option immediately
+// calls onPick with the literal value (never a persisted reference —
+// resolved immediately, same as every other enum pick in the wizard) and
+// the dropdown reverts back to the button. No separate confirm step.
+function buildEnumPickButton(argType, onPick, pinnedId) {
+  const matches = pinnedId
+    ? flattenItems(state.enums || []).filter(isEnum).filter(e => e.id === pinnedId)
+    : getTypeCompatibleEnums(argType);
   if (!matches.length) return null;
   const btn = el('button', { class: 'add-btn' }, '+ enum');
   btn.addEventListener('click', () => {
@@ -1059,11 +1068,14 @@ function buildEnumPickButton(argType, onPick) {
 function buildArgWidget(argDef, rule, onChange) {
   const wrap = el('div', { class: 'rf-sec' });
   const req  = argDef.required ? ' *' : '';
-  wrap.append(el('span', { class: 'rf-lbl' }, (argDef.label || argDef.key || '?') + req));
   const stored = rule.args?.[argDef.key];
   const def    = argDef.default !== undefined ? argDef.default : '';
   const cur    = stored !== undefined ? stored : def;
   const type   = argDef.type || 'string';
+  wrap.append(el('div', { class: 'rf-lbl-row' },
+    el('span', { class: 'rf-lbl' }, (argDef.label || argDef.key || '?') + req),
+    el('span', { class: 'rf-type' }, type + (argDef.list ? ', list' : '')),
+  ));
 
   function set(val) { if (!rule.args || typeof rule.args !== 'object' || Array.isArray(rule.args)) rule.args = {}; rule.args[argDef.key] = val; onChange(); }
 
@@ -1079,100 +1091,134 @@ function buildArgWidget(argDef, rule, onChange) {
       seg.append(b);
     });
     wrap.append(seg);
-  } else if (type === 'enum') {
+  } else if (argDef.enum_ref && !argDef.list) {
+    // a single value, hard-restricted to this one pinned enum's members —
+    // no free-form entry, unlike the soft type-compatible "+ enum" suggestion
+    // available on every other (unpinned) arg below.
     const rawOpts = getEnumValues(argDef.enum_ref || '');
     const options = rawOpts.map(o => typeof o === 'object' ? o : { name: String(o), description: '', value: String(o) });
-    const valToName = Object.fromEntries(options.map(o => [String(o.value), o.name]));
-    if (argDef.multi_select) {
-      const selected = Array.isArray(cur) ? [...cur] : (cur ? [String(cur)] : []);
-      const chipsEl = el('div', { class: 'chips' });
-      function refreshMulti() {
-        chipsEl.innerHTML = '';
-        if (!selected.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
-        selected.forEach((v, i) => {
-          const x = el('button', { class: 'chip-x' }, '\xd7');
-          x.addEventListener('click', () => { selected.splice(i, 1); set([...selected]); refreshMulti(); });
-          chipsEl.append(el('span', { class: 'chip' }, valToName[v] || v, x));
-        });
-        if (argDef.required) chipsEl.style.borderColor = selected.length ? '' : 'var(--rd)';
-      }
-      refreshMulti();
-      const addSel = el('select', { class: 'add-inp', style: 'flex:1' });
-      addSel.append(el('option', { value: '' }, '— pick to add —'));
-      options.forEach(o => { if (!selected.includes(String(o.value))) addSel.append(el('option', { value: o.value }, o.name)); });
-      const addBtn = el('button', { class: 'add-btn' }, '+ add');
-      addBtn.addEventListener('click', () => {
-        const v = addSel.value;
-        if (v && !selected.includes(v)) { selected.push(v); set([...selected]); refreshMulti(); }
-      });
-      wrap.append(chipsEl, el('div', { class: 'add-row' }, addSel, addBtn));
-    } else {
-      const curStr = cur !== undefined && cur !== '' ? String(cur) : '';
-      if (options.length <= 5) {
-        const seg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
-        if (argDef.required) seg.style.outline = curStr === '' ? '1px solid var(--rd)' : '';
-        options.forEach(o => {
-          const b = el('button', { class: 'seg-btn' + (curStr === String(o.value) ? ' on t-on' : ''), 'data-val': String(o.value) }, o.name);
-          b.addEventListener('click', () => {
-            set(o.value);
-            seg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.dataset.val === String(rule.args[argDef.key]) ? ' on t-on' : ''));
-            if (argDef.required) seg.style.outline = '';
-            onChange();
-          });
-          seg.append(b);
-        });
-        wrap.append(seg);
-      } else {
-        const sel = el('select', { class: 'inp' });
-        sel.append(el('option', { value: '' }, '—'));
-        options.forEach(o => { const opt = el('option', { value: o.value }, o.name); if (curStr === String(o.value)) opt.selected = true; sel.append(opt); });
-        if (argDef.required) sel.style.borderColor = curStr === '' ? 'var(--rd)' : '';
-        sel.addEventListener('change', () => {
-          set(sel.value);
-          if (argDef.required) sel.style.borderColor = sel.value === '' ? 'var(--rd)' : '';
+    const curStr = cur !== undefined && cur !== '' ? String(cur) : '';
+    if (options.length <= 5) {
+      const seg = el('div', { class: 'seg', style: 'flex-wrap:wrap;gap:1px' });
+      if (argDef.required) seg.style.outline = curStr === '' ? '1px solid var(--rd)' : '';
+      options.forEach(o => {
+        const b = el('button', { class: 'seg-btn' + (curStr === String(o.value) ? ' on t-on' : ''), 'data-val': String(o.value) }, o.name);
+        b.addEventListener('click', () => {
+          set(o.value);
+          seg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + (x.dataset.val === String(rule.args[argDef.key]) ? ' on t-on' : ''));
+          if (argDef.required) seg.style.outline = '';
           onChange();
         });
-        wrap.append(sel);
-      }
+        seg.append(b);
+      });
+      wrap.append(seg);
+    } else {
+      const sel = el('select', { class: 'inp' });
+      sel.append(el('option', { value: '' }, '—'));
+      options.forEach(o => { const opt = el('option', { value: o.value }, o.name); if (curStr === String(o.value)) opt.selected = true; sel.append(opt); });
+      if (argDef.required) sel.style.borderColor = curStr === '' ? 'var(--rd)' : '';
+      sel.addEventListener('change', () => {
+        set(sel.value);
+        if (argDef.required) sel.style.borderColor = sel.value === '' ? 'var(--rd)' : '';
+        onChange();
+      });
+      wrap.append(sel);
     }
   } else if (argDef.list) {
-    const selected = Array.isArray(cur) ? [...cur] : (cur !== undefined && cur !== '' ? [String(cur)] : []);
-    const chipsEl = el('div', { class: 'chips' });
-    function refreshList() {
-      chipsEl.innerHTML = '';
-      if (!selected.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
-      selected.forEach((v, i) => {
-        const x = el('button', { class: 'chip-x' }, '\xd7');
-        x.addEventListener('click', () => { selected.splice(i, 1); set([...selected]); refreshList(); });
-        chipsEl.append(el('span', { class: 'chip mono' }, v, x));
-      });
-      if (argDef.required) chipsEl.style.borderColor = selected.length ? '' : 'var(--rd)';
+    // any list: true arg may hold a { enum_ref } reference instead of a
+    // literal array — every current value of that enums: entry applies,
+    // resolved live by rule-runner.sh, never copied here. Pinned args (the
+    // script's own arg.enum_ref) may only reference that one enum; unpinned
+    // args may reference any enum whose own declared type matches. The mode
+    // toggle below is the single place that switches between the two value
+    // shapes, so only one enum can ever be referenced at a time and the
+    // literal-value adder only ever shows in literal mode. It re-renders
+    // its own body locally on every switch since onChange here only
+    // refreshes visibility/status elsewhere, never rebuilds this widget.
+    const compatEnums = argDef.enum_ref
+      ? flattenItems(state.enums || []).filter(isEnum).filter(e => e.id === argDef.enum_ref)
+      : getTypeCompatibleEnums(type);
+    const invalidLabel = (type === 'path-file' || type === 'path-folder') ? 'Invalid path' : type === 'regex' ? 'Invalid regex' : 'Invalid value';
+    const isEnumMode = () => { const v = rule.args?.[argDef.key]; return v && typeof v === 'object' && !Array.isArray(v); };
+    const bodyEl = el('div', {});
+    let modeSeg = null;
+
+    function renderModeSeg() {
+      if (!compatEnums.length) return;
+      const enumMode = isEnumMode();
+      const enumModeBtn = el('button', { class: 'seg-btn' + (enumMode ? ' on t-on' : '') }, 'Enum');
+      const listModeBtn = el('button', { class: 'seg-btn' + (enumMode ? '' : ' on t-on') }, 'Literal list');
+      enumModeBtn.addEventListener('click', () => { if (!isEnumMode()) { set({}); renderModeSeg(); renderBody(); } });
+      listModeBtn.addEventListener('click', () => { if (isEnumMode()) { set([]); renderModeSeg(); renderBody(); } });
+      const next = el('div', { class: 'seg rf-mode-seg' }, enumModeBtn, listModeBtn);
+      if (modeSeg) modeSeg.replaceWith(next); else wrap.insertBefore(next, bodyEl);
+      modeSeg = next;
     }
-    refreshList();
-    const addInp = el('input', { class: 'add-inp mono', type: 'text', placeholder: argDef.placeholder || 'add value' });
-    const addBtn = el('button', { class: 'add-btn' }, '+ add');
-    const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, type === 'path' ? 'Invalid path' : 'Invalid regex');
-    function tryAdd() {
-      const v = addInp.value.trim();
-      if (!v) return;
-      if (!argValueMatchesType(v, type)) { errEl.style.display = ''; return; }
-      errEl.style.display = 'none';
-      selected.push(v);
-      set([...selected]);
-      addInp.value = '';
-      refreshList();
+
+    function renderBody() {
+      bodyEl.innerHTML = '';
+      const curVal = rule.args?.[argDef.key];
+      if (isEnumMode()) {
+        const refSel = el('select', { class: 'inp' });
+        refSel.append(el('option', { value: '' }, '— pick enum —'));
+        compatEnums.forEach(en => {
+          const opt = el('option', { value: en.id }, en.name || en.id);
+          if (curVal.enum_ref === en.id) opt.selected = true;
+          refSel.append(opt);
+        });
+        if (argDef.required) refSel.style.borderColor = curVal.enum_ref ? '' : 'var(--rd)';
+        refSel.addEventListener('change', () => {
+          set(refSel.value ? { enum_ref: refSel.value } : {});
+          if (argDef.required) refSel.style.borderColor = refSel.value ? '' : 'var(--rd)';
+        });
+        bodyEl.append(
+          refSel,
+          el('span', { class: 'hint-text' }, 'Every current value of this enum applies, resolved live at check time.'),
+        );
+      } else {
+        const selected = Array.isArray(curVal) ? [...curVal] : (curVal !== undefined && curVal !== '' ? [String(curVal)] : []);
+        const chipsEl = el('div', { class: 'chips' });
+        function refreshList() {
+          chipsEl.innerHTML = '';
+          if (!selected.length) chipsEl.append(el('span', { class: 'chip-empty' }, 'none'));
+          selected.forEach((v, i) => {
+            const x = el('button', { class: 'chip-x' }, '\xd7');
+            x.addEventListener('click', () => { selected.splice(i, 1); set([...selected]); refreshList(); });
+            chipsEl.append(el('span', { class: 'chip mono' }, v, x));
+          });
+          if (argDef.required) chipsEl.style.borderColor = selected.length ? '' : 'var(--rd)';
+        }
+        refreshList();
+        const addInp = el('input', { class: 'add-inp mono', type: 'text', placeholder: argDef.placeholder || 'add value' });
+        const addBtn = el('button', { class: 'add-btn' }, '+ add');
+        const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, invalidLabel);
+        function tryAdd() {
+          const v = addInp.value.trim();
+          if (!v) return;
+          if (!argValueMatchesType(v, type)) { errEl.style.display = ''; return; }
+          errEl.style.display = 'none';
+          selected.push(v);
+          set([...selected]);
+          addInp.value = '';
+          refreshList();
+        }
+        addBtn.addEventListener('click', tryAdd);
+        addInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tryAdd(); } });
+        const addRowChildren = [addInp, addBtn];
+        const enumBtn = buildEnumPickButton(type, v => {
+          if (!argValueMatchesType(v, type) || selected.includes(v)) return;
+          selected.push(v);
+          set([...selected]);
+          refreshList();
+        }, argDef.enum_ref);
+        if (enumBtn) addRowChildren.push(enumBtn);
+        bodyEl.append(chipsEl, el('div', { class: 'add-row' }, ...addRowChildren), errEl);
+      }
     }
-    addBtn.addEventListener('click', tryAdd);
-    addInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tryAdd(); } });
-    const addRowChildren = [addInp, addBtn];
-    const enumBtn = buildEnumPickButton(type, v => {
-      if (!argValueMatchesType(v, type) || selected.includes(v)) return;
-      selected.push(v);
-      set([...selected]);
-      refreshList();
-    });
-    if (enumBtn) addRowChildren.push(enumBtn);
-    wrap.append(chipsEl, el('div', { class: 'add-row' }, ...addRowChildren), errEl);
+
+    wrap.append(bodyEl);
+    renderModeSeg();
+    renderBody();
   } else if (type === 'int' || type === 'double') {
     const inp = el('input', { class: 'inp mono', type: 'number', style: 'flex:1' });
     if (type === 'int') inp.step = '1';
@@ -1192,13 +1238,13 @@ function buildArgWidget(argDef, rule, onChange) {
     });
     wrap.append(enumBtn ? el('div', { class: 'add-row' }, inp, enumBtn) : inp);
   } else {
-    // string, regex, path
+    // string, regex, path-file, path-folder
     const inp = el('input', { class: 'inp mono', type: 'text', style: 'flex:1' });
     inp.placeholder = argDef.placeholder ?? (def !== '' ? String(def) : '');
     inp.value = cur !== '' && cur !== undefined ? String(cur) : (def !== '' ? String(def) : '');
     if (argDef.required) inp.style.borderColor = inp.value === '' ? 'var(--rd)' : '';
-    if (type === 'regex' || type === 'path') {
-      const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, type === 'path' ? 'Invalid path' : 'Invalid regex');
+    if (type === 'regex' || type === 'path-file' || type === 'path-folder') {
+      const errEl = el('span', { class: 'hint-text', style: 'color:var(--rd);display:none' }, type === 'regex' ? 'Invalid regex' : 'Invalid path');
       function validateVal() {
         if (!inp.value || argValueMatchesType(inp.value, type)) { errEl.style.display = 'none'; inp.style.borderColor = argDef.required && !inp.value ? 'var(--rd)' : ''; }
         else { errEl.style.display = ''; inp.style.borderColor = 'var(--rd)'; }
@@ -1573,7 +1619,7 @@ function buildEnumPanel(item, reRender, inModal = false) {
   dInp.addEventListener('input', () => { item.description = dInp.value; item._updateRow?.(); updateStatus(); });
 
   const tSel = el('select', { class: 'inp' });
-  ['string', 'int', 'double', 'regex', 'path', 'bool', 'enum', 'glob'].forEach(t => {
+  SCHEMA.$defs.argType.enum.forEach(t => {
     const opt = el('option', { value: t }, t);
     if ((item.type || 'string') === t) opt.selected = true;
     tSel.append(opt);
@@ -1826,7 +1872,7 @@ function buildArgFields(argDef, onChangeFn, opts = {}) {
     });
     constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Default'), defInp));
 
-    if (t !== 'bool' && t !== 'enum') {
+    if (t !== 'bool') {
       const listSeg = el('div', { class: 'seg' });
       ['single','list'].forEach(v => {
         const isOn = v === 'list' ? !!argDef.list : !argDef.list;
@@ -1850,30 +1896,16 @@ function buildArgFields(argDef, onChangeFn, opts = {}) {
       );
     }
 
-    if (t === 'enum') {
-      const multiSeg = el('div', { class: 'seg' });
-      ['single','multi'].forEach(v => {
-        const isOn = v === 'multi' ? !!argDef.multi_select : !argDef.multi_select;
-        const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
-        b.addEventListener('click', () => { argDef.multi_select = v === 'multi'; multiSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((x.textContent === 'multi') === !!argDef.multi_select ? ' on t-on' : '')); onChangeFn?.(); });
-        multiSeg.append(b);
-      });
-      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Select mode'), multiSeg));
-
-      const sepSeg = el('div', { class: 'seg' });
-      SCHEMA.$defs.separator.enum.forEach(v => {
-        const isOn = (argDef.separator || 'space') === v;
-        const b = el('button', { class: 'seg-btn' + (isOn ? ' on t-on' : '') }, v);
-        b.addEventListener('click', () => { argDef.separator = v; sepSeg.querySelectorAll('.seg-btn').forEach(x => x.className = 'seg-btn' + ((argDef.separator || 'space') === x.textContent ? ' on t-on' : '')); onChangeFn?.(); });
-        sepSeg.append(b);
-      });
-      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Multi-select separator'), sepSeg));
-
-      const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum id (required)' });
+    {
+      // available on every type: when set, this arg's value(s) are hard-restricted
+      // to this one enum's members instead of just being suggested; picking several
+      // (list: true) or the whole enum's current members both go through the
+      // "Value count" list toggle above, not a separate multi-select mechanism.
+      const refInp = el('input', { class: 'inp mono', type: 'text', placeholder: 'enum id (optional)' });
       refInp.value = argDef.enum_ref || '';
       refInp.addEventListener('input', () => { argDef.enum_ref = refInp.value.trim() || undefined; onChangeFn?.(); });
-      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Enum ref'), refInp,
-        el('div', { class: 'hint-text' }, 'Enum values are defined once in the shared enums catalog and referenced here, they cannot be declared inline.')));
+      constraintsEl.append(el('div', { class: 'rf-sec', style: 'margin-bottom:8px' }, el('span', { class: 'rf-lbl' }, 'Enum ref (optional)'), refInp,
+        el('div', { class: 'hint-text' }, 'Restricts this arg to one enum’s members; its own declared type must match this arg’s type. Enum values are defined once in the shared enums catalog and referenced here, they cannot be declared inline.')));
     }
 
     // visible_when — available on all arg types

@@ -2,8 +2,11 @@
 # script-arg-types.sh — checks every script_reusable rule in TARGET (default
 # .bumfuzzle/config.yml): every arg value it passes must actually conform to
 # the type its referenced script declares for that arg key (int, double,
-# bool, regex, path, or enum membership; string/glob accept anything). A
-# list-typed arg's value is checked item by item. Key presence/matching is
+# bool, regex, path-file, path-folder; string/glob accept anything), and,
+# when the script pins enum_ref on that arg, must also be a member of that
+# enum regardless of base type. A list-typed arg's value is checked item by
+# item, or may instead be { enum_ref: id }, checked against every value the
+# referenced enum currently declares. Key presence/matching is
 # script-args.sh's job, not this one's.
 #
 # TARGET is converted to JSON once and handed to

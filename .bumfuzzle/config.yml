@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 scripts:
   - group: "Package Manager Checks"
     scripts:
@@ -6,18 +6,19 @@ scripts:
         name: "Checks manifest key values point into an allowed folder"
         description: "Confirms every value under a manifest's key resolves to a path inside one folder."
         command: |
+          _allowed="${FILE_LOCATION_ALLOWED_FOLDER#./}"
           jq -r --arg k "$MANIFEST_KEY" '(.[$k] // {}) | to_entries[] | "\(.key)\t\(.value)"' "$MANIFEST_PATH" |
           while IFS=$'\t' read -r _entry _value; do
             case "$_value" in
-              "$FILE_LOCATION_ALLOWED_FOLDER"*|*" $FILE_LOCATION_ALLOWED_FOLDER"*) continue ;;
+              "$_allowed"*|*" $_allowed"*) continue ;;
             esac
-            printf '%s does not point into %s: %s\n' "$_entry" "$FILE_LOCATION_ALLOWED_FOLDER" "$_value"
+            printf '%s does not point into %s: %s\n' "$_entry" "$_allowed" "$_value"
             exit 1
           done
         args:
           - key: MANIFEST_PATH
             label: "Manifest file"
-            type: enum
+            type: glob
             required: true
             enum_ref: common-manifest
           - key: MANIFEST_KEY
@@ -28,9 +29,9 @@ scripts:
             description: "Object key inside the manifest whose values are checked."
           - key: FILE_LOCATION_ALLOWED_FOLDER
             label: "Allowed folder"
-            type: path
+            type: path-folder
             required: true
-            placeholder: "scripts/"
+            placeholder: "./scripts/"
             description: "Folder, relative to the project root, that every matching file must live under."
 enums:
   - id: common-manifest
@@ -159,4 +160,4 @@ rules:
         args:
           MANIFEST_PATH: package.json
           MANIFEST_KEY: scripts
-          FILE_LOCATION_ALLOWED_FOLDER: scripts/
+          FILE_LOCATION_ALLOWED_FOLDER: ./scripts/

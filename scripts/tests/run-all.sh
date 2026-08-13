@@ -18,7 +18,8 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 STATIC_TESTS=(
   test-schema.sh
-  test-file-or-folder-exists.sh
+  test-file-exists.sh
+  test-folder-exists.sh
   test-init-run.sh
   test-template-all-checks.sh
   test-rule-pass-count.sh

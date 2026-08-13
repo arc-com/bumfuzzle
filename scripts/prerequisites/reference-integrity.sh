@@ -2,8 +2,13 @@
 # reference-integrity.sh — checks that every script_reusable rule's `script`
 # value resolves to a declared script id, and every `enum_ref` resolves to a
 # declared enum id, in TARGET (default .bumfuzzle/config.yml). A dangling
-# script reference makes rule evaluation unreliable (structural); a dangling
-# enum_ref only affects the wizard's dropdown, not rule evaluation (error).
+# script reference makes rule evaluation unreliable (structural, no command
+# to even run); a dangling enum_ref is a clean, reported failure at the
+# rule's own severity, whether it's a script arg's own pin (used by the
+# wizard, and by script_arg_types_validate.py for membership checks) or a
+# rule's { enum_ref: id } value (resolved live by rule-runner.sh) — neither
+# corrupts evaluation of anything beyond the one rule that references it, so
+# both stay at error, not structural.
 set -euo pipefail
 
 SCRIPT_NAME="reference-integrity.sh"
@@ -47,8 +52,10 @@ _check() {
     <(_lint_yq '.rules | .. | select(type == "!!map") | select(.type == "script_reusable") | .script // ""' | grep -v '^$' | sort -u) \
     <(_lint_yq '.scripts | .. | select(type == "!!map") | select(has("id")) | .id' | sort -u))
 
-  # enum refs don't affect rule execution (wizard-only), so broken ones are
-  # errors rather than structural aborts
+  # a dangling enum_ref only ever fails the one rule/arg that carries it
+  # (rule-runner.sh reports it cleanly, script_arg_types_validate.py treats
+  # it as unrestricted), never the whole preflight, so this stays an error
+  # rather than a structural abort
   while IFS= read -r _miss; do
     [[ -z "$_miss" ]] && continue
     _report_error "unknown enum_ref '$_miss'"

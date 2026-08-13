@@ -37,7 +37,7 @@ assert_fail() {
 
 # -- required omitted on an optional arg: must PASS (the regression) -----
 cat > "$FIXTURE_DIR/omitted-required.yml" <<'EOF'
-schema_version: 1
+schema_version: 2
 scripts:
   - id: test-optional-arg
     name: Test optional arg
@@ -51,7 +51,7 @@ assert_pass "arg with required omitted" "$FIXTURE_DIR/omitted-required.yml"
 
 # -- required explicit true/false: must still PASS (no regression) -------
 cat > "$FIXTURE_DIR/explicit-required.yml" <<'EOF'
-schema_version: 1
+schema_version: 2
 scripts:
   - id: test-explicit-arg
     name: Test explicit arg

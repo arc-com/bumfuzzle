@@ -27,7 +27,7 @@ write_config() {
 d="$FIXTURE_DIR/all-disabled"
 mkdir -p "$d"
 write_config "$d" <<'EOF'
-schema_version: 1
+schema_version: 2
 rules:
   - group: "Sanity"
     rules:
@@ -45,7 +45,7 @@ echo "OK run: 0 enabled rules reports 0 passed"
 d="$FIXTURE_DIR/one-enabled-pass"
 mkdir -p "$d"
 write_config "$d" <<'EOF'
-schema_version: 1
+schema_version: 2
 rules:
   - group: "Sanity"
     rules:
@@ -65,7 +65,7 @@ echo "OK run: one enabled passing rule reports 1 passed"
 d="$FIXTURE_DIR/mixed"
 mkdir -p "$d"
 write_config "$d" <<'EOF'
-schema_version: 1
+schema_version: 2
 rules:
   - group: "Sanity"
     rules:

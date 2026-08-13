@@ -13,7 +13,7 @@
 "$id": "bumfuzzle-config"
 title: "Bumfuzzle config"
 description: "Shared by bumfuzzle-template.yml (the full catalog: scripts + rules + enums) and a project's .bumfuzzle/config.yml (any subset of the same three sections)."
-schema_version: 1
+schema_version: 2
 type: object
 additionalProperties: false
 required: [schema_version]
@@ -76,33 +76,18 @@ properties:
       label: { type: string }
       description: { type: string }
       type: { "$ref": "#/$defs/argType" }
-      required: { type: boolean, description: "omitted means false, same as list/multi_select and every other optional boolean flag on this node", default: false }
+      required: { type: boolean, description: "omitted means false, same as list and every other optional boolean flag on this node", default: false }
       placeholder: { type: string, description: "not applicable when type: bool" }
       default: { description: "type-matched literal" }
       min: { type: number, description: "type: int or double only" }
       max: { type: number, description: "type: int or double only" }
-      multi_select: { type: boolean, description: "type: enum only" }
-      list: { type: boolean, description: "not type: enum or bool. true = the script reads this arg as a YAML list of values (newline-joined into the env var, one per line) instead of a single scalar; the wizard renders an add/remove list editor instead of a single input." }
-      separator: { "$ref": "#/$defs/separator", description: "type: enum with multi_select only" }
-      enum_ref: { type: string, minLength: 1, description: "id of an entry in enums:. No literal values allowed inline, ever — this is the ONLY way an enum-typed arg may supply its values." }
+      list: { type: boolean, description: "not type: bool. true = the script reads this arg as a YAML list of values (newline-joined into the env var, one per line) instead of a single scalar; the wizard renders an add/remove list editor instead of a single input. A rule instantiating a list: true arg may also supply { enum_ref: <id> } in place of a literal list — see ruleEntryReusable.args below." }
+      enum_ref: { type: string, minLength: 1, description: "id of an entry in enums: whose own declared type must equal this arg's type. Optional on any type; when set, this arg's value(s) are restricted to that one enum's members (checked by scripts/prerequisites/reference-integrity.sh and script_arg_types_validate.py, not expressible in plain JSON Schema since it's cross-referential). When absent, any value matching this arg's own type is accepted, with type-compatible enums offered only as picker suggestions, never a hard restriction." }
       visible_when: { "$ref": "#/$defs/visibleWhen" }
-    if:
-      properties: { type: { const: enum } }
-      required: [type]
-    then:
-      required: [enum_ref]
-      description: "type: enum without enum_ref is not a partially-valid arg — it is structurally forbidden."
-    else:
-      not: { required: [enum_ref] }
-      description: "enum_ref only makes sense when type: enum — left set on a non-enum arg it is dead, unused configuration."
 
   argType:
     type: string
-    enum: [string, int, double, regex, path, bool, enum, glob]
-
-  separator:
-    type: string
-    enum: [space, comma, json]
+    enum: [string, int, double, regex, path-file, path-folder, bool, glob]
 
   visibleWhen:
     type: object
@@ -197,7 +182,7 @@ properties:
       script: { type: string, description: "id of the scripts: entry being instantiated" }
       args:
         type: object
-        description: "map of KEY: value — KEY must match one of the script's declared arg keys"
+        description: "map of KEY: value — KEY must match one of the script's declared arg keys. value is a literal matching the arg's type (its full set, one pick or several, when the arg's own enum_ref pins it to one enum), or, only when the arg is list: true, { enum_ref: <id> } in place of a literal list — a live reference resolved at check time against every current value of that enums: entry, never copied into this file. If the arg's own definition already pins an enum_ref, this must reference that exact same enum; otherwise it may reference any enums: entry whose own declared type matches the arg's type."
       severity: { "$ref": "#/$defs/severity" }
       instruction: { type: string }
       enabled: { type: boolean }

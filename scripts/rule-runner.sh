@@ -161,14 +161,29 @@ _urule_process_rule() {
 
       # export each arg provided by the rule as an env var; arrays are joined
       # newline-separated so entries (e.g. regexes) may contain spaces —
-      # scripts consume them with `while IFS= read -r`.
-      local _arg_keys _ak _av _av_type _args_summary=""
+      # scripts consume them with `while IFS= read -r`. A list: true arg may
+      # instead be a { enum_ref: <id> } mapping — resolved here, live, against
+      # every current value of that enums: entry (wherever it lives in the
+      # tree), the exact same newline-joined shape as a literal list, never
+      # copied into the config itself.
+      local _arg_keys _ak _av _av_type _enum_ref _args_summary=""
       _arg_keys=$(yq "${_path}.args | keys | .[]" "$PREFLIGHT_FILE" 2>/dev/null || true)
       while IFS= read -r _ak; do
         is_blank "$_ak" && continue
         _av_type=$(yq "${_path}.args.${_ak} | tag" "$PREFLIGHT_FILE" 2>/dev/null || true)
         if [[ "$_av_type" == "!!seq" ]]; then
           _av=$(yq "${_path}.args.${_ak}[]" "$PREFLIGHT_FILE" 2>/dev/null || true)
+        elif [[ "$_av_type" == "!!map" ]]; then
+          _enum_ref=$(yq "${_path}.args.${_ak}.enum_ref // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
+          if is_blank "$_enum_ref"; then
+            fail "$_label: args.${_ak} is a mapping without 'enum_ref'" "$_sev"
+            return
+          fi
+          _av=$(yq "\"$_enum_ref\" as \$eid | .enums | .. | select(type == \"!!map\") | select(has(\"id\") and .id == \$eid) | .values[].value" "$PREFLIGHT_FILE" 2>/dev/null || true)
+          if is_blank "$_av"; then
+            fail "$_label: args.${_ak} references unknown or empty enum '$_enum_ref'" "$_sev"
+            return
+          fi
         else
           _av=$(yq "${_path}.args.${_ak} // \"\"" "$PREFLIGHT_FILE" 2>/dev/null || true)
         fi

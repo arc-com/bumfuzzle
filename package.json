@@ -17,7 +17,8 @@
   ],
   "scripts": {
     "prepack": "scripts/sync-package-version.sh",
-    "postinstall": "scripts/sync-skill.sh"
+    "postinstall": "scripts/sync-skill.sh",
+    "check": "scripts/prerequisites.sh bumfuzzle-template.yml && scripts/prerequisites.sh .bumfuzzle/config.yml && scripts/tests/run-all.sh"
   },
   "engines": {
     "node": ">=18"
